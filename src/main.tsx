@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import "./index.css";
+import "./globals.css"; // Changed from ./index.css to ./globals.css
 import { ThemeProvider } from "./context/theme-provider";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
