@@ -4,9 +4,11 @@ import { loadNotes, saveNotes } from "@/lib/note-storage";
 import NoteCard from "@/components/NoteCard";
 import NoteEditor from "@/components/NoteEditor";
 import SidebarNav from "@/components/SidebarNav";
+import SettingsDialog from "@/components/SettingsDialog";
+import AddNoteOptions from "@/components/AddNoteOptions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Menu, Lightbulb } from "lucide-react"; // Added Lightbulb import
+import { Menu, Lightbulb, Settings } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -21,6 +23,7 @@ const Index = () => {
   const selectedTag = searchParams.get("tag");
   const isMobile = useIsMobile();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
     setNotes(loadNotes());
@@ -91,6 +94,16 @@ const Index = () => {
       });
   }, [notes, searchTerm, selectedTag]);
 
+  const handleNewTextNote = () => {
+    setEditingNote(undefined);
+    setIsEditorOpen(true);
+  };
+
+  const handleNewListNote = () => {
+    // Placeholder for future list note functionality
+    console.log("Create new list note (coming soon!)");
+  };
+
   const mainContent = (
     <div className="flex flex-col flex-1 p-4 sm:p-6 md:p-8">
       <div className="flex items-center justify-between mb-6">
@@ -110,10 +123,10 @@ const Index = () => {
             </SheetContent>
           </Sheet>
         )}
-        <h1 className="text-4xl font-bold text-center flex-1">My Markdown Notes</h1>
+        {/* Removed h1 "My Markdown Notes" */}
       </div>
 
-      <div className="mb-6 flex justify-center">
+      <div className="mb-6 flex justify-center items-center gap-2">
         <Input
           type="text"
           placeholder="Search notes by title, content, or tags..."
@@ -121,6 +134,9 @@ const Index = () => {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
+        <Button variant="ghost" size="icon" onClick={() => setIsSettingsOpen(true)}>
+          <Settings className="h-6 w-6 text-muted-foreground" />
+        </Button>
       </div>
 
       <div
@@ -143,22 +159,21 @@ const Index = () => {
         ))}
       </div>
 
-      <Button
-        className="fixed bottom-8 right-8 p-4 rounded-full shadow-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200"
-        size="icon"
-        onClick={() => {
-          setEditingNote(undefined);
-          setIsEditorOpen(true);
-        }}
-      >
-        <Plus className="h-6 w-6" />
-      </Button>
+      <AddNoteOptions
+        onNewTextNote={handleNewTextNote}
+        onNewListNote={handleNewListNote}
+      />
 
       <NoteEditor
         isOpen={isEditorOpen}
         onClose={() => setIsEditorOpen(false)}
         onSave={handleSaveNote}
         initialNote={editingNote}
+      />
+
+      <SettingsDialog
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
       />
     </div>
   );
