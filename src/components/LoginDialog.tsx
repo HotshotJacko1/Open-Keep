@@ -46,6 +46,27 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose }) => {
     setLoading(false);
   };
 
+  const handleSignUp = async () => {
+    setLoading(true);
+    setError(null);
+
+    const { data, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (authError) {
+      setError(authError.message);
+      showError(authError.message);
+    } else if (data.user) {
+      showSuccess("Sign up successful! Please check your email to confirm your account.");
+      // Optionally, you might want to close the dialog or redirect after signup
+    } else {
+      showError("An unexpected error occurred during sign up.");
+    }
+    setLoading(false);
+  };
+
   const handleGoogleLogin = async () => {
     setLoading(true);
     setError(null);
@@ -113,6 +134,12 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose }) => {
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
               Sign In
+            </Button>
+            <Button type="button" variant="outline" className="w-full" onClick={handleSignUp} disabled={loading}>
+              {loading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Sign Up
             </Button>
           </form>
 
