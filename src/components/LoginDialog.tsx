@@ -30,9 +30,21 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose }) => {
               variables: {
                 default: {
                   colors: {
-                    brand: 'hsl(var(--primary))',
-                    brandAccent: 'hsl(var(--primary-foreground))',
+                    brand: 'hsl(var(--primary))', // Keep primary background
+                    brandAccent: 'hsl(220 4% 50%)', // Set button text color to #606368
                   },
+                },
+                button: {
+                  colors: {
+                    buttonForeground: 'hsl(220 4% 50%)', // Explicitly set button foreground for consistency
+                  }
+                }
+              },
+            }}
+            localization={{
+              variables: {
+                validation_faults: {
+                  missing_email_or_phone: 'missing email or password',
                 },
               },
             }}
