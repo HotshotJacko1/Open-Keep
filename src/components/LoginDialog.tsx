@@ -32,12 +32,28 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose }) => {
                   colors: {
                     brand: 'hsl(var(--primary))',
                     brandAccent: 'hsl(var(--primary-foreground))',
+                    // Customizing the "Sign in" button text color
+                    defaultButtonText: 'hsl(240 1.5% 88.8%)', // Equivalent to #e2e2e3
+                    anchorText: 'hsl(240 1.5% 88.8%)', // For links like "Forgot your password?"
                   },
                 },
               },
             }}
             theme="light"
             redirectTo={window.location.origin}
+            localization={{
+              variables: {
+                sign_in: {
+                  email_is_required_error: 'Please enter your email address.', // Custom error message
+                },
+                sign_up: {
+                  email_is_required_error: 'Please enter your email address.',
+                },
+                forgotten_password: {
+                  email_is_required_error: 'Please enter your email address.',
+                },
+              },
+            }}
           />
         </div>
       </DialogContent>
