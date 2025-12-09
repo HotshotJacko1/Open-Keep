@@ -6,7 +6,7 @@ import NoteEditor from "@/components/NoteEditor";
 import SidebarNav from "@/components/SidebarNav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Menu } from "lucide-react";
+import { Plus, Menu, Lightbulb } from "lucide-react"; // Added Lightbulb import
 import { useSearchParams } from "react-router-dom";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
