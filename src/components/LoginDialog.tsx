@@ -30,15 +30,17 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose }) => {
               variables: {
                 default: {
                   colors: {
-                    brand: 'hsl(var(--primary))', // Keep primary background
-                    brandAccent: 'hsl(220 4% 50%)', // Set button text color to #606368
+                    brand: 'hsl(var(--primary))', // Primary button background
+                    brandAccent: 'hsl(var(--primary-foreground))', // Primary button hover background
+                    text: 'hsl(var(--foreground))', // General text color, might influence button text
                   },
                 },
                 button: {
                   colors: {
-                    buttonForeground: 'hsl(220 4% 50%)', // Explicitly set button foreground for consistency
-                  }
-                }
+                    buttonText: 'hsl(var(--foreground))', // Explicitly set the text color for buttons
+                    buttonForeground: 'hsl(var(--foreground))', // Also keep buttonForeground for broader compatibility
+                  },
+                },
               },
             }}
             localization={{
