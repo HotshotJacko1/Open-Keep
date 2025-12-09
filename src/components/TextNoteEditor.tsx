@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Note } from "@/types/note";
+import { TextNote, NoteType } from "@/types/note";
 import {
   Dialog,
   DialogContent,
@@ -12,14 +12,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
-interface NoteEditorProps {
+interface TextNoteEditorProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (note: Note) => void;
-  initialNote?: Note;
+  onSave: (note: TextNote) => void;
+  initialNote?: TextNote;
 }
 
-const NoteEditor: React.FC<NoteEditorProps> = ({
+const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
   isOpen,
   onClose,
   onSave,
@@ -27,7 +27,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 }) => {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [tags, setTags] = useState(""); // For now, simple comma-separated string
+  const [tags, setTags] = useState("");
 
   useEffect(() => {
     if (initialNote) {
@@ -42,8 +42,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   }, [initialNote, isOpen]);
 
   const handleSave = () => {
-    const newNote: Note = {
+    const newNote: TextNote = {
       id: initialNote?.id || crypto.randomUUID(),
+      type: NoteType.Text,
       title,
       content,
       tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
@@ -60,7 +61,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px]">
         <DialogHeader>
-          <DialogTitle>{initialNote ? "Edit Note" : "Create New Note"}</DialogTitle>
+          <DialogTitle>{initialNote ? "Edit Text Note" : "Create New Text Note"}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
@@ -109,4 +110,4 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   );
 };
 
-export default NoteEditor;
+export default TextNoteEditor;

@@ -1,8 +1,8 @@
 import React from "react";
-import { Note } from "@/types/note";
+import { Note, NoteType, TextNote, ListNote } from "@/types/note";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Pin, Archive, Trash2, Edit } from "lucide-react";
+import { Pin, Archive, Trash2, Edit, Square, CheckSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NoteCardProps {
@@ -11,6 +11,7 @@ interface NoteCardProps {
   onPinToggle: (id: string) => void;
   onArchiveToggle: (id: string) => void;
   onDelete: (id: string) => void;
+  onToggleListItem?: (noteId: string, itemId: string) => void; // New prop for list items
 }
 
 const NoteCard: React.FC<NoteCardProps> = ({
@@ -19,6 +20,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
   onPinToggle,
   onArchiveToggle,
   onDelete,
+  onToggleListItem,
 }) => {
   return (
     <Card className="break-inside-avoid-column mb-4 shadow-md hover:shadow-lg transition-shadow duration-200">
@@ -45,9 +47,33 @@ const NoteCard: React.FC<NoteCardProps> = ({
         </div>
       </CardHeader>
       <CardContent>
-        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-          {note.content}
-        </p>
+        {note.type === NoteType.Text ? (
+          <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+            {(note as TextNote).content}
+          </p>
+        ) : (
+          <ul className="space-y-1">
+            {(note as ListNote).items.map((item) => (
+              <li key={item.id} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => onToggleListItem && onToggleListItem(note.id, item.id)}
+                >
+                  {item.isCompleted ? (
+                    <CheckSquare className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <Square className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+                <span className={cn(item.isCompleted && "line-through text-muted-foreground")}>
+                  {item.content}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
         {note.tags.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {note.tags.map((tag) => (

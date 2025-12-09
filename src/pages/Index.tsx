@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Note } from "@/types/note";
+import { Note, NoteType, TextNote, ListNote } from "@/types/note";
 import { loadNotes, saveNotes } from "@/lib/note-storage";
 import NoteCard from "@/components/NoteCard";
-import NoteEditor from "@/components/NoteEditor";
+import TextNoteEditor from "@/components/TextNoteEditor"; // Renamed import
+import ListNoteEditor from "@/components/ListNoteEditor"; // New import
 import SidebarNav from "@/components/SidebarNav";
 import SettingsDialog from "@/components/SettingsDialog";
 import AddNoteOptions from "@/components/AddNoteOptions";
@@ -16,7 +17,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 const Index = () => {
   const [notes, setNotes] = useState<Note[]>([]);
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isTextEditorOpen, setIsTextEditorOpen] = useState(false);
+  const [isListEditorOpen, setIsListEditorOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchParams] = useSearchParams();
@@ -48,7 +50,11 @@ const Index = () => {
 
   const handleEditNote = (note: Note) => {
     setEditingNote(note);
-    setIsEditorOpen(true);
+    if (note.type === NoteType.Text) {
+      setIsTextEditorOpen(true);
+    } else {
+      setIsListEditorOpen(true);
+    }
   };
 
   const handlePinToggle = (id: string) => {
@@ -71,6 +77,24 @@ const Index = () => {
     setNotes((prevNotes) => prevNotes.filter((note) => note.id !== id));
   };
 
+  const handleToggleListItem = (noteId: string, itemId: string) => {
+    setNotes((prevNotes) =>
+      prevNotes.map((note) => {
+        if (note.id === noteId && note.type === NoteType.List) {
+          const listNote = note as ListNote;
+          return {
+            ...listNote,
+            items: listNote.items.map((item) =>
+              item.id === itemId ? { ...item, isCompleted: !item.isCompleted } : item
+            ),
+            updatedAt: Date.now(), // Update timestamp when an item is toggled
+          };
+        }
+        return note;
+      })
+    );
+  };
+
   const uniqueTags = useMemo(() => {
     const allTags = notes.flatMap((note) => note.tags);
     return Array.from(new Set(allTags)).sort();
@@ -82,8 +106,9 @@ const Index = () => {
       .filter((note) => {
         const matchesSearch =
           note.title.toLowerCase().includes(lowerCaseSearchTerm) ||
-          note.content.toLowerCase().includes(lowerCaseSearchTerm) ||
-          note.tags.some((tag) => tag.toLowerCase().includes(lowerCaseSearchTerm));
+          note.tags.some((tag) => tag.toLowerCase().includes(lowerCaseSearchTerm)) ||
+          (note.type === NoteType.Text && (note as TextNote).content.toLowerCase().includes(lowerCaseSearchTerm)) ||
+          (note.type === NoteType.List && (note as ListNote).items.some(item => item.content.toLowerCase().includes(lowerCaseSearchTerm)));
         const matchesTag = selectedTag ? note.tags.includes(selectedTag) : true;
         return matchesSearch && matchesTag;
       })
@@ -96,12 +121,12 @@ const Index = () => {
 
   const handleNewTextNote = () => {
     setEditingNote(undefined);
-    setIsEditorOpen(true);
+    setIsTextEditorOpen(true);
   };
 
   const handleNewListNote = () => {
-    // Placeholder for future list note functionality
-    console.log("Create new list note (coming soon!)");
+    setEditingNote(undefined);
+    setIsListEditorOpen(true);
   };
 
   const mainContent = (
@@ -123,7 +148,6 @@ const Index = () => {
             </SheetContent>
           </Sheet>
         )}
-        {/* Removed h1 "My Markdown Notes" */}
       </div>
 
       <div className="mb-6 flex justify-center items-center gap-2">
@@ -155,6 +179,7 @@ const Index = () => {
             onPinToggle={handlePinToggle}
             onArchiveToggle={handleArchiveToggle}
             onDelete={handleDeleteNote}
+            onToggleListItem={handleToggleListItem}
           />
         ))}
       </div>
@@ -164,11 +189,18 @@ const Index = () => {
         onNewListNote={handleNewListNote}
       />
 
-      <NoteEditor
-        isOpen={isEditorOpen}
-        onClose={() => setIsEditorOpen(false)}
+      <TextNoteEditor
+        isOpen={isTextEditorOpen}
+        onClose={() => setIsTextEditorOpen(false)}
         onSave={handleSaveNote}
-        initialNote={editingNote}
+        initialNote={editingNote?.type === NoteType.Text ? (editingNote as TextNote) : undefined}
+      />
+
+      <ListNoteEditor
+        isOpen={isListEditorOpen}
+        onClose={() => setIsListEditorOpen(false)}
+        onSave={handleSaveNote}
+        initialNote={editingNote?.type === NoteType.List ? (editingNote as ListNote) : undefined}
       />
 
       <SettingsDialog
