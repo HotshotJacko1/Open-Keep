@@ -48,13 +48,13 @@ const NoteCard: React.FC<NoteCardProps> = ({
       </CardHeader>
       <CardContent>
         {note.type === NoteType.Text ? (
-          <p className="text-sm text-gray-700 dark:text-[#e2e2e3] whitespace-pre-wrap">
+          <p className="text-sm text-foreground whitespace-pre-wrap">
             {(note as TextNote).content}
           </p>
         ) : (
           <ul className="space-y-1">
             {(note as ListNote).items.map((item) => (
-              <li key={item.id} className="flex items-center gap-2 text-sm text-gray-700 dark:text-[#e2e2e3]">
+              <li key={item.id} className="flex items-center gap-2 text-sm text-foreground">
                 <Button
                   variant="ghost"
                   size="icon"

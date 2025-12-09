@@ -9,11 +9,14 @@ import SettingsDialog from "@/components/SettingsDialog";
 import AddNoteOptions from "@/components/AddNoteOptions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Menu, Lightbulb, Settings } from "lucide-react";
+import { Menu, Lightbulb, Settings, LogOut } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSession } from '@/context/session-provider';
+import LoginDialog from '@/components/LoginDialog';
+import { showSuccess } from "@/utils/toast";
 
 const Index = () => {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -27,13 +30,21 @@ const Index = () => {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  useEffect(() => {
-    setNotes(loadNotes());
-  }, []);
+  const { session, supabase } = useSession();
 
   useEffect(() => {
-    saveNotes(notes);
-  }, [notes]);
+    if (session) {
+      setNotes(loadNotes());
+    } else {
+      setNotes([]); // Clear notes if not logged in
+    }
+  }, [session]); // Reload notes when session changes
+
+  useEffect(() => {
+    if (session) {
+      saveNotes(notes);
+    }
+  }, [notes, session]); // Save notes only if logged in
 
   const handleSaveNote = (noteToSave: Note) => {
     setNotes((prevNotes) => {
@@ -129,10 +140,23 @@ const Index = () => {
     setIsListEditorOpen(true);
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    showSuccess("Logged out successfully!");
+  };
+
+  if (!session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-100 dark:bg-[#202124]">
+        <LoginDialog isOpen={true} onClose={() => {}} />
+      </div>
+    );
+  }
+
   const mainContent = (
     <div className="flex flex-col flex-1 p-4 sm:p-6 md:p-8">
       <div className="flex items-center justify-between mb-6">
-        {isMobile && (
+        {isMobile ? (
           <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="mr-2">
@@ -145,8 +169,20 @@ const Index = () => {
                 <span className="text-[#e2e2e3]">Keep</span>
               </div>
               <SidebarNav uniqueTags={uniqueTags} onClose={() => setIsSheetOpen(false)} />
+              <div className="p-4 border-t border-sidebar-border mt-auto">
+                <Button variant="ghost" onClick={handleLogout} className="w-full justify-start">
+                  <LogOut className="h-4 w-4 mr-2" /> Logout
+                </Button>
+              </div>
             </SheetContent>
           </Sheet>
+        ) : (
+          <div className="flex-grow"></div> // Empty div to push logout to right on desktop
+        )}
+        {!isMobile && (
+          <Button variant="ghost" onClick={handleLogout} className="ml-auto">
+            <LogOut className="h-4 w-4 mr-2" /> Logout
+          </Button>
         )}
       </div>
 
@@ -211,7 +247,7 @@ const Index = () => {
   );
 
   return (
-    <div className="min-h-screen bg-neutral-100 dark:bg-[#202124] text-gray-900 dark:text-[#e2e2e3]">
+    <div className="min-h-screen bg-neutral-100 dark:bg-[#202124] text-foreground">
       {isMobile ? (
         mainContent
       ) : (
