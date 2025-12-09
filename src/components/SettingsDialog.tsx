@@ -19,17 +19,26 @@ interface SettingsDialogProps {
 }
 
 const LOCAL_STORAGE_PASSCODE_KEY = "app-passcode";
+const LOCAL_STORAGE_SYNC_KEY = "app-sync-option";
 
 const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
   const { theme, setTheme } = useTheme();
   const [passcode, setPasscode] = useState("");
   const [currentPasscode, setCurrentPasscode] = useState<string | null>(null);
+  const [syncOption, setSyncOption] = useState<string>("Local Storage (default)");
 
   useEffect(() => {
     if (isOpen) {
       const storedPasscode = localStorage.getItem(LOCAL_STORAGE_PASSCODE_KEY);
       setCurrentPasscode(storedPasscode);
       setPasscode(""); // Clear input when dialog opens
+
+      const storedSyncOption = localStorage.getItem(LOCAL_STORAGE_SYNC_KEY);
+      if (storedSyncOption) {
+        setSyncOption(storedSyncOption);
+      } else {
+        setSyncOption("Local Storage (default)");
+      }
     }
   }, [isOpen]);
 
@@ -38,15 +47,21 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
       localStorage.setItem(LOCAL_STORAGE_PASSCODE_KEY, passcode);
       setCurrentPasscode(passcode);
       showSuccess("Passcode set successfully!");
-      onClose();
+      // onClose(); // Don't close, allow other settings to be saved
     } else if (passcode === "") {
       localStorage.removeItem(LOCAL_STORAGE_PASSCODE_KEY);
       setCurrentPasscode(null);
       showSuccess("Passcode removed.");
-      onClose();
+      // onClose();
     } else {
       showError("Passcode must be a 4-digit number or empty to remove.");
     }
+  };
+
+  const handleSyncOptionChange = (value: string) => {
+    setSyncOption(value);
+    localStorage.setItem(LOCAL_STORAGE_SYNC_KEY, value);
+    showSuccess(`Sync option set to ${value}.`);
   };
 
   return (
@@ -92,14 +107,41 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
             <p className="text-sm text-muted-foreground">
               {currentPasscode ? "Passcode is currently set." : "No passcode set."}
             </p>
+            <Button onClick={handleSavePasscode} className="mt-2">
+              {currentPasscode ? "Update Passcode" : "Set Passcode"}
+            </Button>
+          </div>
+
+          <div className="flex flex-col gap-2 mt-4">
+            <Label htmlFor="sync-option">Sync</Label>
+            <RadioGroup
+              id="sync-option"
+              value={syncOption}
+              onValueChange={handleSyncOptionChange}
+              className="flex flex-col space-y-2"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="Local Storage (default)" id="sync-local" />
+                <Label htmlFor="sync-local">Local Storage (default)</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="Google Drive" id="sync-google" />
+                <Label htmlFor="sync-google">Google Drive</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="OneDrive" id="sync-onedrive" />
+                <Label htmlFor="sync-onedrive">OneDrive</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="Dropbox" id="sync-dropbox" />
+                <Label htmlFor="sync-dropbox">Dropbox</Label>
+              </div>
+            </RadioGroup>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleSavePasscode}>
-            {currentPasscode ? "Update Passcode" : "Set Passcode"}
+            Close
           </Button>
         </DialogFooter>
       </DialogContent>

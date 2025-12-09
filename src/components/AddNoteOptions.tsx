@@ -10,7 +10,7 @@ import { Plus } from "lucide-react";
 
 interface AddNoteOptionsProps {
   onNewTextNote: () => void;
-  onNewListNote: () => void; // Placeholder for future list note functionality
+  onNewListNote: () => void;
 }
 
 const AddNoteOptions: React.FC<AddNoteOptionsProps> = ({
@@ -28,8 +28,8 @@ const AddNoteOptions: React.FC<AddNoteOptionsProps> = ({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={onNewTextNote}>Text Note</DropdownMenuItem>
-        <DropdownMenuItem onClick={onNewListNote}>List Note (Coming Soon)</DropdownMenuItem>
+        <DropdownMenuItem onClick={onNewTextNote}>Text</DropdownMenuItem>
+        <DropdownMenuItem onClick={onNewListNote}>List</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

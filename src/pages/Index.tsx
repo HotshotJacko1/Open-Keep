@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Note, NoteType, TextNote, ListNote } from "@/types/note";
 import { loadNotes, saveNotes } from "@/lib/note-storage";
 import NoteCard from "@/components/NoteCard";
-import TextNoteEditor from "@/components/TextNoteEditor"; // Renamed import
-import ListNoteEditor from "@/components/ListNoteEditor"; // New import
+import TextNoteEditor from "@/components/TextNoteEditor";
+import ListNoteEditor from "@/components/ListNoteEditor";
 import SidebarNav from "@/components/SidebarNav";
 import SettingsDialog from "@/components/SettingsDialog";
 import AddNoteOptions from "@/components/AddNoteOptions";
@@ -142,7 +142,7 @@ const Index = () => {
             <SheetContent side="left" className="w-64 p-0 bg-sidebar-background text-sidebar-foreground border-r-sidebar-border">
               <div className="p-4 text-2xl font-bold text-sidebar-primary flex items-center">
                 <Lightbulb className="mr-2 h-6 w-6 text-yellow-500" fill="currentColor" />
-                Keep
+                <span className="text-[#e2e2e3]">Keep</span>
               </div>
               <SidebarNav uniqueTags={uniqueTags} onClose={() => setIsSheetOpen(false)} />
             </SheetContent>
@@ -211,7 +211,7 @@ const Index = () => {
   );
 
   return (
-    <div className="min-h-screen bg-neutral-100 dark:bg-[#202124] text-gray-900 dark:text-gray-50">
+    <div className="min-h-screen bg-neutral-100 dark:bg-[#202124] text-gray-900 dark:text-[#e2e2e3]">
       {isMobile ? (
         mainContent
       ) : (
@@ -219,7 +219,7 @@ const Index = () => {
           <ResizablePanel defaultSize={15} minSize={10} maxSize={25} className="bg-sidebar-background text-sidebar-foreground border-r-sidebar-border">
             <div className="p-4 text-2xl font-bold text-sidebar-primary flex items-center">
               <Lightbulb className="mr-2 h-6 w-6 text-yellow-500" fill="currentColor" />
-              Keep
+              <span className="text-[#e2e2e3]">Keep</span>
             </div>
             <SidebarNav uniqueTags={uniqueTags} />
           </ResizablePanel>

@@ -10,7 +10,23 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Plus, X } from "lucide-react";
+import { Plus, X, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { arrayMove } from "@dnd-kit/sortable";
 
 interface ListNoteEditorProps {
   isOpen: boolean;
@@ -18,6 +34,65 @@ interface ListNoteEditorProps {
   onSave: (note: ListNote) => void;
   initialNote?: ListNote;
 }
+
+interface SortableListItemProps {
+  item: ListItem;
+  onUpdateItem: (id: string, newContent: string) => void;
+  onRemoveItem: (id: string) => void;
+}
+
+const SortableListItem: React.FC<SortableListItemProps> = ({
+  item,
+  onUpdateItem,
+  onRemoveItem,
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : 0,
+    opacity: isDragging ? 0.8 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 bg-card rounded-md"
+    >
+      <Button
+        variant="ghost"
+        size="icon"
+        className="cursor-grab"
+        {...listeners}
+        {...attributes}
+      >
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+      </Button>
+      <Input
+        value={item.content}
+        onChange={(e) => onUpdateItem(item.id, e.target.value)}
+        placeholder="List item"
+        className="flex-1"
+      />
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => onRemoveItem(item.id)}
+      >
+        <X className="h-4 w-4 text-muted-foreground" />
+      </Button>
+    </div>
+  );
+};
 
 const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
   isOpen,
@@ -42,6 +117,11 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
     }
   }, [initialNote, isOpen]);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor)
+  );
+
   const handleAddItem = () => {
     if (newItemContent.trim()) {
       setItems((prev) => [
@@ -60,6 +140,18 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
 
   const handleRemoveItem = (id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      setItems((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over?.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
   };
 
   const handleSave = () => {
@@ -100,22 +192,25 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
           <div className="grid grid-cols-4 items-start gap-4">
             <Label className="text-right pt-2">Items</Label>
             <div className="col-span-3 flex flex-col gap-2">
-              {items.map((item) => (
-                <div key={item.id} className="flex items-center gap-2">
-                  <Input
-                    value={item.content}
-                    onChange={(e) => handleUpdateItem(item.id, e.target.value)}
-                    placeholder="List item"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleRemoveItem(item.id)}
-                  >
-                    <X className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </div>
-              ))}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={items.map(item => item.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {items.map((item) => (
+                    <SortableListItem
+                      key={item.id}
+                      item={item}
+                      onUpdateItem={handleUpdateItem}
+                      onRemoveItem={handleRemoveItem}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
               <div className="flex items-center gap-2 mt-2">
                 <Input
                   value={newItemContent}
