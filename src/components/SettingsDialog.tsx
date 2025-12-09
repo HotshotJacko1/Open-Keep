@@ -7,11 +7,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/theme-provider";
 import { showSuccess, showError } from "@/utils/toast";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Sun, Moon, Monitor } from "lucide-react";
+import SyncDialog from "./SyncDialog"; // Import the new SyncDialog
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -19,26 +21,18 @@ interface SettingsDialogProps {
 }
 
 const LOCAL_STORAGE_PASSCODE_KEY = "app-passcode";
-const LOCAL_STORAGE_SYNC_KEY = "app-sync-option";
 
 const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
   const { theme, setTheme } = useTheme();
   const [passcode, setPasscode] = useState("");
   const [currentPasscode, setCurrentPasscode] = useState<string | null>(null);
-  const [syncOption, setSyncOption] = useState<string>("Local Storage (default)");
+  const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       const storedPasscode = localStorage.getItem(LOCAL_STORAGE_PASSCODE_KEY);
       setCurrentPasscode(storedPasscode);
       setPasscode(""); // Clear input when dialog opens
-
-      const storedSyncOption = localStorage.getItem(LOCAL_STORAGE_SYNC_KEY);
-      if (storedSyncOption) {
-        setSyncOption(storedSyncOption);
-      } else {
-        setSyncOption("Local Storage (default)");
-      }
     }
   }, [isOpen]);
 
@@ -47,105 +41,83 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
       localStorage.setItem(LOCAL_STORAGE_PASSCODE_KEY, passcode);
       setCurrentPasscode(passcode);
       showSuccess("Passcode set successfully!");
-      // onClose(); // Don't close, allow other settings to be saved
     } else if (passcode === "") {
       localStorage.removeItem(LOCAL_STORAGE_PASSCODE_KEY);
       setCurrentPasscode(null);
       showSuccess("Passcode removed.");
-      // onClose();
     } else {
       showError("Passcode must be a 4-digit number or empty to remove.");
     }
   };
 
-  const handleSyncOptionChange = (value: string) => {
-    setSyncOption(value);
-    localStorage.setItem(LOCAL_STORAGE_SYNC_KEY, value);
-    showSuccess(`Sync option set to ${value}.`);
-  };
-
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Settings</DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="theme">Theme</Label>
-            <RadioGroup
-              id="theme"
-              value={theme}
-              onValueChange={(value: "light" | "dark" | "system") => setTheme(value)}
-              className="flex space-x-4"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="light" id="light" />
-                <Label htmlFor="light">Light</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="dark" id="dark" />
-                <Label htmlFor="dark">Dark</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="system" id="system" />
-                <Label htmlFor="system">System</Label>
-              </div>
-            </RadioGroup>
-          </div>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Settings</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="theme">Theme</Label>
+              <ToggleGroup
+                type="single"
+                value={theme}
+                onValueChange={(value: "light" | "dark" | "system") => {
+                  if (value) setTheme(value);
+                }}
+                className="justify-start"
+              >
+                <ToggleGroupItem value="light" aria-label="Toggle light theme">
+                  <Sun className="h-4 w-4 mr-2" /> Light
+                </ToggleGroupItem>
+                <ToggleGroupItem value="dark" aria-label="Toggle dark theme">
+                  <Moon className="h-4 w-4 mr-2" /> Dark
+                </ToggleGroupItem>
+                <ToggleGroupItem value="system" aria-label="Toggle system theme">
+                  <Monitor className="h-4 w-4 mr-2" /> System
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
 
-          <div className="flex flex-col gap-2 mt-4">
-            <Label htmlFor="passcode">App Passcode (4-digits)</Label>
-            <Input
-              id="passcode"
-              type="password"
-              maxLength={4}
-              value={passcode}
-              onChange={(e) => setPasscode(e.target.value)}
-              placeholder={currentPasscode ? "Enter new passcode or leave empty to remove" : "Set a 4-digit passcode"}
-            />
-            <p className="text-sm text-muted-foreground">
-              {currentPasscode ? "Passcode is currently set." : "No passcode set."}
-            </p>
-            <Button onClick={handleSavePasscode} className="mt-2">
-              {currentPasscode ? "Update Passcode" : "Set Passcode"}
+            <div className="flex flex-col gap-2 mt-4">
+              <Label htmlFor="passcode">App Passcode (4-digits)</Label>
+              <Input
+                id="passcode"
+                type="password"
+                maxLength={4}
+                value={passcode}
+                onChange={(e) => setPasscode(e.target.value)}
+                placeholder={currentPasscode ? "Enter new passcode or leave empty to remove" : "Set a 4-digit passcode"}
+              />
+              <p className="text-sm text-muted-foreground">
+                {currentPasscode ? "Passcode is currently set." : "No passcode set."}
+              </p>
+              <Button onClick={handleSavePasscode} className="mt-2">
+                {currentPasscode ? "Update Passcode" : "Set Passcode"}
+              </Button>
+            </div>
+
+            <div className="flex flex-col gap-2 mt-4">
+              <Label>Sync</Label>
+              <Button variant="outline" onClick={() => setIsSyncDialogOpen(true)}>
+                Open Sync Options
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose}>
+              Close
             </Button>
-          </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-          <div className="flex flex-col gap-2 mt-4">
-            <Label htmlFor="sync-option">Sync</Label>
-            <RadioGroup
-              id="sync-option"
-              value={syncOption}
-              onValueChange={handleSyncOptionChange}
-              className="flex flex-col space-y-2"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="Local Storage (default)" id="sync-local" />
-                <Label htmlFor="sync-local">Local Storage (default)</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="Google Drive" id="sync-google" />
-                <Label htmlFor="sync-google">Google Drive</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="OneDrive" id="sync-onedrive" />
-                <Label htmlFor="sync-onedrive">OneDrive</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="Dropbox" id="sync-dropbox" />
-                <Label htmlFor="sync-dropbox">Dropbox</Label>
-              </div>
-            </RadioGroup>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Close
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <SyncDialog
+        isOpen={isSyncDialogOpen}
+        onClose={() => setIsSyncDialogOpen(false)}
+      />
+    </>
   );
 };
 
