@@ -93,28 +93,12 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
     }
   };
 
-  const handleBackClick = () => {
-    const isNoteBlank =
-      title.trim() === "" &&
-      content.trim() === "" &&
-      tags.trim() === "" &&
-      !isPinned &&
-      !isArchived;
-
-    if (isNoteBlank && initialNote?.id) {
-      // If it's an existing note and now completely blank, delete it
-      onDelete(initialNote.id);
-    }
-    // Always close the dialog
-    onClose();
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px] bg-[#202124] text-white">
         {/* Top row of action buttons */}
         <div className="flex justify-between items-center p-2 border-b border-gray-700">
-          <Button variant="ghost" size="icon" onClick={handleBackClick}>
+          <Button variant="ghost" size="icon" onClick={onClose}>
             <ArrowLeft className="h-5 w-5 text-white" />
             <span className="sr-only">Back</span>
           </Button>
