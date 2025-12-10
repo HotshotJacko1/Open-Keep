@@ -2,7 +2,7 @@ import React from "react";
 import { Note, NoteType, TextNote, ListNote } from "@/types/note";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Pin, Archive, Trash2, Edit, Square, CheckSquare } from "lucide-react";
+import { Pin, Archive, Trash2, Square, CheckSquare } from "lucide-react"; // Removed Edit icon
 import { cn } from "@/lib/utils";
 
 interface NoteCardProps {
@@ -11,7 +11,7 @@ interface NoteCardProps {
   onPinToggle: (id: string) => void;
   onArchiveToggle: (id: string) => void;
   onDelete: (id: string) => void;
-  onToggleListItem?: (noteId: string, itemId: string) => void; // New prop for list items
+  onToggleListItem?: (noteId: string, itemId: string) => void;
 }
 
 const NoteCard: React.FC<NoteCardProps> = ({
@@ -23,27 +23,45 @@ const NoteCard: React.FC<NoteCardProps> = ({
   onToggleListItem,
 }) => {
   return (
-    <Card className="break-inside-avoid-column mb-4 shadow-md hover:shadow-lg transition-shadow duration-200">
+    <Card
+      className="break-inside-avoid-column mb-4 shadow-md hover:shadow-lg transition-shadow duration-200 bg-[#202124] text-white cursor-pointer"
+      onClick={() => onEdit(note)} // Make the entire card clickable for editing
+    >
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
         <CardTitle className="text-lg font-semibold">{note.title}</CardTitle>
         <div className="flex space-x-1">
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => onPinToggle(note.id)}
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent card's onClick from firing
+              onPinToggle(note.id);
+            }}
             className={cn(note.isPinned ? "text-primary" : "text-muted-foreground")}
           >
             <Pin className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => onArchiveToggle(note.id)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent card's onClick from firing
+              onArchiveToggle(note.id);
+            }}
+          >
             <Archive className="h-4 w-4 text-muted-foreground" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => onDelete(note.id)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent card's onClick from firing
+              onDelete(note.id);
+            }}
+          >
             <Trash2 className="h-4 w-4 text-muted-foreground" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => onEdit(note)}>
-            <Edit className="h-4 w-4 text-muted-foreground" />
-          </Button>
+          {/* Edit button removed as requested */}
         </div>
       </CardHeader>
       <CardContent>
@@ -59,7 +77,10 @@ const NoteCard: React.FC<NoteCardProps> = ({
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6"
-                  onClick={() => onToggleListItem && onToggleListItem(note.id, item.id)}
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent card's onClick from firing
+                    onToggleListItem && onToggleListItem(note.id, item.id);
+                  }}
                 >
                   {item.isCompleted ? (
                     <CheckSquare className="h-4 w-4 text-green-500" />
