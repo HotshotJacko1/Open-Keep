@@ -155,8 +155,9 @@ const Index = () => {
 
   const mainContent = (
     <div className="flex flex-col flex-1 p-4 sm:p-6 md:p-8">
-      <div className="flex items-center justify-between mb-6">
-        {isMobile ? (
+      {/* Combined top bar for mobile and desktop */}
+      <div className="flex items-center gap-2 mb-6">
+        {isMobile && (
           <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="mr-2">
@@ -176,26 +177,20 @@ const Index = () => {
               </div>
             </SheetContent>
           </Sheet>
-        ) : (
-          <div className="flex-grow"></div> // Empty div to push logout to right on desktop
         )}
-        {!isMobile && (
-          <Button variant="ghost" onClick={handleLogout} className="ml-auto">
-            <LogOut className="h-4 w-4 mr-2" /> Logout
-          </Button>
-        )}
-      </div>
 
-      <div className="mb-6 flex justify-center items-center gap-2">
         <Input
           type="text"
           placeholder="Search notes by title, content, or tags..."
-          className="w-full max-w-md p-2 rounded-lg shadow-sm focus:ring-2 focus:ring-primary bg-card text-card-foreground border-input"
+          className="flex-grow p-2 rounded-lg shadow-sm focus:ring-2 focus:ring-primary bg-card text-card-foreground border-input"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
         <Button variant="ghost" size="icon" onClick={() => setIsSettingsOpen(true)}>
           <Settings className="h-6 w-6 text-muted-foreground" />
+        </Button>
+        <Button variant="ghost" onClick={handleLogout}>
+          <LogOut className="h-4 w-4 mr-2" /> Logout
         </Button>
       </div>
 
@@ -229,6 +224,7 @@ const Index = () => {
         isOpen={isTextEditorOpen}
         onClose={() => setIsTextEditorOpen(false)}
         onSave={handleSaveNote}
+        onDelete={handleDeleteNote} // Pass onDelete prop
         initialNote={editingNote?.type === NoteType.Text ? (editingNote as TextNote) : undefined}
       />
 
@@ -236,6 +232,7 @@ const Index = () => {
         isOpen={isListEditorOpen}
         onClose={() => setIsListEditorOpen(false)}
         onSave={handleSaveNote}
+        onDelete={handleDeleteNote} // Pass onDelete prop
         initialNote={editingNote?.type === NoteType.List ? (editingNote as ListNote) : undefined}
       />
 
