@@ -182,7 +182,7 @@ const Index = () => {
         <Input
           type="text"
           placeholder="Search notes by title, content, or tags..."
-          className="flex-grow p-2 rounded-lg shadow-sm focus:ring-2 focus:ring-primary bg-card text-card-foreground border-input"
+          className="flex-grow p-2 rounded-lg shadow-sm focus:ring-2 focus:ring-primary bg-[#202124] text-card-foreground border-input"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
