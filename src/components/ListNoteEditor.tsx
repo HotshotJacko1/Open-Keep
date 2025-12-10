@@ -295,16 +295,6 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
             </div>
           </div>
 
-          {/* Tags Input with placeholder */}
-          <div>
-            <Input
-              id="tags"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              className="w-full bg-gray-800 text-white border-gray-700"
-              placeholder="Tags (comma-separated)"
-            />
-          </div>
         </div>
         <DialogFooter className="flex justify-between p-2 border-t border-gray-700">
           <div className="flex gap-2">
