@@ -73,7 +73,9 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose }) => {
 
     const { error: authError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      redirectTo: window.location.origin, // Redirect back to the app after OAuth
+      options: {
+        redirectTo: window.location.origin, // Redirect back to the app after OAuth
+      },
     });
 
     if (authError) {

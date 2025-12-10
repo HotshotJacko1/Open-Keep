@@ -94,7 +94,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
                 maxLength={4}
                 value={passcode}
                 onChange={(e) => setPasscode(e.target.value)}
-                onKeyDown={handleKeyDown} {/* Added onKeyDown handler */}
+                onKeyDown={handleKeyDown}
+                // Added onKeyDown handler
                 placeholder={currentPasscode ? "Enter new passcode or leave empty to remove" : "Set a 4-digit passcode"}
               />
               <p className="text-sm text-muted-foreground">
