@@ -1,4 +1,4 @@
-package com.example.openkeep;
+package com.jackbarkerapps.openkeep;
 
 import com.getcapacitor.BridgeActivity;
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import {
   Dialog,
   DialogContent,
@@ -7,36 +7,25 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
-import { showSuccess } from "@/utils/toast";
+import { useGoogleDrive } from "@/hooks/use-google-drive";
+import { Loader2 } from "lucide-react";
 
 interface SyncDialogProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const LOCAL_STORAGE_SYNC_KEY = "app-sync-option";
-
 const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
-  const [syncOption, setSyncOption] = useState<string>("Local Storage (default)");
-
-  useEffect(() => {
-    if (isOpen) {
-      const storedSyncOption = localStorage.getItem(LOCAL_STORAGE_SYNC_KEY);
-      if (storedSyncOption) {
-        setSyncOption(storedSyncOption);
-      } else {
-        setSyncOption("Local Storage (default)");
-      }
-    }
-  }, [isOpen]);
-
-  const handleSyncOptionChange = (value: string) => {
-    setSyncOption(value);
-    localStorage.setItem(LOCAL_STORAGE_SYNC_KEY, value);
-    showSuccess(`Sync option set to ${value}.`);
-  };
+  const {
+    login,
+    sync,
+    disconnect,
+    isSyncing,
+    lastSynced,
+    userEmail,
+    isConnected
+  } = useGoogleDrive();
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -45,31 +34,50 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
           <DialogTitle>Sync Options</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="sync-option">Choose your sync method</Label>
-            <RadioGroup
-              id="sync-option"
-              value={syncOption}
-              onValueChange={handleSyncOptionChange}
-              className="flex flex-col space-y-2"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="Local Storage (default)" id="sync-local" />
-                <Label htmlFor="sync-local">Local Storage (default)</Label>
+          <div className="flex flex-col gap-4">
+            <Label>Google Drive Sync</Label>
+
+            <p className="text-sm text-muted-foreground">
+              Sync your notes to a specialized folder in your Google Drive to keep them backed up and accessible.
+            </p>
+
+            {!isConnected ? (
+              <Button onClick={() => login()} className="w-full">
+                Sync with Google Drive
+              </Button>
+            ) : (
+              <div className="flex flex-col gap-3 border rounded-md p-4 bg-muted/50">
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium">Connected Account</span>
+                  <span className="text-sm text-muted-foreground break-all">{userEmail}</span>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium">Last Synced</span>
+                  <span className="text-sm text-muted-foreground">
+                    {lastSynced || "Never"}
+                  </span>
+                </div>
+
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    onClick={() => sync()}
+                    disabled={isSyncing}
+                    className="flex-1"
+                  >
+                    {isSyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isSyncing ? "Syncing..." : "Sync Now"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={disconnect}
+                    disabled={isSyncing}
+                  >
+                    Disconnect
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="Google Drive" id="sync-google" />
-                <Label htmlFor="sync-google">Google Drive</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="OneDrive" id="sync-onedrive" />
-                <Label htmlFor="sync-onedrive">OneDrive</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="Dropbox" id="sync-dropbox" />
-                <Label htmlFor="sync-dropbox">Dropbox</Label>
-              </div>
-            </RadioGroup>
+            )}
           </div>
         </div>
         <DialogFooter>
