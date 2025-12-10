@@ -65,7 +65,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 bg-gray-800 rounded-md"
+      className="flex items-center gap-2 bg-[#202124] rounded-md"
     >
       <Button
         variant="ghost"
@@ -80,7 +80,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
         value={item.content}
         onChange={(e) => onUpdateItem(item.id, e.target.value)}
         placeholder="List item"
-        className="flex-1 bg-gray-800 text-white border-gray-700"
+        className="flex-1 bg-[#202124] text-white border-gray-700"
       />
       <Button
         variant="ghost"
@@ -252,7 +252,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-gray-800 text-white border-gray-700 text-lg font-semibold"
+              className="w-full bg-[#202124] text-white border-gray-700 text-lg font-semibold"
               placeholder="Title"
             />
           </div>
@@ -287,7 +287,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
                   }
                 }}
                 placeholder="Add new item"
-                className="bg-gray-800 text-white border-gray-700"
+                className="bg-[#202124] text-white border-gray-700"
               />
               <Button type="button" onClick={handleAddItem} size="icon" className="text-white">
                 <Plus className="h-4 w-4" />

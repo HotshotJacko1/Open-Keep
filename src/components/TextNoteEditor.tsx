@@ -139,7 +139,7 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-gray-800 text-white border-gray-700 text-lg font-semibold"
+              className="w-full bg-[#202124] text-white border-gray-700 text-lg font-semibold"
               placeholder="Title"
             />
           </div>
@@ -149,7 +149,7 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
               id="content"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="w-full min-h-[150px] bg-gray-800 text-white border-gray-700"
+              className="w-full min-h-[150px] bg-[#202124] text-white border-gray-700"
               placeholder="Content"
             />
           </div>
