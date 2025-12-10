@@ -8,7 +8,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Label } from "@/components/ui/label"; // Keep Label for potential future use or if other components need it
 import { ArrowLeft, Pin, Archive, Type, Tag, Trash2 } from "lucide-react";
 
 interface TextNoteEditorProps {
@@ -28,7 +28,7 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
 }) => {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [tags, setTags] = useState("");
+  const [tags, setTags] = useState(""); // Keep state for tags, even if input is removed, for auto-save logic
   const [isPinned, setIsPinned] = useState(false);
   const [isArchived, setIsArchived] = useState(false);
 
@@ -70,7 +70,7 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
         type: NoteType.Text,
         title,
         content,
-        tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+        tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean), // Still process tags from state
         isPinned,
         isArchived,
         createdAt: initialNote?.createdAt || Date.now(),
@@ -125,40 +125,27 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
         </div>
 
         <div className="grid gap-4 py-4 px-2">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="title" className="text-right text-white">
-              Title
-            </Label>
+          {/* Title Input with placeholder */}
+          <div>
             <Input
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="col-span-3 bg-gray-800 text-white border-gray-700"
+              className="w-full bg-gray-800 text-white border-gray-700 text-lg font-semibold"
+              placeholder="Title"
             />
           </div>
-          <div className="grid grid-cols-4 items-start gap-4">
-            <Label htmlFor="content" className="text-right pt-2 text-white">
-              Content
-            </Label>
+          {/* Content Textarea with placeholder */}
+          <div>
             <Textarea
               id="content"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="col-span-3 min-h-[150px] bg-gray-800 text-white border-gray-700"
+              className="w-full min-h-[150px] bg-gray-800 text-white border-gray-700"
+              placeholder="Content"
             />
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="tags" className="text-right text-white">
-              Tags (comma-separated)
-            </Label>
-            <Input
-              id="tags"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              className="col-span-3 bg-gray-800 text-white border-gray-700"
-              placeholder="e.g., work, ideas, personal"
-            />
-          </div>
+          {/* Tags row removed as requested */}
         </div>
 
         <DialogFooter className="flex justify-between p-2 border-t border-gray-700">
