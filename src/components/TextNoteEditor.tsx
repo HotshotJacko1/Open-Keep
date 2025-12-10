@@ -93,12 +93,20 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
     }
   };
 
+  const handleCloseEditor = () => {
+    // If the note is existing and both title and content are blank, delete it
+    if (initialNote?.id && title.trim() === "" && content.trim() === "") {
+      onDelete(initialNote.id);
+    }
+    onClose();
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleCloseEditor}>
       <DialogContent className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px] bg-[#202124] text-white">
         {/* Top row of action buttons */}
         <div className="flex justify-between items-center p-2 border-b border-gray-700">
-          <Button variant="ghost" size="icon" onClick={onClose}>
+          <Button variant="ghost" size="icon" onClick={handleCloseEditor}>
             <ArrowLeft className="h-5 w-5 text-white" />
             <span className="sr-only">Back</span>
           </Button>
