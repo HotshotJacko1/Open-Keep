@@ -1,16 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { ListNote, ListItem, NoteType } from "@/types/note";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Plus, X, GripVertical } from "lucide-react";
+import { Label } from "@/components/ui/label"; // Keep Label for potential future use
+import { Plus, X, GripVertical, ArrowLeft, Pin, Archive, Type, Tag, Trash2 } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -32,6 +30,7 @@ interface ListNoteEditorProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (note: ListNote) => void;
+  onDelete: (id: string) => void; // New prop for deleting notes
   initialNote?: ListNote;
 }
 
@@ -66,12 +65,12 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 bg-card rounded-md"
+      className="flex items-center gap-2 bg-gray-800 rounded-md"
     >
       <Button
         variant="ghost"
         size="icon"
-        className="cursor-grab"
+        className="cursor-grab text-white"
         {...listeners}
         {...attributes}
       >
@@ -81,12 +80,13 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
         value={item.content}
         onChange={(e) => onUpdateItem(item.id, e.target.value)}
         placeholder="List item"
-        className="flex-1"
+        className="flex-1 bg-gray-800 text-white border-gray-700"
       />
       <Button
         variant="ghost"
         size="icon"
         onClick={() => onRemoveItem(item.id)}
+        className="text-white"
       >
         <X className="h-4 w-4 text-muted-foreground" />
       </Button>
@@ -98,24 +98,68 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
   isOpen,
   onClose,
   onSave,
+  onDelete,
   initialNote,
 }) => {
   const [title, setTitle] = useState("");
   const [items, setItems] = useState<ListItem[]>([]);
   const [newItemContent, setNewItemContent] = useState("");
   const [tags, setTags] = useState("");
+  const [isPinned, setIsPinned] = useState(false);
+  const [isArchived, setIsArchived] = useState(false);
+
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (initialNote) {
       setTitle(initialNote.title);
       setItems(initialNote.items);
       setTags(initialNote.tags.join(", "));
+      setIsPinned(initialNote.isPinned);
+      setIsArchived(initialNote.isArchived);
     } else {
       setTitle("");
       setItems([{ id: crypto.randomUUID(), content: "", isCompleted: false }]);
       setTags("");
+      setIsPinned(false);
+      setIsArchived(false);
     }
   }, [initialNote, isOpen]);
+
+  // Auto-save effect with debounce
+  useEffect(() => {
+    if (!isOpen) {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      return;
+    }
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(() => {
+      const newNote: ListNote = {
+        id: initialNote?.id || crypto.randomUUID(),
+        type: NoteType.List,
+        title,
+        items: items.filter(item => item.content.trim() !== ''), // Only save non-empty items
+        tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+        isPinned,
+        isArchived,
+        createdAt: initialNote?.createdAt || Date.now(),
+        updatedAt: Date.now(),
+      };
+      onSave(newNote);
+    }, 500); // Debounce for 500ms
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [title, items, tags, isPinned, isArchived, onSave, initialNote, isOpen]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -154,99 +198,131 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
     }
   };
 
-  const handleSave = () => {
-    const newNote: ListNote = {
-      id: initialNote?.id || crypto.randomUUID(),
-      type: NoteType.List,
-      title,
-      items: items.filter(item => item.content.trim() !== ''), // Only save non-empty items
-      tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
-      isPinned: initialNote?.isPinned || false,
-      isArchived: initialNote?.isArchived || false,
-      createdAt: initialNote?.createdAt || Date.now(),
-      updatedAt: Date.now(),
-    };
-    onSave(newNote);
+  const handleDelete = () => {
+    if (initialNote?.id) {
+      onDelete(initialNote.id);
+      onClose();
+    }
+  };
+
+  const handleCloseEditor = () => {
+    // If the note is existing and both title is blank and there are no non-empty items, delete it
+    const hasContent = title.trim() !== "" || items.some(item => item.content.trim() !== '');
+    if (initialNote?.id && !hasContent) {
+      onDelete(initialNote.id);
+    }
     onClose();
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px]">
-        <DialogHeader>
-          <DialogTitle>{initialNote ? "Edit List Note" : "Create New List Note"}</DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="title" className="text-right">
-              Title
-            </Label>
+    <Dialog open={isOpen} onOpenChange={handleCloseEditor}>
+      <DialogContent className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px] bg-[#202124] text-white">
+        {/* Top row of action buttons */}
+        <div className="flex justify-between items-center p-2 border-b border-gray-700">
+          <Button variant="ghost" size="icon" onClick={handleCloseEditor}>
+            <ArrowLeft className="h-5 w-5 text-white" />
+            <span className="sr-only">Back</span>
+          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsPinned(!isPinned)}
+              className={isPinned ? "text-yellow-400" : "text-white"}
+            >
+              <Pin className="h-5 w-5" />
+              <span className="sr-only">{isPinned ? "Unpin Note" : "Pin Note"}</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsArchived(!isArchived)}
+              className={isArchived ? "text-blue-400" : "text-white"}
+            >
+              <Archive className="h-5 w-5" />
+              <span className="sr-only">{isArchived ? "Unarchive Note" : "Archive Note"}</span>
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-4 py-4 px-2">
+          {/* Title Input with placeholder */}
+          <div>
             <Input
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="col-span-3"
+              className="w-full bg-gray-800 text-white border-gray-700 text-lg font-semibold"
+              placeholder="Title"
             />
           </div>
 
-          <div className="grid grid-cols-4 items-start gap-4">
-            <Label className="text-right pt-2">Items</Label>
-            <div className="col-span-3 flex flex-col gap-2">
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
+          <div className="flex flex-col gap-2">
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={items.map(item => item.id)}
+                strategy={verticalListSortingStrategy}
               >
-                <SortableContext
-                  items={items.map(item => item.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {items.map((item) => (
-                    <SortableListItem
-                      key={item.id}
-                      item={item}
-                      onUpdateItem={handleUpdateItem}
-                      onRemoveItem={handleRemoveItem}
-                    />
-                  ))}
-                </SortableContext>
-              </DndContext>
-              <div className="flex items-center gap-2 mt-2">
-                <Input
-                  value={newItemContent}
-                  onChange={(e) => setNewItemContent(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === "Enter") {
-                      handleAddItem();
-                    }
-                  }}
-                  placeholder="Add new item"
-                />
-                <Button type="button" onClick={handleAddItem} size="icon">
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
+                {items.map((item) => (
+                  <SortableListItem
+                    key={item.id}
+                    item={item}
+                    onUpdateItem={handleUpdateItem}
+                    onRemoveItem={handleRemoveItem}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
+            <div className="flex items-center gap-2 mt-2">
+              <Input
+                value={newItemContent}
+                onChange={(e) => setNewItemContent(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === "Enter") {
+                    handleAddItem();
+                  }
+                }}
+                placeholder="Add new item"
+                className="bg-gray-800 text-white border-gray-700"
+              />
+              <Button type="button" onClick={handleAddItem} size="icon" className="text-white">
+                <Plus className="h-4 w-4" />
+              </Button>
             </div>
           </div>
 
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="tags" className="text-right">
-              Tags (comma-separated)
-            </Label>
+          {/* Tags Input with placeholder */}
+          <div>
             <Input
               id="tags"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
-              className="col-span-3"
-              placeholder="e.g., work, ideas, personal"
+              className="w-full bg-gray-800 text-white border-gray-700"
+              placeholder="Tags (comma-separated)"
             />
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave}>Save Note</Button>
+        <DialogFooter className="flex justify-between p-2 border-t border-gray-700">
+          <div className="flex gap-2">
+            <Button variant="ghost" size="icon" className="text-white">
+              <Type className="h-5 w-5" />
+              <span className="sr-only">Text Formatting</span>
+            </Button>
+            <Button variant="ghost" size="icon" className="text-white">
+              <Tag className="h-5 w-5" />
+              <span className="sr-only">Add Labels</span>
+            </Button>
+          </div>
+          {initialNote?.id && ( // Only show delete button for existing notes
+            <Button variant="ghost" size="icon" onClick={handleDelete} className="text-red-400">
+              <Trash2 className="h-5 w-5" />
+              <span className="sr-only">Delete Note</span>
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
