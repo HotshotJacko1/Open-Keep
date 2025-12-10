@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, AlertCircle, Mail, Lock } from "lucide-react";
+import { Loader2, AlertCircle, Mail, Lock } from "lucide-react"; // Removed Chrome icon
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from "@/utils/toast";
 
@@ -156,7 +156,7 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose }) => {
             {loading ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
-              <img src="/google-logo-search-new-svgrepo-com.svg" alt="Google logo" className="mr-2 h-4 w-4" />
+              <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google logo" className="mr-2 h-4 w-4" />
             )}
             Sign In with Google
           </Button>
