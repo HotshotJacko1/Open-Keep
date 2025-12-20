@@ -101,7 +101,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
               <p className="text-sm text-muted-foreground">
                 {currentPasscode ? "Passcode is currently set." : "No passcode set."}
               </p>
-              <Button onClick={handleSavePasscode} className="mt-2">
+              <Button onClick={handleSavePasscode} className="mt-2" variant="outline">
                 {currentPasscode ? "Update Passcode" : "Set Passcode"}
               </Button>
             </div>
