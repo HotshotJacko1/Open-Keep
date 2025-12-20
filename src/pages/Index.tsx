@@ -167,7 +167,7 @@ const Index = () => {
             <SheetContent side="left" className="w-64 p-0 bg-sidebar-background text-sidebar-foreground border-r-sidebar-border">
               <div className="p-4 text-2xl font-bold text-sidebar-primary flex items-center">
                 <Lightbulb className="mr-2 h-6 w-6 text-yellow-500" fill="currentColor" />
-                <span className="text-[#e2e2e3]">Keep</span>
+                <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
               </div>
               <SidebarNav uniqueTags={uniqueTags} onClose={() => setIsSheetOpen(false)} />
               <div className="p-4 border-t border-sidebar-border mt-auto">
@@ -252,7 +252,7 @@ const Index = () => {
           <ResizablePanel defaultSize={15} minSize={10} maxSize={25} className="bg-sidebar-background text-sidebar-foreground border-r-sidebar-border">
             <div className="p-4 text-2xl font-bold text-sidebar-primary flex items-center">
               <Lightbulb className="mr-2 h-6 w-6 text-yellow-500" fill="currentColor" />
-              <span className="text-[#e2e2e3]">Keep</span>
+              <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
             </div>
             <SidebarNav uniqueTags={uniqueTags} />
           </ResizablePanel>
