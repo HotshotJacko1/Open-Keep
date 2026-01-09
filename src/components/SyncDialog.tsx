@@ -42,9 +42,20 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
             </p>
 
             {!isConnected ? (
-              <Button onClick={() => login()} className="w-full">
-                Sync with Google Drive
-              </Button>
+              <>
+                <Button onClick={() => login()} className="w-full" variant="outline">
+                  Sync with Google Drive
+                </Button>
+                <Button onClick={() => login()} className="w-full" variant="outline">
+                  Sync with Google Drive
+                </Button>
+                <Button onClick={() => login()} className="w-full" variant="outline">
+                  Sync with Google Drive
+                </Button>
+                <Button onClick={() => login()} className="w-full" variant="outline">
+                  Sync with Google Drive
+                </Button>
+              </>
             ) : (
               <div className="flex flex-col gap-3 border rounded-md p-4 bg-muted/50">
                 <div className="flex flex-col gap-1">
