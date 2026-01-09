@@ -44,16 +44,16 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
             {!isConnected ? (
               <>
                 <Button onClick={() => login()} className="w-full" variant="outline">
-                  Sync with Google Drive
+                  Sync with Local Device Folder
                 </Button>
                 <Button onClick={() => login()} className="w-full" variant="outline">
                   Sync with Google Drive
                 </Button>
                 <Button onClick={() => login()} className="w-full" variant="outline">
-                  Sync with Google Drive
+                  Sync with OneDrive
                 </Button>
                 <Button onClick={() => login()} className="w-full" variant="outline">
-                  Sync with Google Drive
+                  Sync with Dropbox
                 </Button>
               </>
             ) : (
