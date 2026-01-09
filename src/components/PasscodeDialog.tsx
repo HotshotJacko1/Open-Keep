@@ -1,0 +1,106 @@
+import React, { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { showSuccess, showError } from "@/utils/toast";
+
+interface PasscodeDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const LOCAL_STORAGE_PASSCODE_KEY = "app-passcode";
+
+const PasscodeDialog: React.FC<PasscodeDialogProps> = ({ isOpen, onClose }) => {
+  const [passcode, setPasscode] = useState("");
+  const [currentPasscode, setCurrentPasscode] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      const storedPasscode = localStorage.getItem(LOCAL_STORAGE_PASSCODE_KEY);
+      setCurrentPasscode(storedPasscode);
+      setPasscode(""); // Clear input when dialog opens
+    }
+  }, [isOpen]);
+
+  const handleSavePasscode = () => {
+    if (passcode.length === 4 && /^\d+$/.test(passcode)) {
+      localStorage.setItem(LOCAL_STORAGE_PASSCODE_KEY, passcode);
+      setCurrentPasscode(passcode);
+      showSuccess("Passcode set successfully!");
+      onClose(); // Close dialog after saving
+    } else if (passcode === "") {
+      localStorage.removeItem(LOCAL_STORAGE_PASSCODE_KEY);
+      setCurrentPasscode(null);
+      showSuccess("Passcode removed.");
+      onClose(); // Close dialog after removing
+    } else {
+      showError("Passcode must be a 4-digit number or empty to remove.");
+    }
+  };
+
+  const handleRemovePasscode = () => {
+    localStorage.removeItem(LOCAL_STORAGE_PASSCODE_KEY);
+    setCurrentPasscode(null);
+    setPasscode(""); // Clear input
+    showSuccess("Passcode removed.");
+    onClose(); // Close dialog after removing
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      handleSavePasscode();
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[425px] bg-white dark:bg-[#202124]">
+        <DialogHeader>
+          <DialogTitle>App Passcode</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="passcode">App Passcode (4-digits)</Label>
+            <Input
+              id="passcode"
+              type="password"
+              maxLength={4}
+              value={passcode}
+              onChange={(e) => setPasscode(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={currentPasscode ? "Enter new passcode or leave empty to remove" : "Set a 4-digit passcode"}
+            />
+            <p className="text-sm text-muted-foreground">
+              {currentPasscode ? "Passcode is currently set." : "No passcode set."}
+            </p>
+            <div className="flex gap-2 mt-2">
+              <Button onClick={handleSavePasscode} variant="outline" className="flex-grow">
+                {currentPasscode ? "Update Passcode" : "Set Passcode"}
+              </Button>
+              {currentPasscode && (
+                <Button onClick={handleRemovePasscode} variant="destructive" className="flex-grow">
+                  Remove Passcode
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default PasscodeDialog;

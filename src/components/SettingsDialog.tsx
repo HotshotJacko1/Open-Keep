@@ -7,61 +7,22 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/theme-provider";
-import { showSuccess, showError } from "@/utils/toast";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Sun, Moon, Monitor } from "lucide-react";
-import SyncDialog from "./SyncDialog"; // Import the new SyncDialog
+import SyncDialog from "./SyncDialog";
+import PasscodeDialog from "./PasscodeDialog"; // Import the new PasscodeDialog
 
 interface SettingsDialogProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const LOCAL_STORAGE_PASSCODE_KEY = "app-passcode";
-
 const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
   const { theme, setTheme } = useTheme();
-  const [passcode, setPasscode] = useState("");
-  const [currentPasscode, setCurrentPasscode] = useState<string | null>(null);
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) {
-      const storedPasscode = localStorage.getItem(LOCAL_STORAGE_PASSCODE_KEY);
-      setCurrentPasscode(storedPasscode);
-      setPasscode(""); // Clear input when dialog opens
-    }
-  }, [isOpen]);
-
-  const handleSavePasscode = () => {
-    if (passcode.length === 4 && /^\d+$/.test(passcode)) {
-      localStorage.setItem(LOCAL_STORAGE_PASSCODE_KEY, passcode);
-      setCurrentPasscode(passcode);
-      showSuccess("Passcode set successfully!");
-    } else if (passcode === "") {
-      localStorage.removeItem(LOCAL_STORAGE_PASSCODE_KEY);
-      setCurrentPasscode(null);
-      showSuccess("Passcode removed.");
-    } else {
-      showError("Passcode must be a 4-digit number or empty to remove.");
-    }
-  };
-
-  const handleRemovePasscode = () => {
-    localStorage.removeItem(LOCAL_STORAGE_PASSCODE_KEY);
-    setCurrentPasscode(null);
-    setPasscode(""); // Clear input
-    showSuccess("Passcode removed.");
-  };
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') {
-      handleSavePasscode();
-    }
-  };
+  const [isPasscodeDialogOpen, setIsPasscodeDialogOpen] = useState(false); // New state for PasscodeDialog
 
   return (
     <>
@@ -93,30 +54,12 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
               </ToggleGroup>
             </div>
 
+            {/* Button to open PasscodeDialog */}
             <div className="flex flex-col gap-2 mt-4">
-              <Label htmlFor="passcode">App Passcode (4-digits)</Label>
-              <Input
-                id="passcode"
-                type="password"
-                maxLength={4}
-                value={passcode}
-                onChange={(e) => setPasscode(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={currentPasscode ? "Enter new passcode or leave empty to remove" : "Set a 4-digit passcode"}
-              />
-              <p className="text-sm text-muted-foreground">
-                {currentPasscode ? "Passcode is currently set." : "No passcode set."}
-              </p>
-              <div className="flex gap-2 mt-2"> {/* Added a flex container for buttons */}
-                <Button onClick={handleSavePasscode} variant="outline" className="flex-grow">
-                  {currentPasscode ? "Update Passcode" : "Set Passcode"}
-                </Button>
-                {currentPasscode && (
-                  <Button onClick={handleRemovePasscode} variant="destructive" className="flex-grow">
-                    Remove Passcode
-                  </Button>
-                )}
-              </div>
+              <Label>App Passcode</Label>
+              <Button variant="outline" onClick={() => setIsPasscodeDialogOpen(true)}>
+                Manage Passcode
+              </Button>
             </div>
 
             <div className="flex flex-col gap-2 mt-4">
@@ -137,6 +80,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
       <SyncDialog
         isOpen={isSyncDialogOpen}
         onClose={() => setIsSyncDialogOpen(false)}
+      />
+      <PasscodeDialog
+        isOpen={isPasscodeDialogOpen}
+        onClose={() => setIsPasscodeDialogOpen(false)}
       />
     </>
   );
