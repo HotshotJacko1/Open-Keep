@@ -32,19 +32,25 @@ const Index = () => {
 
   const { session, supabase } = useSession();
 
+  // Load notes on mount, regardless of session
   useEffect(() => {
-    if (session) {
-      setNotes(loadNotes());
-    } else {
-      setNotes([]); // Clear notes if not logged in
-    }
-  }, [session]); // Reload notes when session changes
+    setNotes(loadNotes());
+  }, []); // Only run once on mount
+
+  // We no longer rely on session to load/clear notes initially
+  // useEffect(() => {
+  //   if (session) {
+  //     setNotes(loadNotes());
+  //   } else {
+  //     setNotes([]); // Clear notes if not logged in
+  //   }
+  // }, [session]); 
 
   useEffect(() => {
-    if (session) {
-      saveNotes(notes);
-    }
-  }, [notes, session]); // Save notes only if logged in
+    // Save notes whenever they change. 
+    // We allow saving even if !session because storage is local.
+    saveNotes(notes);
+  }, [notes]);
 
   const handleSaveNote = (noteToSave: Note) => {
     setNotes((prevNotes) => {
@@ -145,13 +151,15 @@ const Index = () => {
     showSuccess("Logged out successfully!");
   };
 
-  if (!session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-100 dark:bg-[#202124]">
-        <LoginDialog isOpen={true} onClose={() => {}} />
-      </div>
-    );
-  }
+  // We no longer block access if !session. 
+  // Anonymous auth happens in background in SessionProvider.
+  // if (!session) {
+  //   return (
+  //     <div className="min-h-screen flex items-center justify-center bg-neutral-100 dark:bg-[#202124]">
+  //       <LoginDialog isOpen={true} onClose={() => {}} />
+  //     </div>
+  //   );
+  // }
 
   const mainContent = (
     <div className="flex flex-col flex-1 p-4 sm:p-6 md:p-8">

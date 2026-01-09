@@ -50,6 +50,13 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
     }
   };
 
+  const handleRemovePasscode = () => {
+    localStorage.removeItem(LOCAL_STORAGE_PASSCODE_KEY);
+    setCurrentPasscode(null);
+    setPasscode(""); // Clear input
+    showSuccess("Passcode removed.");
+  };
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
       handleSavePasscode();
@@ -95,15 +102,21 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
                 value={passcode}
                 onChange={(e) => setPasscode(e.target.value)}
                 onKeyDown={handleKeyDown}
-                // Added onKeyDown handler
                 placeholder={currentPasscode ? "Enter new passcode or leave empty to remove" : "Set a 4-digit passcode"}
               />
               <p className="text-sm text-muted-foreground">
                 {currentPasscode ? "Passcode is currently set." : "No passcode set."}
               </p>
-              <Button onClick={handleSavePasscode} className="mt-2" variant="outline">
-                {currentPasscode ? "Update Passcode" : "Set Passcode"}
-              </Button>
+              <div className="flex gap-2 mt-2"> {/* Added a flex container for buttons */}
+                <Button onClick={handleSavePasscode} variant="outline" className="flex-grow">
+                  {currentPasscode ? "Update Passcode" : "Set Passcode"}
+                </Button>
+                {currentPasscode && (
+                  <Button onClick={handleRemovePasscode} variant="destructive" className="flex-grow">
+                    Remove Passcode
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-col gap-2 mt-4">

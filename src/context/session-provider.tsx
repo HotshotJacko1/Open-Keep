@@ -15,20 +15,34 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
+      if (session) {
+        setSession(session);
+        setLoading(false);
+      } else {
+        // Attempt anonymous sign-in
+        supabase.auth.signInAnonymously().then(({ data, error }) => {
+          if (!error && data.session) {
+            setSession(data.session);
+          } else {
+            console.error("Anonymous sign-in failed:", error);
+          }
+          setLoading(false);
+        });
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-lg">Loading authentication...</div>;
-  }
+  // We don't block UI for loading anymore to support offline-first/optimistic UI
+  // if (loading) {
+  //   return <div className="min-h-screen flex items-center justify-center text-lg">Loading authentication...</div>;
+  // }
 
   return (
     <SessionContext.Provider value={{ session, supabase }}>
