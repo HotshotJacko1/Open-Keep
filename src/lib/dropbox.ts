@@ -1,4 +1,3 @@
-
 import { Note } from "@/types/note";
 import { Dropbox, DropboxAuth } from "dropbox";
 
@@ -41,12 +40,17 @@ export const getAuthenticationUrl = async () => {
     return authUrl;
 };
 
+interface DropboxAccessTokenResponse {
+    access_token: string;
+    // Add other properties if needed, e.g., expires_in, refresh_token, token_type
+}
+
 export const handleAuthRedirect = async (code: string) => {
     const dbxAuth = new DropboxAuth({ clientId: CLIENT_ID });
 
     // This will read the code_verifier from storage and exchange code
     const response = await dbxAuth.getAccessTokenFromCode(window.location.origin, code);
-    const accessToken = response.result.access_token;
+    const accessToken = (response.result as DropboxAccessTokenResponse).access_token;
 
     // Refresh token might also be available: response.result.refresh_token
     // For now, let's just use the access token for the session.
