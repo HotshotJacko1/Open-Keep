@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useGoogleDrive } from "@/hooks/use-google-drive";
-import { Loader2 } from "lucide-react";
+import { useOneDrive } from "@/hooks/use-one-drive";
+import { useDropbox } from "@/hooks/use-dropbox";
+import { Loader2, FolderSync } from "lucide-react";
 
 interface SyncDialogProps {
   isOpen: boolean;
@@ -17,15 +19,19 @@ interface SyncDialogProps {
 }
 
 const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
-  const {
-    login,
-    sync,
-    disconnect,
-    isSyncing,
-    lastSynced,
-    userEmail,
-    isConnected
-  } = useGoogleDrive();
+  const googleDrive = useGoogleDrive();
+  const oneDrive = useOneDrive();
+  const dropbox = useDropbox();
+
+  // Determine which service is active
+  const activeService = useMemo(() => {
+    if (googleDrive.isConnected) return { ...googleDrive, name: "Google Drive" };
+    if (oneDrive.isConnected) return { ...oneDrive, name: "OneDrive" };
+    if (dropbox.isConnected) return { ...dropbox, name: "Dropbox" };
+    return null;
+  }, [googleDrive.isConnected, oneDrive.isConnected, dropbox.isConnected, googleDrive, oneDrive, dropbox]);
+
+  const isAnySyncing = googleDrive.isSyncing || oneDrive.isSyncing || dropbox.isSyncing;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -35,54 +41,51 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="flex flex-col gap-4">
-            <Label>Google Drive Sync</Label>
+            <Label>Cloud Sync</Label>
 
             <p className="text-sm text-muted-foreground">
-              Sync your notes to a specialized folder in your Google Drive to keep them backed up and accessible.
+              Sync your notes to a cloud provider to keep them backed up and accessible.
             </p>
 
-            {!isConnected ? (
-              <>
-                <Button onClick={() => login()} className="w-full" variant="outline">
-                  Sync with Local Device Folder
+            {!activeService ? (
+              <div className="flex flex-col gap-2">
+                <Button onClick={() => googleDrive.login()} className="w-full justify-start" variant="outline">
+                  <FolderSync className="mr-2 h-4 w-4" /> Sync with Google Drive
                 </Button>
-                <Button onClick={() => login()} className="w-full" variant="outline">
-                  Sync with Google Drive
+                <Button onClick={() => oneDrive.login()} className="w-full justify-start" variant="outline">
+                  <FolderSync className="mr-2 h-4 w-4" /> Sync with OneDrive
                 </Button>
-                <Button onClick={() => login()} className="w-full" variant="outline">
-                  Sync with OneDrive
+                <Button onClick={() => dropbox.login()} className="w-full justify-start" variant="outline">
+                  <FolderSync className="mr-2 h-4 w-4" /> Sync with Dropbox
                 </Button>
-                <Button onClick={() => login()} className="w-full" variant="outline">
-                  Sync with Dropbox
-                </Button>
-              </>
+              </div>
             ) : (
               <div className="flex flex-col gap-3 border rounded-md p-4 bg-muted/50">
                 <div className="flex flex-col gap-1">
-                  <span className="text-sm font-medium">Connected Account</span>
-                  <span className="text-sm text-muted-foreground break-all">{userEmail}</span>
+                  <span className="text-sm font-medium">Connected to {activeService.name}</span>
+                  <span className="text-sm text-muted-foreground break-all">{activeService.userEmail || "Connected"}</span>
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <span className="text-sm font-medium">Last Synced</span>
                   <span className="text-sm text-muted-foreground">
-                    {lastSynced || "Never"}
+                    {activeService.lastSynced || "Never"}
                   </span>
                 </div>
 
                 <div className="flex gap-2 mt-2">
                   <Button
-                    onClick={() => sync()}
-                    disabled={isSyncing}
+                    onClick={() => activeService.sync()}
+                    disabled={isAnySyncing}
                     className="flex-1"
                   >
-                    {isSyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isSyncing ? "Syncing..." : "Sync Now"}
+                    {activeService.isSyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {activeService.isSyncing ? "Syncing..." : "Sync Now"}
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={disconnect}
-                    disabled={isSyncing}
+                    onClick={activeService.disconnect}
+                    disabled={isAnySyncing}
                   >
                     Disconnect
                   </Button>
