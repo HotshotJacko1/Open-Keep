@@ -1,113 +1,115 @@
-import { Dropbox, DropboxAuth, AuthResponse, TokenResponse } from 'dropbox';
-import { useEffect, useState, useCallback } from 'react';
-import { showSuccess, showError } from '@/utils/toast';
+
+import { Note } from "@/types/note";
+import { Dropbox, DropboxAuth } from "dropbox";
 
 const CLIENT_ID = import.meta.env.VITE_DROPBOX_CLIENT_ID;
-const REDIRECT_URI = window.location.origin + "/auth/dropbox"; // Assuming this is the redirect URI
+const FILE_PATH = "/Open Keep Notes/notes.json";
 
-const dbxAuth = new DropboxAuth({
-  clientId: CLIENT_ID,
-});
+// We need to persist the access token
+let dbx: Dropbox | null = null;
 
-export const useDropbox = () => {
-  const [isConnected, setIsConnected] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [lastSynced, setLastSynced] = useState<string | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
-
-  useEffect(() => {
-    const token = localStorage.getItem("dropbox_access_token");
-    const email = localStorage.getItem("dropbox_user_email");
-    const synced = localStorage.getItem("dropbox_last_synced");
-
-    if (token) {
-      setIsConnected(true);
-      setUserEmail(email);
-      setLastSynced(synced);
+export const initDropbox = (accessToken?: string) => {
+    if (accessToken) {
+        dbx = new Dropbox({ accessToken });
+    } else if (!dbx) {
+        // Initialize without token if needed, but mostly we need token
     }
-  }, []);
+};
 
-  const login = useCallback(() => {
-    if (!CLIENT_ID) {
-      showError("Dropbox Client ID is not configured.");
-      return;
-    }
-    const authUrl = dbxAuth.getAuthenticationUrl(REDIRECT_URI, undefined, 'code', 'offline', undefined, undefined, true);
-    window.location.href = authUrl.toString();
-  }, []);
+// PKCE Auth Flow Helpers
+export const getAuthenticationUrl = async () => {
+    const dbxAuth = new DropboxAuth({ clientId: CLIENT_ID });
 
-  const handleAuthCallback = useCallback(async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get("code");
+    // Generate a code verifier and challenge
+    // The SDK might handle this if we use getAuthenticationUrl
+    // ensure using PKCE
 
-    if (code) {
-      try {
-        const response: AuthResponse<TokenResponse> = await dbxAuth.getAccessTokenFromCode(REDIRECT_URI, code);
-        const accessToken = response.result.access_token;
+    const authUrl = await dbxAuth.getAuthenticationUrl(
+        window.location.origin, // redirect URI
+        undefined, // state
+        'code', // response_type
+        'offline', // tokenAccessType (offline for refresh tokens if needed, but implicit/code flow usually gives us what we need for session)
+        undefined, // scope
+        undefined, // includeGrantedScopes
+        true // usePKCE
+    );
 
-        localStorage.setItem("dropbox_access_token", accessToken);
-        setIsConnected(true);
+    // We need to store the code verifier to exchange code later
+    // The SDK stores it in sessionStorage/localStorage automatically when using getAuthenticationUrl with PKCE?
+    // Actually, looking at Dropbox SDK docs, it stores it in sessionStorage 'code_verifier'.
 
-        // Fetch user info
-        const dbx = new Dropbox({ accessToken });
-        const accountInfo = await dbx.usersGetCurrentAccount();
-        const email = accountInfo.result.email;
-        localStorage.setItem("dropbox_user_email", email);
-        setUserEmail(email);
+    return authUrl;
+};
 
-        showSuccess("Connected to Dropbox!");
-        window.history.replaceState({}, document.title, window.location.pathname); // Clean up URL
-      } catch (error) {
-        console.error("[useDropbox] Error during Dropbox authentication:", error);
-        showError("Failed to connect to Dropbox.");
-      }
-    }
-  }, []);
+export const handleAuthRedirect = async (code: string) => {
+    const dbxAuth = new DropboxAuth({ clientId: CLIENT_ID });
 
-  const disconnect = useCallback(() => {
-    localStorage.removeItem("dropbox_access_token");
-    localStorage.removeItem("dropbox_user_email");
-    localStorage.removeItem("dropbox_last_synced");
-    setIsConnected(false);
-    setUserEmail(null);
-    setLastSynced(null);
-    showSuccess("Disconnected from Dropbox.");
-  }, []);
+    // This will read the code_verifier from storage and exchange code
+    const response = await dbxAuth.getAccessTokenFromCode(window.location.origin, code);
+    const accessToken = response.result.access_token;
 
-  const sync = useCallback(async () => {
-    setIsSyncing(true);
+    // Refresh token might also be available: response.result.refresh_token
+    // For now, let's just use the access token for the session.
+    return accessToken;
+};
+
+
+// --- API Helpers ---
+
+const downloadNotes = async (): Promise<Note[]> => {
+    if (!dbx) throw new Error("Dropbox not initialized");
+
     try {
-      const accessToken = localStorage.getItem("dropbox_access_token");
-      if (!accessToken) {
-        showError("Not connected to Dropbox.");
-        return;
-      }
-
-      const dbx = new Dropbox({ accessToken });
-      // Placeholder for actual sync logic
-      console.log("[useDropbox] Simulating Dropbox sync...");
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
-
-      const now = new Date().toLocaleString();
-      localStorage.setItem("dropbox_last_synced", now);
-      setLastSynced(now);
-      showSuccess("Notes synced with Dropbox!");
-    } catch (error) {
-      console.error("[useDropbox] Error during Dropbox sync:", error);
-      showError("Failed to sync with Dropbox.");
-    } finally {
-      setIsSyncing(false);
+        const response = await dbx.filesDownload({ path: FILE_PATH });
+        const blob = (response.result as any).fileBlob;
+        const text = await blob.text();
+        return JSON.parse(text) as Note[];
+    } catch (error: any) {
+        // If file not found
+        if (error.error && error.error.path && error.error.path['.tag'] === 'not_found') {
+            return [];
+        }
+        console.error("Error downloading notes from Dropbox:", error);
+        return [];
     }
-  }, []);
+};
 
-  return {
-    isConnected,
-    userEmail,
-    lastSynced,
-    isSyncing,
-    login,
-    handleAuthCallback,
-    disconnect,
-    sync,
-  };
+const uploadNotes = async (notes: Note[]) => {
+    if (!dbx) throw new Error("Dropbox not initialized");
+
+    const fileContent = JSON.stringify(notes);
+
+    await dbx.filesUpload({
+        path: FILE_PATH,
+        contents: fileContent,
+        mode: { '.tag': 'overwrite' } // Overwrite existing
+    });
+};
+
+export const syncNotesWithDropbox = async (localNotes: Note[]): Promise<Note[]> => {
+    if (!dbx) throw new Error("Dropbox not initialized");
+
+    const remoteNotes = await downloadNotes();
+
+    // Merge Logic (shared)
+    const mergedNotesMap = new Map<string, Note>();
+
+    localNotes.forEach((note) => mergedNotesMap.set(note.id, note));
+
+    remoteNotes.forEach((remoteNote) => {
+        const localNote = mergedNotesMap.get(remoteNote.id);
+        if (!localNote) {
+            mergedNotesMap.set(remoteNote.id, remoteNote);
+        } else {
+            if (remoteNote.updatedAt > localNote.updatedAt) {
+                mergedNotesMap.set(remoteNote.id, remoteNote);
+            }
+        }
+    });
+
+    const mergedNotes = Array.from(mergedNotesMap.values());
+
+    await uploadNotes(mergedNotes);
+
+    return mergedNotes;
 };
