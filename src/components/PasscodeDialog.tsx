@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { NativeBiometric } from "capacitor-native-biometric";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -21,14 +23,47 @@ const LOCAL_STORAGE_PASSCODE_KEY = "app-passcode";
 const PasscodeDialog: React.FC<PasscodeDialogProps> = ({ isOpen, onClose }) => {
   const [passcode, setPasscode] = useState("");
   const [currentPasscode, setCurrentPasscode] = useState<string | null>(null);
+  const [isBiometricsAvailable, setIsBiometricsAvailable] = useState(false);
+  const [isBiometricsEnabled, setIsBiometricsEnabled] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       const storedPasscode = localStorage.getItem(LOCAL_STORAGE_PASSCODE_KEY);
       setCurrentPasscode(storedPasscode);
       setPasscode(""); // Clear input when dialog opens
+
+      // Check biometrics availability
+      NativeBiometric.isAvailable().then((result) => {
+        setIsBiometricsAvailable(result.isAvailable);
+      }).catch(() => setIsBiometricsAvailable(false));
+
+      // Check if enabled
+      const enabled = localStorage.getItem("app-biometrics-enabled") === "true";
+      setIsBiometricsEnabled(enabled);
     }
   }, [isOpen]);
+
+  const handleToggleBiometrics = async (checked: boolean) => {
+    if (checked) {
+      try {
+        await NativeBiometric.verifyIdentity({
+          reason: "Enable biometric authentication",
+          title: "Confirm your identity",
+          subtitle: "",
+          description: "",
+        });
+        localStorage.setItem("app-biometrics-enabled", "true");
+        setIsBiometricsEnabled(true);
+        showSuccess("Biometrics enabled");
+      } catch (error) {
+        console.error("Biometric verification failed", error);
+        showError("Failed to enable biometrics");
+      }
+    } else {
+      localStorage.removeItem("app-biometrics-enabled");
+      setIsBiometricsEnabled(false);
+    }
+  };
 
   const handleSavePasscode = () => {
     if (passcode.length === 4 && /^\d+$/.test(passcode)) {
@@ -91,6 +126,21 @@ const PasscodeDialog: React.FC<PasscodeDialogProps> = ({ isOpen, onClose }) => {
                 </Button>
               )}
             </div>
+            {currentPasscode && isBiometricsAvailable && (
+              <div className="flex items-center justify-between border-t pt-4 mt-2">
+                <div className="space-y-0.5">
+                  <Label htmlFor="biometrics">Biometric Unlock</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Use FaceID or TouchID to unlock
+                  </p>
+                </div>
+                <Switch
+                  id="biometrics"
+                  checked={isBiometricsEnabled}
+                  onCheckedChange={handleToggleBiometrics}
+                />
+              </div>
+            )}
           </div>
         </div>
         <DialogFooter>
