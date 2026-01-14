@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label"; // Keep Label for potential future use or if other components need it
-import { ArrowLeft, Pin, Archive, Type, Tag, Trash2 } from "lucide-react";
+import { ArrowLeft, Pin, Archive, Type, Tag, Trash2, Download } from "lucide-react";
 
 interface TextNoteEditorProps {
   isOpen: boolean;
@@ -101,6 +101,19 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
     onClose();
   };
 
+  const handleExport = () => {
+    const filename = (title.trim() || "Untitled_Note").replace(/[<>:"/\\|?*]/g, '_') + ".md";
+    const blob = new Blob([content], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={handleCloseEditor}>
       <DialogContent className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px] bg-[#202124] text-white">
@@ -165,6 +178,15 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
             <Button variant="ghost" size="icon" className="text-white">
               <Tag className="h-5 w-5" />
               <span className="sr-only">Add Labels</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon" // Changed size to "icon" to match other icon buttons
+              onClick={handleExport}
+              className="text-white"
+            >
+              <Download className="h-5 w-5" /> {/* Adjusted icon size to match others */}
+              <span className="sr-only">Export Note</span> {/* Added sr-only for accessibility */}
             </Button>
           </div>
           {initialNote?.id && ( // Only show delete button for existing notes
