@@ -12,6 +12,9 @@ interface NoteCardProps {
   onArchiveToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onToggleListItem?: (noteId: string, itemId: string) => void;
+  isSelected?: boolean;
+  isSelectionMode?: boolean;
+  onSelect: (id: string, selected: boolean) => void;
 }
 
 const NoteCard: React.FC<NoteCardProps> = ({
@@ -21,15 +24,51 @@ const NoteCard: React.FC<NoteCardProps> = ({
   onArchiveToggle,
   onDelete,
   onToggleListItem,
+  isSelected,
+  isSelectionMode,
+  onSelect,
 }) => {
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (isSelectionMode) {
+      onSelect(note.id, !isSelected);
+    } else {
+      onEdit(note);
+    }
+  };
+
+  const handleSelectionClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelect(note.id, !isSelected);
+  };
+
   return (
     <Card
-      className="break-inside-avoid-column mb-4 shadow-md hover:shadow-lg transition-shadow duration-200 bg-[#202124] text-white cursor-pointer"
-      onClick={() => onEdit(note)} // Make the entire card clickable for editing
+      className={cn(
+        "group relative break-inside-avoid-column mb-4 shadow-md hover:shadow-lg transition-shadow duration-200 bg-[#202124] text-white cursor-pointer border-2 border-[#606368] dark:border-[#e2e2e3]", // Updated border colors
+        isSelected && "border-primary shadow-lg bg-[#202124]/90" // Highlight when selected
+      )}
+      onClick={handleCardClick}
     >
+      {/* Selection Checkbox */}
+      <div
+        className={cn(
+          "absolute -top-3 -left-3 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200",
+          (isSelected || isSelectionMode) && "opacity-100" // Always visible if selected or in selection mode
+        )}
+        onClick={handleSelectionClick}
+      >
+        <div className={cn(
+          "w-6 h-6 rounded-full border-2 border-muted-foreground bg-[#202124] flex items-center justify-center hover:bg-muted/20",
+          isSelected && "bg-primary border-primary text-primary-foreground hover:bg-primary/90"
+        )}>
+          {isSelected && <CheckSquare className="h-4 w-4" />}
+          {!isSelected && <span className="h-4 w-4" />} {/* Placeholder to keep size */}
+        </div>
+      </div>
+
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
         <CardTitle className="text-lg font-semibold">{note.title}</CardTitle>
-        <div className="flex space-x-1">
+        <div className={cn("flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200", isSelectionMode && "opacity-0 pointer-events-none")}> {/* Hide actions in selection mode */}
           <Button
             variant="ghost"
             size="icon"
@@ -81,6 +120,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                     e.stopPropagation(); // Prevent card's onClick from firing
                     onToggleListItem && onToggleListItem(note.id, item.id);
                   }}
+                  disabled={isSelectionMode} // Disable list toggling in selection mode
                 >
                   {item.isCompleted ? (
                     <CheckSquare className="h-4 w-4 text-green-500" />

@@ -9,6 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label"; // Keep Label for potential future use or if other components need it
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"; // Import Tooltip components
 import { ArrowLeft, Pin, Archive, Type, Tag, Trash2, Download } from "lucide-react";
 
 interface TextNoteEditorProps {
@@ -119,29 +124,50 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
       <DialogContent className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px] bg-[#202124] text-white">
         {/* Top row of action buttons */}
         <div className="flex justify-between items-center p-2 border-b border-gray-700">
-          <Button variant="ghost" size="icon" onClick={handleCloseEditor}>
-            <ArrowLeft className="h-5 w-5 text-white" />
-            <span className="sr-only">Back</span>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={handleCloseEditor}>
+                <ArrowLeft className="h-5 w-5 text-white" />
+                <span className="sr-only">Back</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Back</p>
+            </TooltipContent>
+          </Tooltip>
           <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsPinned(!isPinned)}
-              className={isPinned ? "text-yellow-400" : "text-white"}
-            >
-              <Pin className="h-5 w-5" />
-              <span className="sr-only">{isPinned ? "Unpin Note" : "Pin Note"}</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsArchived(!isArchived)}
-              className={isArchived ? "text-blue-400" : "text-white"}
-            >
-              <Archive className="h-5 w-5" />
-              <span className="sr-only">{isArchived ? "Unarchive Note" : "Archive Note"}</span>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsPinned(!isPinned)}
+                  className={isPinned ? "text-yellow-400" : "text-white"}
+                >
+                  <Pin className="h-5 w-5" />
+                  <span className="sr-only">{isPinned ? "Unpin Note" : "Pin Note"}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{isPinned ? "Unpin Note" : "Pin Note"}</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsArchived(!isArchived)}
+                  className={isArchived ? "text-blue-400" : "text-white"}
+                >
+                  <Archive className="h-5 w-5" />
+                  <span className="sr-only">{isArchived ? "Unarchive Note" : "Archive Note"}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{isArchived ? "Unarchive Note" : "Archive Note"}</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
@@ -171,29 +197,57 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
 
         <DialogFooter className="flex justify-between p-2 border-t border-gray-700">
           <div className="flex gap-2">
-            <Button variant="ghost" size="icon" className="text-white">
-              <Type className="h-5 w-5" />
-              <span className="sr-only">Text Formatting</span>
-            </Button>
-            <Button variant="ghost" size="icon" className="text-white">
-              <Tag className="h-5 w-5" />
-              <span className="sr-only">Add Labels</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon" // Changed size to "icon" to match other icon buttons
-              onClick={handleExport}
-              className="text-white"
-            >
-              <Download className="h-5 w-5" /> {/* Adjusted icon size to match others */}
-              <span className="sr-only">Export Note</span> {/* Added sr-only for accessibility */}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-white">
+                  <Type className="h-5 w-5" />
+                  <span className="sr-only">Text Formatting</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Text Formatting</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-white">
+                  <Tag className="h-5 w-5" />
+                  <span className="sr-only">Add Labels</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Add Labels</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon" // Changed size to "icon" to match other icon buttons
+                  onClick={handleExport}
+                  className="text-white"
+                >
+                  <Download className="h-5 w-5" /> {/* Adjusted icon size to match others */}
+                  <span className="sr-only">Export Note</span> {/* Added sr-only for accessibility */}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Export Note</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
           {initialNote?.id && ( // Only show delete button for existing notes
-            <Button variant="ghost" size="icon" onClick={handleDelete} className="text-red-400">
-              <Trash2 className="h-5 w-5" />
-              <span className="sr-only">Delete Note</span>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={handleDelete} className="text-red-400">
+                  <Trash2 className="h-5 w-5" />
+                  <span className="sr-only">Delete Note</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Delete Note</p>
+              </TooltipContent>
+            </Tooltip>
           )}
         </DialogFooter>
       </DialogContent>

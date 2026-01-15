@@ -9,14 +9,17 @@ import SettingsDialog from "@/components/SettingsDialog";
 import AddNoteOptions from "@/components/AddNoteOptions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Menu, Lightbulb, Settings, LogOut } from "lucide-react";
+import { Menu, Lightbulb, Settings } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSession } from '@/context/session-provider';
-import LoginDialog from '@/components/LoginDialog';
+
 import { showSuccess } from "@/utils/toast";
+import { SelectionActionBar } from "@/components/SelectionActionBar";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 
 const Index = () => {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -25,10 +28,19 @@ const Index = () => {
   const [editingNote, setEditingNote] = useState<Note | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchParams] = useSearchParams();
-  const selectedTag = searchParams.get("tag");
+  const [selectedTag, setSelectedTag] = useState<string | null>(searchParams.get("tag"));
   const isMobile = useIsMobile();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
+
+  // Derive selection mode from selected count
+  const isSelectionMode = selectedNoteIds.size > 0;
+
+  // Sync selectedTag with URL search params
+  useEffect(() => {
+    setSelectedTag(searchParams.get("tag"));
+  }, [searchParams]);
 
   const { session, supabase } = useSession();
 
@@ -146,20 +158,158 @@ const Index = () => {
     setIsListEditorOpen(true);
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    showSuccess("Logged out successfully!");
+  // Selection Handlers
+  const handleSelectNote = (id: string, selected: boolean) => {
+    setSelectedNoteIds((prev) => {
+      const next = new Set(prev);
+      if (selected) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
   };
 
-  // We no longer block access if !session. 
-  // Anonymous auth happens in background in SessionProvider.
-  // if (!session) {
-  //   return (
-  //     <div className="min-h-screen flex items-center justify-center bg-neutral-100 dark:bg-[#202124]">
-  //       <LoginDialog isOpen={true} onClose={() => {}} />
-  //     </div>
-  //   );
-  // }
+  const handleClearSelection = () => {
+    setSelectedNoteIds(new Set());
+  };
+
+  const handleBulkPin = () => {
+    setNotes((prevNotes) => {
+      // Determine if we should pin or unpin based on the first selected note
+      // Or: if any are unpinned, pin them all. If all are pinned, unpin them all.
+      // Let's go with: if any selected is unpinned, pin all selected. Otherwise unpin all.
+      const selectedNotes = prevNotes.filter(n => selectedNoteIds.has(n.id));
+      const anyUnpinned = selectedNotes.some(n => !n.isPinned);
+
+      return prevNotes.map(note => {
+        if (selectedNoteIds.has(note.id)) {
+          return { ...note, isPinned: anyUnpinned };
+        }
+        return note;
+      });
+    });
+    // Optional: Keep selection or clear it? Google Keep keeps it.
+  };
+
+  const handleBulkArchive = () => {
+    setNotes((prevNotes) =>
+      prevNotes.map(note => {
+        if (selectedNoteIds.has(note.id)) {
+          return { ...note, isArchived: !note.isArchived }; // Toggle or just archive? Usually "Archive" action means archive. But if we are in Archive view?
+          // For now let's assume "Archive" action always archives. 
+          // But wait, the button says "Archive". If we are in "Archived" view, maybe it should be "Unarchive".
+          // Keep simplifies: The button toggles or there are separate buttons. 
+          // Let's simple toggle 'isArchived' to TRUE for now, or toggle if it's already there?
+          // Google Keep has "Archive" button. If note is archived, it has "Unarchive".
+          // Let's implement toggle for now, or just force true.
+          // Requirement: "Archive". 
+          return { ...note, isArchived: true };
+        }
+        return note;
+      })
+    );
+    handleClearSelection();
+    showSuccess("Notes archived");
+  };
+
+  const handleBulkDelete = () => {
+    setNotes((prevNotes) => prevNotes.filter(note => !selectedNoteIds.has(note.id)));
+    handleClearSelection();
+    showSuccess("Notes deleted");
+  };
+
+  const handleBulkExport = async () => {
+    const zip = new JSZip();
+    const selectedNotes = notes.filter((n) => selectedNoteIds.has(n.id));
+
+    selectedNotes.forEach((note) => {
+      let content = "";
+      if (note.type === NoteType.Text) {
+        content = (note as TextNote).content;
+      } else {
+        content = (note as ListNote).items
+          .map((item) => `${item.isCompleted ? "[x]" : "[ ]"} ${item.content}`)
+          .join("\n");
+      }
+
+      // Sanitize title for filename
+      const filename = `${note.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'untitled'}_${note.id.substring(0, 4)}.md`;
+      zip.file(filename, `# ${note.title}\n\n${content}`);
+    });
+
+    const content = await zip.generateAsync({ type: "blob" });
+    saveAs(content, "notes_export.zip");
+    handleClearSelection();
+    showSuccess("Exported notes");
+  };
+
+  // Handle Esc key to clear selection
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isSelectionMode) {
+        handleClearSelection();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isSelectionMode]);
+
+  // Click outside listener
+  const handleBackgroundClick = (e: React.MouseEvent) => {
+    // Only clear if clicking directly on the background container
+    if (isSelectionMode && e.target === e.currentTarget) {
+      handleClearSelection();
+    }
+  };
+
+
+
+  // Tag management for selection
+  const tagStates = useMemo(() => {
+    const states: Record<string, boolean | 'indeterminate'> = {};
+    const selectedNotes = notes.filter(n => selectedNoteIds.has(n.id));
+    if (selectedNotes.length === 0) return states;
+
+    uniqueTags.forEach(tag => {
+      const hasTagCount = selectedNotes.filter(n => n.tags.includes(tag)).length;
+      if (hasTagCount === selectedNotes.length) {
+        states[tag] = true;
+      } else if (hasTagCount > 0) {
+        states[tag] = 'indeterminate';
+      } else {
+        states[tag] = false;
+      }
+    });
+    return states;
+  }, [selectedNoteIds, notes, uniqueTags]);
+
+  const handleTagToggle = (tag: string) => {
+    setNotes(prevNotes => {
+      const selectedNotes = prevNotes.filter(n => selectedNoteIds.has(n.id));
+      const allHave = selectedNotes.every(n => n.tags.includes(tag));
+
+      // If all have it, remove it.
+      // If some or none have it, add it.
+      const shouldAdd = !allHave;
+
+      return prevNotes.map(note => {
+        if (selectedNoteIds.has(note.id)) {
+          let newTags = note.tags;
+          if (shouldAdd) {
+            if (!newTags.includes(tag)) {
+              newTags = [...newTags, tag];
+            }
+          } else {
+            newTags = newTags.filter(t => t !== tag);
+          }
+          return { ...note, tags: newTags, updatedAt: Date.now() };
+        }
+        return note;
+      });
+    });
+  };
 
   const mainContent = (
     <div className="flex flex-col flex-1 p-4 sm:p-6 md:p-8">
@@ -178,11 +328,7 @@ const Index = () => {
                 <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
               </div>
               <SidebarNav uniqueTags={uniqueTags} onClose={() => setIsSheetOpen(false)} />
-              <div className="p-4 border-t border-sidebar-border mt-auto">
-                <Button variant="ghost" onClick={handleLogout} className="w-full justify-start">
-                  <LogOut className="h-4 w-4 mr-2" /> Logout
-                </Button>
-              </div>
+
             </SheetContent>
           </Sheet>
         )}
@@ -196,9 +342,6 @@ const Index = () => {
         />
         <Button variant="ghost" size="icon" onClick={() => setIsSettingsOpen(true)}>
           <Settings className="h-6 w-6 text-muted-foreground" />
-        </Button>
-        <Button variant="ghost" onClick={handleLogout}>
-          <LogOut className="h-4 w-4 mr-2" /> Logout
         </Button>
       </div>
 
@@ -219,6 +362,9 @@ const Index = () => {
             onArchiveToggle={handleArchiveToggle}
             onDelete={handleDeleteNote}
             onToggleListItem={handleToggleListItem}
+            isSelected={selectedNoteIds.has(note.id)}
+            isSelectionMode={isSelectionMode}
+            onSelect={handleSelectNote}
           />
         ))}
       </div>
@@ -248,11 +394,26 @@ const Index = () => {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
       />
-    </div>
+    </div >
   );
 
   return (
-    <div className="min-h-screen bg-neutral-100 dark:bg-[#202124] text-foreground">
+    <div
+      className="min-h-screen bg-neutral-100 dark:bg-[#202124] text-foreground"
+      onClick={handleBackgroundClick} // Handle click outside
+    >
+      <SelectionActionBar
+        selectedCount={selectedNoteIds.size}
+        onClearSelection={handleClearSelection}
+        onPin={handleBulkPin}
+        onArchive={handleBulkArchive}
+        onDelete={handleBulkDelete}
+        onExport={handleBulkExport}
+        availableTags={uniqueTags}
+        tagStates={tagStates}
+        onTagToggle={handleTagToggle}
+      />
+
       {isMobile ? (
         mainContent
       ) : (
