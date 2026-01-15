@@ -302,7 +302,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
               <Type className="h-5 w-5" />
               <span className="sr-only">Text Formatting</span>
             </Button>
-            <Button variant="ghost" size="icon" className="text-black">
+            <Button variant="ghost" size="icon" className="text-black dark:text-white">
               <Tag className="h-5 w-5" />
               <span className="sr-only">Add Labels</span>
             </Button>
