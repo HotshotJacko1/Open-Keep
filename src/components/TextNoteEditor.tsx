@@ -121,13 +121,13 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleCloseEditor}>
-      <DialogContent className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px] bg-[#202124] text-white">
+      <DialogContent className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px] bg-white dark:bg-[#202124] text-black dark:text-white">
         {/* Top row of action buttons */}
-        <div className="flex justify-between items-center p-2 border-b border-gray-700">
+        <div className="flex justify-between items-center p-2 border-b border-gray-200 dark:border-gray-700">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon" onClick={handleCloseEditor}>
-                <ArrowLeft className="h-5 w-5 text-white" />
+                <ArrowLeft className="h-5 w-5 text-black dark:text-white" />
                 <span className="sr-only">Back</span>
               </Button>
             </TooltipTrigger>
@@ -142,7 +142,7 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
                   variant="ghost"
                   size="icon"
                   onClick={() => setIsPinned(!isPinned)}
-                  className={isPinned ? "text-yellow-400" : "text-white"}
+                  className={isPinned ? "text-yellow-400" : "text-black dark:text-white"}
                 >
                   <Pin className="h-5 w-5" />
                   <span className="sr-only">{isPinned ? "Unpin Note" : "Pin Note"}</span>
@@ -158,7 +158,7 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
                   variant="ghost"
                   size="icon"
                   onClick={() => setIsArchived(!isArchived)}
-                  className={isArchived ? "text-blue-400" : "text-white"}
+                  className={isArchived ? "text-blue-400" : "text-black dark:text-white"}
                 >
                   <Archive className="h-5 w-5" />
                   <span className="sr-only">{isArchived ? "Unarchive Note" : "Archive Note"}</span>
@@ -178,7 +178,7 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-[#202124] text-white border-gray-700 text-lg font-semibold"
+              className="w-full bg-white dark:bg-[#202124] text-black dark:text-white border-gray-200 dark:border-gray-700 text-lg font-semibold"
               placeholder="Title"
             />
           </div>
@@ -188,18 +188,18 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
               id="content"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="w-full min-h-[150px] bg-[#202124] text-white border-gray-700"
+              className="w-full min-h-[150px] bg-white dark:bg-[#202124] text-black dark:text-white border-gray-200 dark:border-gray-700"
               placeholder="Content"
             />
           </div>
           {/* Tags row removed as requested */}
         </div>
 
-        <DialogFooter className="flex justify-between p-2 border-t border-gray-700">
+        <DialogFooter className="flex justify-between p-2 border-t border-gray-200 dark:border-gray-700">
           <div className="flex gap-2">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-white">
+                <Button variant="ghost" size="icon" className="text-black dark:text-white">
                   <Type className="h-5 w-5" />
                   <span className="sr-only">Text Formatting</span>
                 </Button>
@@ -210,7 +210,7 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-white">
+                <Button variant="ghost" size="icon" className="text-black dark:text-white">
                   <Tag className="h-5 w-5" />
                   <span className="sr-only">Add Labels</span>
                 </Button>
@@ -225,7 +225,7 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
                   variant="ghost"
                   size="icon" // Changed size to "icon" to match other icon buttons
                   onClick={handleExport}
-                  className="text-white"
+                  className="text-black dark:text-white"
                 >
                   <Download className="h-5 w-5" /> {/* Adjusted icon size to match others */}
                   <span className="sr-only">Export Note</span> {/* Added sr-only for accessibility */}
