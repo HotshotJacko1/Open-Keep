@@ -216,7 +216,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleCloseEditor}>
-      <DialogContent className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px] bg-white dark:bg-[#202124] text-black">
+      <DialogContent className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px] bg-white dark:bg-[#202124] text-black dark:text-white">
         {/* Top row of action buttons */}
         <div className="flex justify-between items-center p-2 border-b border-gray-700">
           <Button variant="ghost" size="icon" onClick={handleCloseEditor}>
@@ -228,7 +228,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
               variant="ghost"
               size="icon"
               onClick={() => setIsPinned(!isPinned)}
-              className={isPinned ? "text-yellow-400" : "text-black"}
+              className={isPinned ? "text-yellow-400" : "text-black dark:text-white"}
             >
               <Pin className="h-5 w-5" />
               <span className="sr-only">{isPinned ? "Unpin Note" : "Pin Note"}</span>
