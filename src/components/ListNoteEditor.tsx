@@ -216,7 +216,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleCloseEditor}>
-      <DialogContent className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px] bg-white text-white">
+      <DialogContent className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px] bg-white text-[#4f4f4f]">
         {/* Top row of action buttons */}
         <div className="flex justify-between items-center p-2 border-b border-gray-700">
           <Button variant="ghost" size="icon" onClick={handleCloseEditor}>
