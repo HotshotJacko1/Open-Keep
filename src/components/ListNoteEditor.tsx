@@ -237,7 +237,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
               variant="ghost"
               size="icon"
               onClick={() => setIsArchived(!isArchived)}
-              className={isArchived ? "text-blue-400" : "text-white"}
+              className={isArchived ? "text-blue-400" : "text-black"}
             >
               <Archive className="h-5 w-5" />
               <span className="sr-only">{isArchived ? "Unarchive Note" : "Archive Note"}</span>
