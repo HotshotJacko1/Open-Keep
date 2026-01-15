@@ -70,7 +70,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
       <Button
         variant="ghost"
         size="icon"
-        className="cursor-grab text-black"
+        className="cursor-grab text-black dark:text-white"
         {...listeners}
         {...attributes}
       >
