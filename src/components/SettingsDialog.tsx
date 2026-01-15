@@ -12,7 +12,8 @@ import { useTheme } from "@/context/theme-provider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Sun, Moon, Monitor } from "lucide-react";
 import SyncDialog from "./SyncDialog";
-import PasscodeDialog from "./PasscodeDialog"; // Import the new PasscodeDialog
+import PasscodeDialog from "./PasscodeDialog";
+import { supabase } from "@/integrations/supabase/client"; // Import Supabase client
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -22,7 +23,26 @@ interface SettingsDialogProps {
 const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
   const { theme, setTheme } = useTheme();
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
-  const [isPasscodeDialogOpen, setIsPasscodeDialogOpen] = useState(false); // New state for PasscodeDialog
+  const [isPasscodeDialogOpen, setIsPasscodeDialogOpen] = useState(false);
+  const [user, setUser] = useState<any>(null); // State to store the user object
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data, error } = await supabase.auth.getUser();
+      if (data?.user) {
+        setUser(data.user);
+      } else if (error) {
+        console.error("Error fetching user:", error);
+        setUser(null);
+      }
+    };
+
+    if (isOpen) {
+      fetchUser();
+    } else {
+      setUser(null); // Clear user when dialog closes
+    }
+  }, [isOpen]);
 
   return (
     <>
@@ -68,6 +88,16 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
                 Open Sync Options
               </Button>
             </div>
+
+            {/* Supabase User ID */}
+            {user?.id && (
+              <div className="flex items-center justify-between mt-4">
+                <Label className="text-sm font-medium">User ID</Label>
+                <span className="text-xs text-gray-500 dark:text-gray-400 max-w-[60%] truncate">
+                  {user.id}
+                </span>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={onClose}>
