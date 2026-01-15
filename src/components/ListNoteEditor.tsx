@@ -287,7 +287,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
                   }
                 }}
                 placeholder="Add new item"
-                className="bg-[#202124] text-white border-gray-700"
+                className="bg-white text-white border-gray-700"
               />
               <Button type="button" onClick={handleAddItem} size="icon" className="text-white">
                 <Plus className="h-4 w-4" />
