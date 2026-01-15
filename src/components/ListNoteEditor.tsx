@@ -298,11 +298,11 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
         </div>
         <DialogFooter className="flex justify-between p-2 border-t border-gray-700">
           <div className="flex gap-2">
-            <Button variant="ghost" size="icon" className="text-white">
+            <Button variant="ghost" size="icon" className="text-black">
               <Type className="h-5 w-5" />
               <span className="sr-only">Text Formatting</span>
             </Button>
-            <Button variant="ghost" size="icon" className="text-white">
+            <Button variant="ghost" size="icon" className="text-black">
               <Tag className="h-5 w-5" />
               <span className="sr-only">Add Labels</span>
             </Button>
