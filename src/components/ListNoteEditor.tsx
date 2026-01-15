@@ -80,7 +80,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
         value={item.content}
         onChange={(e) => onUpdateItem(item.id, e.target.value)}
         placeholder="List item"
-        className="flex-1 bg-[#202124] text-white border-gray-700"
+        className="flex-1 bg-white text-white border-gray-700"
       />
       <Button
         variant="ghost"
