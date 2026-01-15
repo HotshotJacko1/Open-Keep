@@ -65,7 +65,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 bg-[#202124] rounded-md"
+      className="flex items-center gap-2 bg-white rounded-md"
     >
       <Button
         variant="ghost"
