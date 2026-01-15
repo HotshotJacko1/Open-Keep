@@ -74,7 +74,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
         {...listeners}
         {...attributes}
       >
-        <GripVertical className="h-4 w-4 text-muted-foreground" />
+        <GripVertical className="h-4 w-4" />
       </Button>
       <Input
         value={item.content}
