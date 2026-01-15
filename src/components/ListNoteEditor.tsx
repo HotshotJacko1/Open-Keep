@@ -252,7 +252,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-white text-black border-gray-700 text-lg font-semibold"
+              className="w-full bg-white dark:bg-[#202124] text-black border-gray-700 text-lg font-semibold"
               placeholder="Title"
             />
           </div>
