@@ -228,7 +228,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
               variant="ghost"
               size="icon"
               onClick={() => setIsPinned(!isPinned)}
-              className={isPinned ? "text-yellow-400" : "text-white"}
+              className={isPinned ? "text-yellow-400" : "text-black"}
             >
               <Pin className="h-5 w-5" />
               <span className="sr-only">{isPinned ? "Unpin Note" : "Pin Note"}</span>
