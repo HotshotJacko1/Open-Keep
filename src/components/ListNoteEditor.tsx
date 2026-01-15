@@ -220,7 +220,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
         {/* Top row of action buttons */}
         <div className="flex justify-between items-center p-2 border-b border-gray-700">
           <Button variant="ghost" size="icon" onClick={handleCloseEditor}>
-            <ArrowLeft className="h-5 w-5 text-white" />
+            <ArrowLeft className="h-5 w-5 text-black" />
             <span className="sr-only">Back</span>
           </Button>
           <div className="flex gap-2">
