@@ -65,12 +65,12 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 bg-[#202124] rounded-md"
+      className="flex items-center gap-2 bg-white dark:bg-[#202124] rounded-md" // Adjusted background
     >
       <Button
         variant="ghost"
         size="icon"
-        className="cursor-grab text-white"
+        className="cursor-grab text-black dark:text-white" // Adjusted text color
         {...listeners}
         {...attributes}
       >
@@ -80,13 +80,13 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
         value={item.content}
         onChange={(e) => onUpdateItem(item.id, e.target.value)}
         placeholder="List item"
-        className="flex-1 bg-[#202124] text-white border-gray-700"
+        className="flex-1 bg-white dark:bg-[#202124] text-black dark:text-white border-gray-200 dark:border-gray-700" // Adjusted background, text, and border
       />
       <Button
         variant="ghost"
         size="icon"
         onClick={() => onRemoveItem(item.id)}
-        className="text-white"
+        className="text-black dark:text-white" // Adjusted text color
       >
         <X className="h-4 w-4 text-muted-foreground" />
       </Button>
@@ -216,11 +216,11 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleCloseEditor}>
-      <DialogContent className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px] bg-[#202124] text-white">
+      <DialogContent className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px] bg-white dark:bg-[#202124] text-black dark:text-white"> {/* Adjusted background and text color */}
         {/* Top row of action buttons */}
-        <div className="flex justify-between items-center p-2 border-b border-gray-700">
+        <div className="flex justify-between items-center p-2 border-b border-gray-200 dark:border-gray-700"> {/* Adjusted border color */}
           <Button variant="ghost" size="icon" onClick={handleCloseEditor}>
-            <ArrowLeft className="h-5 w-5 text-white" />
+            <ArrowLeft className="h-5 w-5 text-black dark:text-white" /> {/* Adjusted text color */}
             <span className="sr-only">Back</span>
           </Button>
           <div className="flex gap-2">
@@ -228,7 +228,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
               variant="ghost"
               size="icon"
               onClick={() => setIsPinned(!isPinned)}
-              className={isPinned ? "text-yellow-400" : "text-white"}
+              className={isPinned ? "text-yellow-400" : "text-black dark:text-white"} {/* Adjusted text color */}
             >
               <Pin className="h-5 w-5" />
               <span className="sr-only">{isPinned ? "Unpin Note" : "Pin Note"}</span>
@@ -237,7 +237,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
               variant="ghost"
               size="icon"
               onClick={() => setIsArchived(!isArchived)}
-              className={isArchived ? "text-blue-400" : "text-white"}
+              className={isArchived ? "text-blue-400" : "text-black dark:text-white"} {/* Adjusted text color */}
             >
               <Archive className="h-5 w-5" />
               <span className="sr-only">{isArchived ? "Unarchive Note" : "Archive Note"}</span>
@@ -252,7 +252,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-[#202124] text-white border-gray-700 text-lg font-semibold"
+              className="w-full bg-white dark:bg-[#202124] text-black dark:text-white border-gray-200 dark:border-gray-700 text-lg font-semibold" // Adjusted background, text, and border
               placeholder="Title"
             />
           </div>
@@ -287,22 +287,22 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
                   }
                 }}
                 placeholder="Add new item"
-                className="bg-[#202124] text-white border-gray-700"
+                className="bg-white dark:bg-[#202124] text-black dark:text-white border-gray-200 dark:border-gray-700" // Adjusted background, text, and border
               />
-              <Button type="button" onClick={handleAddItem} size="icon" className="text-white">
+              <Button type="button" onClick={handleAddItem} size="icon" className="text-black dark:text-white"> {/* Adjusted text color */}
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
         </div>
-        <DialogFooter className="flex justify-between p-2 border-t border-gray-700">
+        <DialogFooter className="flex justify-between p-2 border-t border-gray-200 dark:border-gray-700"> {/* Adjusted border color */}
           <div className="flex gap-2">
-            <Button variant="ghost" size="icon" className="text-white">
+            <Button variant="ghost" size="icon" className="text-black dark:text-white"> {/* Adjusted text color */}
               <Type className="h-5 w-5" />
               <span className="sr-only">Text Formatting</span>
             </Button>
-            <Button variant="ghost" size="icon" className="text-white">
+            <Button variant="ghost" size="icon" className="text-black dark:text-white"> {/* Adjusted text color */}
               <Tag className="h-5 w-5" />
               <span className="sr-only">Add Labels</span>
             </Button>
