@@ -44,7 +44,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
   return (
     <Card
       className={cn(
-        "group relative break-inside-avoid-column mb-4 shadow-md hover:shadow-lg transition-shadow duration-200 bg-[#202124] text-white cursor-pointer border-2 border-input", // Changed to border-input
+        "group relative break-inside-avoid-column mb-4 shadow-md hover:shadow-lg transition-shadow duration-200 bg-white dark:bg-[#202124] text-white cursor-pointer border-2 border-input", // Changed bg-white for light mode
         isSelected && "border-primary shadow-lg bg-[#202124]/90" // Highlight when selected
       )}
       onClick={handleCardClick}
