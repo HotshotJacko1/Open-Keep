@@ -88,7 +88,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
         onClick={() => onRemoveItem(item.id)}
         className="text-black dark:text-white"
       >
-        <X className="h-4 w-4 text-muted-foreground" />
+        <X className="h-4 w-4" />
       </Button>
     </div>
   );
