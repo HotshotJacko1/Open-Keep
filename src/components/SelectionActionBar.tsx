@@ -54,7 +54,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                     size="icon"
                     onClick={onPin}
                     title="Pin"
-                    className="text-primary hover:text-white"
+                    className="text-primary hover:text-primary-foreground"
                 >
                     <Pin className="h-5 w-5" />
                 </Button>
@@ -63,7 +63,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                     size="icon"
                     onClick={onArchive}
                     title="Archive"
-                    className="text-primary hover:text-white"
+                    className="text-primary hover:text-primary-foreground"
                 >
                     <Archive className="h-5 w-5" />
                 </Button>
@@ -72,7 +72,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                     size="icon"
                     onClick={onDelete}
                     title="Delete"
-                    className="text-primary hover:text-white"
+                    className="text-primary hover:text-primary-foreground"
                 >
                     <Trash2 className="h-5 w-5" />
                 </Button>
@@ -83,7 +83,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                             variant="ghost"
                             size="icon"
                             title="Change labels"
-                            className="text-primary hover:text-white"
+                            className="text-primary hover:text-primary-foreground"
                         >
                             <Tag className="h-5 w-5" />
                         </Button>
@@ -114,7 +114,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                     size="icon"
                     onClick={onExport}
                     title="Export"
-                    className="text-gray-300 hover:text-white"
+                    className="text-gray-300 hover:text-primary-foreground"
                 >
                     <Download className="h-5 w-5" />
                 </Button>
