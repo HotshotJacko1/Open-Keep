@@ -30,7 +30,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[425px] bg-background">
+        <DialogContent className="sm:max-w-[425px] bg-background text-primary">
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
           </DialogHeader>
