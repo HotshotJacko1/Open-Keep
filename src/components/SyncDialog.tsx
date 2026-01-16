@@ -43,7 +43,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
           <div className="flex flex-col gap-4">
             <Label>Cloud Sync</Label>
 
-            <p className="text-sm text-foreground">
+            <p className="text-sm text-primary-foreground">
               Sync your notes to a cloud provider to keep them backed up and accessible.
             </p>
 
