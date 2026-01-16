@@ -38,7 +38,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
     if (selectedCount === 0) return null;
 
     return (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-[#202124] border-b border-gray-700 p-2 flex items-center justify-between animate-in slide-in-from-top duration-200">
+        <div className="fixed top-0 left-0 right-0 z-50 bg-secondary border-b border-gray-700 p-2 flex items-center justify-between animate-in slide-in-from-top duration-200">
             <div className="flex items-center gap-4">
                 <Button variant="ghost" size="icon" onClick={onClearSelection}>
                     <X className="h-5 w-5 text-gray-300" />
