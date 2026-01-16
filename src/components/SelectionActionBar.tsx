@@ -83,7 +83,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                             variant="ghost"
                             size="icon"
                             title="Change labels"
-                            className="text-gray-300 hover:text-white"
+                            className="text-primary hover:text-white"
                         >
                             <Tag className="h-5 w-5" />
                         </Button>
@@ -92,7 +92,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                         <DropdownMenuLabel>Change labels</DropdownMenuLabel>
                         <DropdownMenuSeparator className="bg-gray-700" />
                         {availableTags.length === 0 && (
-                            <div className="p-2 text-sm text-gray-400">No labels created yet</div>
+                            <div className="p-2 text-sm text-primary">No labels created yet</div>
                         )}
                         {availableTags.map(tag => (
                             <DropdownMenuCheckboxItem
