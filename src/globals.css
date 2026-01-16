@@ -87,7 +87,7 @@
     .dark {
       --background: 225 6% 13%;
       /* This is the default dark background, but we're overriding it in Index.tsx */
-      --foreground: 210 40% 98%;
+      --foreground: 225 6% 13%;
 
       --card: 222.2 84% 4.9%;
       --card-foreground: 210 40% 98%;

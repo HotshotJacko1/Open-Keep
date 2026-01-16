@@ -44,8 +44,8 @@ const NoteCard: React.FC<NoteCardProps> = ({
   return (
     <Card
       className={cn(
-        "group relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-white dark:bg-[#202124] text-white cursor-pointer border-2 border-input", // Removed shadow-md
-        isSelected && "border-secondary-foreground shadow-lg bg-white dark:bg-[#202124]/90" // Highlight when selected
+        "group relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-foreground dark:bg-foreground text-secondary-foreground cursor-pointer border-2 border-input", // Removed shadow-md
+        isSelected && "border-secondary-foreground shadow-lg bg-foreground" // Highlight when selected
       )}
       onClick={handleCardClick}
     >
@@ -62,7 +62,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
           isSelected && "bg-secondary-foreground dark:bg-secondary-foreground border-secondary dark:border-secondary text-secondary-foreground"
         )}>
           {isSelected && <Check className="h-4 w-4 text-secondary dark:text-secondary" />}
-          {!isSelected && <Check className="h-4 w-4 text-transparent hover:text-white dark:hover:text-black" />} {/* Placeholder to keep size */}
+          {!isSelected && <Check className="h-4 w-4 text-transparent hover:text-secondary-foreground dark:hover:text-black" />} {/* Placeholder to keep size */}
         </div>
       </div>
 
@@ -98,14 +98,14 @@ const NoteCard: React.FC<NoteCardProps> = ({
               onDelete(note.id);
             }}
           >
-            <Trash2 className="h-4 w-4 text-muted-foreground" />
+            <Trash2 className="h-4 w-4 text-muted-foreground text-red-400" />
           </Button>
           {/* Edit button removed as requested */}
         </div>
       </CardHeader>
       <CardContent>
         {note.type === NoteType.Text ? (
-          <p className="text-sm text-foreground whitespace-pre-wrap">
+          <p className="text-sm text-secondary-foreground whitespace-pre-wrap">
             {(note as TextNote).content}
           </p>
         ) : (

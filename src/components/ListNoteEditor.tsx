@@ -8,7 +8,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label"; // Keep Label for potential future use
-import { Plus, X, GripVertical, ArrowLeft, Pin, Archive, Type, Tag, Trash2 } from "lucide-react";
+import { Plus, X, GripVertical, ArrowLeft, Pin, Archive, Type, Tag, Trash2, Upload } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   DndContext,
   closestCenter,
@@ -214,6 +219,21 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
     onClose();
   };
 
+  const handleExport = () => {
+    const filename = (title.trim() || "Untitled_List").replace(/[<>:"/\\|?*]/g, '_') + ".md";
+    // Format items as a markdown checklist
+    const content = items.map(item => `- [${item.isCompleted ? 'x' : ' '}] ${item.content}`).join('\n');
+    const blob = new Blob([content], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={handleCloseEditor}>
       <DialogContent className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px] bg-white dark:bg-[#202124] text-black dark:text-white">
@@ -296,23 +316,58 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
           </div>
 
         </div>
-        <DialogFooter className="flex justify-between p-2 border-t border-gray-700">
+        <DialogFooter className="flex justify-between p-2 border-t border-gray-200 dark:border-gray-700">
           <div className="flex gap-2">
-            <Button variant="ghost" size="icon" className="text-black dark:text-white">
-              <Type className="h-5 w-5" />
-              <span className="sr-only">Text Formatting</span>
-            </Button>
-            <Button variant="ghost" size="icon" className="text-black dark:text-white">
-              <Tag className="h-5 w-5" />
-              <span className="sr-only">Add Labels</span>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-black dark:text-white">
+                  <Type className="h-5 w-5" />
+                  <span className="sr-only">Text Formatting</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Text Formatting</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-black dark:text-white">
+                  <Tag className="h-5 w-5" />
+                  <span className="sr-only">Add Labels</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Add Labels</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleExport}
+                  className="text-black dark:text-white"
+                >
+                  <Upload className="h-5 w-5" />
+                  <span className="sr-only">Export Note</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Export Note</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
-          {initialNote?.id && ( // Only show delete button for existing notes
-            <Button variant="ghost" size="icon" onClick={handleDelete} className="text-red-400">
-              <Trash2 className="h-5 w-5" />
-              <span className="sr-only">Delete Note</span>
-            </Button>
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={handleDelete} className="text-red-400">
+                <Trash2 className="h-5 w-5" />
+                <span className="sr-only">Delete Note</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Delete Note</p>
+            </TooltipContent>
+          </Tooltip>
         </DialogFooter>
       </DialogContent>
     </Dialog>

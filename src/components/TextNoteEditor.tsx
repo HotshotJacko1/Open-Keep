@@ -14,7 +14,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"; // Import Tooltip components
-import { ArrowLeft, Pin, Archive, Type, Tag, Trash2, Download } from "lucide-react";
+import { ArrowLeft, Pin, Archive, Type, Tag, Trash2, Upload } from "lucide-react";
 
 interface TextNoteEditorProps {
   isOpen: boolean;
@@ -37,24 +37,50 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
   const [isPinned, setIsPinned] = useState(false);
   const [isArchived, setIsArchived] = useState(false);
 
+  // Use a ref to store the current note ID. 
+  // This ensures we keep the same ID for a new note across auto-saves.
+  const noteIdRef = useRef<string>(initialNote?.id || crypto.randomUUID());
+
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Effect to load initial note data or reset for new note
   useEffect(() => {
     if (initialNote) {
+      noteIdRef.current = initialNote.id;
       setTitle(initialNote.title);
       setContent(initialNote.content);
       setTags(initialNote.tags.join(", "));
       setIsPinned(initialNote.isPinned);
       setIsArchived(initialNote.isArchived);
     } else {
+      // For a new note, we generate a fresh ID only when the editor opens fresh.
+      // But we need to be careful not to regenerate it if we are just re-rendering.
+      // Ideally, we should reset it only when `isOpen` changes from false to true.
+      // However, since this effect runs on [initialNote, isOpen], lets handle it carefully.
+      if (isOpen && !initialNote) {
+        // If opening a new note, ensure we have an ID (could be from previous render if not cleared, 
+        // but for safety let's assume we want a new one if we are "resetting")
+        // Actually, simpler: if `isOpen` is true and no initialNote, we are starting fresh.
+        // BUT, we might have already started editing.
+        // The safe bet for "new note" is usually handled by the parent unmounting or resetting key.
+        // Given how this component seems to stay mounted but just hidden/shown (based on isOpen),
+        // we should reset the ID when it OPENS.
+      }
+    }
+  }, [initialNote, isOpen]);
+
+  // When opening fresh (without initialNote), we might want to ensure a fresh ID.
+  // We can do this with a separate effect that runs only when `isOpen` becomes true.
+  useEffect(() => {
+    if (isOpen && !initialNote) {
+      noteIdRef.current = crypto.randomUUID();
       setTitle("");
       setContent("");
       setTags("");
       setIsPinned(false);
       setIsArchived(false);
     }
-  }, [initialNote, isOpen]);
+  }, [isOpen, initialNote]);
 
   // Auto-save effect with debounce
   useEffect(() => {
@@ -69,13 +95,18 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
       clearTimeout(saveTimeoutRef.current);
     }
 
+    // Don't save if completely empty
+    if (title.trim() === "" && content.trim() === "") {
+      return;
+    }
+
     saveTimeoutRef.current = setTimeout(() => {
       const newNote: TextNote = {
-        id: initialNote?.id || crypto.randomUUID(),
+        id: noteIdRef.current, // Use the persistent ref
         type: NoteType.Text,
         title,
         content,
-        tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean), // Still process tags from state
+        tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
         isPinned,
         isArchived,
         createdAt: initialNote?.createdAt || Date.now(),
@@ -92,16 +123,20 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
   }, [title, content, tags, isPinned, isArchived, onSave, initialNote, isOpen]);
 
   const handleDelete = () => {
-    if (initialNote?.id) {
-      onDelete(initialNote.id);
-      onClose();
-    }
+    // We can always delete using the current ID ref
+    onDelete(noteIdRef.current);
+    onClose();
   };
 
   const handleCloseEditor = () => {
     // If the note is existing and both title and content are blank, delete it
-    if (initialNote?.id && title.trim() === "" && content.trim() === "") {
-      onDelete(initialNote.id);
+    // This logic applies to both new (saved via auto-save) and existing notes.
+    if (title.trim() === "" && content.trim() === "") {
+      // If it was previously saved (and thus has an entry in the parent list), we should delete it.
+      // Since auto-save creates the entry, we can just call onDelete.
+      // However, if it was NEVER saved (empty from start), onDelete might fail if the ID doesn't exist in parent?
+      // The parent `onDelete` filters by ID. If ID isn't found, it likely does nothing, which is fine.
+      onDelete(noteIdRef.current);
     }
     onClose();
   };
@@ -227,7 +262,7 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
                   onClick={handleExport}
                   className="text-black dark:text-white"
                 >
-                  <Download className="h-5 w-5" /> {/* Adjusted icon size to match others */}
+                  <Upload className="h-5 w-5" /> {/* Adjusted icon size to match others */}
                   <span className="sr-only">Export Note</span> {/* Added sr-only for accessibility */}
                 </Button>
               </TooltipTrigger>
@@ -236,19 +271,17 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
               </TooltipContent>
             </Tooltip>
           </div>
-          {initialNote?.id && ( // Only show delete button for existing notes
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={handleDelete} className="text-red-400">
-                  <Trash2 className="h-5 w-5" />
-                  <span className="sr-only">Delete Note</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Delete Note</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={handleDelete} className="text-red-400">
+                <Trash2 className="h-5 w-5" />
+                <span className="sr-only">Delete Note</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Delete Note</p>
+            </TooltipContent>
+          </Tooltip>
         </DialogFooter>
       </DialogContent>
     </Dialog>

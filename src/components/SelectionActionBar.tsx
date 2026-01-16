@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Pin, Archive, Trash2, Download, Tag } from "lucide-react";
+import { X, Pin, Archive, Trash2, Upload, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 import {
@@ -116,7 +116,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                     title="Export"
                     className="text-primary hover:text-primary-foreground"
                 >
-                    <Download className="h-5 w-5" />
+                    <Upload className="h-5 w-5" />
                 </Button>
             </div>
         </div>
