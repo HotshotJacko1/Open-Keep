@@ -58,7 +58,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
         onClick={handleSelectionClick}
       >
         <div className={cn(
-          "w-6 h-6 rounded-full border-2 border-muted-foreground bg-transparent flex items-center justify-center hover:bg-secondary-foreground",
+          "w-6 h-6 rounded-full border-2 border-secondary dark:border-secondary bg-transparent flex items-center justify-center hover:bg-secondary-foreground",
           isSelected && "bg-secondary-foreground dark:bg-secondary-foreground border-secondary dark:border-secondary text-secondary-foreground"
         )}>
           {isSelected && <Check className="h-4 w-4 text-secondary dark:text-secondary" />}
