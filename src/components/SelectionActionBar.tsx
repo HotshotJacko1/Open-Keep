@@ -41,7 +41,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
         <div className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-gray-700 p-2 flex items-center justify-between animate-in slide-in-from-top duration-200">
             <div className="flex items-center gap-4">
                 <Button variant="ghost" size="icon" onClick={onClearSelection}>
-                    <X className="h-5 w-5 text-gray-300" />
+                    <X className="h-5 w-5 text-primary" />
                 </Button>
                 <span className="text-lg font-medium text-primary">
                     {selectedCount} selected
