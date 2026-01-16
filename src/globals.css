@@ -31,8 +31,8 @@
 
   @layer base {
     :root {
-      --background: 0 0% 100%;
-      --foreground: 225 6% 13%;
+      --background: 0 0% 96%;
+      --foreground: 0 0% 100%;
       /* HSL for #202124 */
 
       --card: 0 0% 100%;
