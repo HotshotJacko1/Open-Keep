@@ -41,8 +41,10 @@
       --popover: 0 0% 100%;
       --popover-foreground: 222.2 84% 4.9%;
 
-      --primary: 213 6% 63%; /* Unselected text color */
-      --primary-foreground: 225 6% 13%; /* Selected text color */
+      --primary: 213 6% 63%;
+      /* Unselected text color */
+      --primary-foreground: 225 6% 13%;
+      /* Selected text color */
 
       --secondary: 0 0% 46%;
       /* Unselected icon color */
@@ -65,13 +67,13 @@
 
       --radius: 0.5rem;
 
-      --sidebar-background: 0 0% 98%;
+      --sidebar-background: 0 0% 96%;
       /* Light mode sidebar background */
-      --sidebar-foreground: 240 5.3% 26.1%;
+      --sidebar-foreground: 0 0% 100%;
       /* Light mode sidebar text */
-      --sidebar-primary: 240 5.9% 10%;
+      --sidebar-primary: 225 6% 13%;
       /* Light mode sidebar primary text */
-      --sidebar-primary-foreground: 0 0% 98%;
+      --sidebar-primary-foreground: 225 6% 13%;
       /* Light mode sidebar primary foreground */
       --sidebar-accent: 40 80% 90%;
       /* Light mode sidebar accent for selected item */
@@ -93,8 +95,10 @@
       --popover: 222.2 84% 4.9%;
       --popover-foreground: 210 40% 98%;
 
-      --primary: 213 6% 33%; /* Unselected text color */
-      --primary-foreground: 216 12% 92%; /* Selected text color */
+      --primary: 213 6% 33%;
+      /* Unselected text color */
+      --primary-foreground: 216 12% 92%;
+      /* Selected text color */
 
       --secondary: 240 0% 60%;
       /* Unselected icon color */
@@ -115,9 +119,9 @@
       /* Updated to #e2e2e3 */
       --ring: 212.7 26.8% 83.9%;
 
-      --sidebar-background: 240 5.9% 10%;
+      --sidebar-background: 225 6% 13%;
       /* Dark mode sidebar background */
-      --sidebar-foreground: 240 4.8% 95.9%;
+      --sidebar-foreground: 210 40% 98%;
       /* Dark mode sidebar text */
       --sidebar-primary: 224.3 76.3% 48%;
       /* Dark mode sidebar primary text */

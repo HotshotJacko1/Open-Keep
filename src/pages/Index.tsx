@@ -393,6 +393,10 @@ const Index = () => {
       <SettingsDialog
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        notes={notes}
+        onImportNotes={(importedNotes) => {
+          setNotes((prev) => [...importedNotes, ...prev]);
+        }}
       />
     </div >
   );
