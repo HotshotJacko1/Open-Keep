@@ -76,7 +76,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
             {user?.id && (
               <div className="flex items-center justify-between mt-4">
                 <Label className="text-sm font-medium">User ID</Label>
-                <span className="text-xs text-primary dark:text-gray-400 max-w-[60%] truncate">
+                <span className="text-xs text-primary dark:text-primary max-w-[60%] truncate">
                   {user.id}
                 </span>
               </div>
