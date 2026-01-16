@@ -113,7 +113,7 @@ const PasscodeDialog: React.FC<PasscodeDialogProps> = ({ isOpen, onClose }) => {
               onKeyDown={handleKeyDown}
               placeholder={currentPasscode ? "Enter new passcode or leave empty to remove" : "Set a 4-digit passcode"}
             />
-            <p className="text-sm text-primary">
+            <p className="text-sm text-primary font-medium">
               {currentPasscode ? "Passcode is currently set." : "No passcode set."}
             </p>
             <div className="flex gap-2 mt-2">
