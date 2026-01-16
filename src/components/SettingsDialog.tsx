@@ -55,7 +55,9 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
                 aria-label="Toggle dark theme">
                   <Moon className="h-4 w-4 mr-2" /> Dark
                 </ToggleGroupItem>
-                <ToggleGroupItem value="system" aria-label="Toggle system theme">
+                <ToggleGroupItem value="system"
+                className="bg-black"
+                aria-label="Toggle system theme">
                   <Monitor className="h-4 w-4 mr-2" /> System
                 </ToggleGroupItem>
               </ToggleGroup>
