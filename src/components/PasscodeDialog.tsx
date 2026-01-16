@@ -97,7 +97,7 @@ const PasscodeDialog: React.FC<PasscodeDialogProps> = ({ isOpen, onClose }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px] bg-background text-primary">
+      <DialogContent className="sm:max-w-[425px] bg-background text-primary-foreground">
         <DialogHeader>
           <DialogTitle>App Passcode</DialogTitle>
         </DialogHeader>
