@@ -68,7 +68,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
 
                 <div className="flex flex-col gap-1">
                   <span className="text-sm font-medium">Last Synced</span>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-sm text-foreground">
                     {activeService.lastSynced || "Never"}
                   </span>
                 </div>
