@@ -44,8 +44,10 @@
       --primary: 240 3% 89%;
       --primary-foreground: 240 3% 89%;
 
-      --secondary: 210 40% 96.1%;
-      --secondary-foreground: 222.2 47.4% 11.2%;
+      --secondary: 0 0% 46%;
+      /* Unselected icon color */
+      --secondary-foreground: 225 6% 13%;
+      /* Selected icon color */
 
       --muted: 210 40% 96.1%;
       --muted-foreground: 215.4 16.3% 46.9%;
@@ -91,16 +93,18 @@
       --popover: 222.2 84% 4.9%;
       --popover-foreground: 210 40% 98%;
 
-      --primary: 240 3% 89%;
-      --primary-foreground: 240 3% 89%;
+      --primary: 225 6% 13%;
+      --primary-foreground: 240 0% 60%;
 
-      --secondary: 217.2 32.6% 17.5%;
-      --secondary-foreground: 210 40% 98%;
+      --secondary: 240 0% 60%;
+      /* Unselected icon color */
+      --secondary-foreground: 216 12% 92%;
+      /* Selected icon color */
 
       --muted: 217.2 32.6% 17.5%;
       --muted-foreground: 215 20.2% 65.1%;
 
-      --accent: 217.2 32.6% 17.5%;
+      --accent: 0 0% 44%;
       --accent-foreground: 210 40% 98%;
 
       --destructive: 0 62.8% 30.6%;

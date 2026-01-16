@@ -2,7 +2,7 @@ import React from "react";
 import { Note, NoteType, TextNote, ListNote } from "@/types/note";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Pin, Archive, Trash2, Square, CheckSquare } from "lucide-react"; // Removed Edit icon
+import { Pin, Archive, Trash2, Square, Check } from "lucide-react"; // Removed Edit icon
 import { cn } from "@/lib/utils";
 
 interface NoteCardProps {
@@ -45,7 +45,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
     <Card
       className={cn(
         "group relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-white dark:bg-[#202124] text-white cursor-pointer border-2 border-input", // Removed shadow-md
-        isSelected && "border-primary shadow-lg bg-[#202124]/90" // Highlight when selected
+        isSelected && "border-primary shadow-lg bg-white dark:bg-[#202124]/90" // Highlight when selected
       )}
       onClick={handleCardClick}
     >
@@ -58,11 +58,11 @@ const NoteCard: React.FC<NoteCardProps> = ({
         onClick={handleSelectionClick}
       >
         <div className={cn(
-          "w-6 h-6 rounded-full border-2 border-muted-foreground bg-[#202124] flex items-center justify-center hover:bg-muted/20",
-          isSelected && "bg-primary border-primary text-primary-foreground hover:bg-primary/90"
+          "w-6 h-6 rounded-full border-2 border-muted-foreground bg-transparent flex items-center justify-center hover:bg-muted-foreground/80",
+          isSelected && "bg-secondary-foreground dark:bg-secondary-foreground border-primary text-primary-foreground"
         )}>
-          {isSelected && <CheckSquare className="h-4 w-4" />}
-          {!isSelected && <span className="h-4 w-4" />} {/* Placeholder to keep size */}
+          {isSelected && <Check className="h-4 w-4 text-secondary dark:text-secondary-foreground" />}
+          {!isSelected && <span className="h-4 w-4 text-transparent dark:text-transparent" />} {/* Placeholder to keep size */}
         </div>
       </div>
 
@@ -123,7 +123,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                   disabled={isSelectionMode} // Disable list toggling in selection mode
                 >
                   {item.isCompleted ? (
-                    <CheckSquare className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-green-500" />
                   ) : (
                     <Square className="h-4 w-4 text-muted-foreground" />
                   )}
