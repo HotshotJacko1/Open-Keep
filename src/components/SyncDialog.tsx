@@ -75,6 +75,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
 
                 <div className="flex gap-2 mt-2">
                   <Button
+                    variant="outline"
                     onClick={() => activeService.sync()}
                     disabled={isAnySyncing}
                     className="flex-1 text-primary-foreground bg-background"
