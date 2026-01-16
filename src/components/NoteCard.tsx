@@ -61,8 +61,8 @@ const NoteCard: React.FC<NoteCardProps> = ({
           "w-6 h-6 rounded-full border-2 border-muted-foreground bg-transparent flex items-center justify-center hover:bg-secondary-foreground",
           isSelected && "bg-secondary-foreground dark:bg-secondary-foreground border-primary text-secondary-foreground"
         )}>
-          {isSelected && <Check className="h-4 w-4 text-secondary dark:text-secondary-foreground" />}
-          {!isSelected && <span className="h-4 w-4 text-transparent dark:text-transparent" />} {/* Placeholder to keep size */}
+          {isSelected && <Check className="h-4 w-4 text-secondary dark:text-secondary" />}
+          {!isSelected && <span className="h-4 w-4 text-secondary-foreground dark:text-secondary-foreground" />} {/* Placeholder to keep size */}
         </div>
       </div>
 
