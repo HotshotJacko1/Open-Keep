@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Sun, Moon, Monitor } from "lucide-react";
 import SyncDialog from "./SyncDialog";
 import PasscodeDialog from "./PasscodeDialog";
-import { supabase } from "@/integrations/supabase/client"; // Import Supabase client
+import { useSession } from "@/context/session-provider";
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -24,25 +24,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
   const { theme, setTheme } = useTheme();
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
   const [isPasscodeDialogOpen, setIsPasscodeDialogOpen] = useState(false);
-  const [user, setUser] = useState<any>(null); // State to store the user object
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      const { data, error } = await supabase.auth.getUser();
-      if (data?.user) {
-        setUser(data.user);
-      } else if (error) {
-        console.error("Error fetching user:", error);
-        setUser(null);
-      }
-    };
-
-    if (isOpen) {
-      fetchUser();
-    } else {
-      setUser(null); // Clear user when dialog closes
-    }
-  }, [isOpen]);
+  const { session } = useSession();
+  const user = session?.user;
 
   return (
     <>

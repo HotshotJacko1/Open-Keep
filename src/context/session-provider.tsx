@@ -20,9 +20,22 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
         setLoading(false);
       } else {
         // Attempt anonymous sign-in
-        supabase.auth.signInAnonymously().then(({ data, error }) => {
+        supabase.auth.signInAnonymously().then(async ({ data, error }) => {
           if (!error && data.session) {
             setSession(data.session);
+
+            // Create a new user record in the public Users table
+            const { error: insertError } = await supabase
+              .from('Users')
+              .insert({
+                user_id: data.session.user.id
+              });
+
+            if (insertError) {
+              console.error("Error creating user record:", insertError);
+            } else {
+              console.log("New user record created in public.Users");
+            }
           } else {
             console.error("Anonymous sign-in failed:", error);
           }
