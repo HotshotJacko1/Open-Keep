@@ -54,7 +54,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                     size="icon"
                     onClick={onPin}
                     title="Pin"
-                    className="text-gray-300 hover:text-white"
+                    className="text-primary hover:text-white"
                 >
                     <Pin className="h-5 w-5" />
                 </Button>
@@ -63,7 +63,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                     size="icon"
                     onClick={onArchive}
                     title="Archive"
-                    className="text-gray-300 hover:text-white"
+                    className="text-primary hover:text-white"
                 >
                     <Archive className="h-5 w-5" />
                 </Button>
@@ -72,7 +72,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                     size="icon"
                     onClick={onDelete}
                     title="Delete"
-                    className="text-gray-300 hover:text-white"
+                    className="text-primary hover:text-white"
                 >
                     <Trash2 className="h-5 w-5" />
                 </Button>
