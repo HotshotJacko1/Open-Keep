@@ -62,7 +62,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
           isSelected && "bg-secondary-foreground dark:bg-secondary-foreground border-primary text-secondary-foreground"
         )}>
           {isSelected && <Check className="h-4 w-4 text-secondary dark:text-secondary" />}
-          {!isSelected && <span className="h-4 w-4 text-secondary-foreground dark:text-secondary-foreground" />} {/* Placeholder to keep size */}
+          {!isSelected && <span className="h-4 w-4 text-white dark:text-secondary-foreground" />} {/* Placeholder to keep size */}
         </div>
       </div>
 
