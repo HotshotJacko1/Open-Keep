@@ -83,7 +83,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                             variant="ghost"
                             size="icon"
                             title="Change labels"
-                            className="text-white hover:text-primary-foreground"
+                            className="text-primary hover:text-primary-foreground"
                         >
                             <Tag className="h-5 w-5" />
                         </Button>
