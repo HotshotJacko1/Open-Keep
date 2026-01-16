@@ -114,7 +114,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                     size="icon"
                     onClick={onExport}
                     title="Export"
-                    className="text-gray-300 hover:text-primary-foreground"
+                    className="text-primary hover:text-primary-foreground"
                 >
                     <Download className="h-5 w-5" />
                 </Button>
