@@ -79,7 +79,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                     disabled={isAnySyncing}
                     className="flex-1 text-dark"
                   >
-                    {activeService.isSyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin text-dark" />}
+                    {activeService.isSyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {activeService.isSyncing ? "Syncing..." : "Sync Now"}
                   </Button>
                   <Button
