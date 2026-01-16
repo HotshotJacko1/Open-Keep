@@ -130,7 +130,7 @@ const PasscodeDialog: React.FC<PasscodeDialogProps> = ({ isOpen, onClose }) => {
               <div className="flex items-center justify-between border-t pt-4 mt-2">
                 <div className="space-y-0.5">
                   <Label htmlFor="biometrics">Biometric Unlock</Label>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-primary">
                     Use FaceID or TouchID to unlock
                   </p>
                 </div>
