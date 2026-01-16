@@ -75,7 +75,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
             {/* Supabase User ID */}
             {user?.id && (
               <div className="flex items-center justify-between mt-4">
-                <Label className="text-sm font-medium">User ID</Label>
+                <Label className="text-sm text-primary font-medium">User ID</Label>
                 <span className="text-xs text-primary dark:text-primary max-w-[60%] truncate">
                   {user.id}
                 </span>
