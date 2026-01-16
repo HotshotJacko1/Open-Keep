@@ -45,7 +45,9 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
                 }}
                 className="justify-start"
               >
-                <ToggleGroupItem value="light" aria-label="Toggle light theme">
+                <ToggleGroupItem value="light"
+                className=""
+                aria-label="Toggle light theme">
                   <Sun className="h-4 w-4 mr-2" /> Light
                 </ToggleGroupItem>
                 <ToggleGroupItem value="dark" aria-label="Toggle dark theme">
