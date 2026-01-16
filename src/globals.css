@@ -93,10 +93,10 @@
       --popover: 222.2 84% 4.9%;
       --popover-foreground: 210 40% 98%;
 
-      --primary: 213 6% 33%;
-      --primary-foreground: 216 12% 92%;
+      --primary: 213 6% 33%; /* Unselected text color */
+      --primary-foreground: 216 12% 92%; /* Selected text color */
 
-      --secondary: 240 0% 60%;
+      --secondary: 240 1% 39%;
       /* Unselected icon color */
       --secondary-foreground: 216 12% 92%;
       /* Selected icon color */
