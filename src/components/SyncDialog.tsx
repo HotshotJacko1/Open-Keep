@@ -85,7 +85,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                   </Button>
                   <Button
                     variant="outline"
-                    className="bg-black"
+                    className="bg-secondary"
                     onClick={activeService.disconnect}
                     disabled={isAnySyncing}
                   >
