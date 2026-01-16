@@ -35,7 +35,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px] bg-white dark:bg-[#202124] text-primary-foreground">
+      <DialogContent className="sm:max-w-[425px] bg-background text-primary-foreground">
         <DialogHeader>
           <DialogTitle>Sync Options</DialogTitle>
         </DialogHeader>
