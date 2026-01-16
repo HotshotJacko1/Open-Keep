@@ -68,7 +68,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
 
                 <div className="flex flex-col gap-1">
                   <span className="text-sm font-medium">Last Synced</span>
-                  <span className="text-sm text-foreground">
+                  <span className="text-sm text-primary-foreground">
                     {activeService.lastSynced || "Never"}
                   </span>
                 </div>
@@ -77,7 +77,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                   <Button
                     onClick={() => activeService.sync()}
                     disabled={isAnySyncing}
-                    className="flex-1 text-foreground dark:text-black"
+                    className="flex-1 text-primary-foreground"
                   >
                     {activeService.isSyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {activeService.isSyncing ? "Syncing..." : "Sync Now"}
