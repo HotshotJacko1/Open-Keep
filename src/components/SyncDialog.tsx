@@ -60,10 +60,10 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                 </Button>
               </div>
             ) : (
-              <div className="flex flex-col gap-3 border rounded-md p-4 bg-muted/50">
+              <div className="flex flex-col gap-3 border rounded-md p-4 bg-muted/50 text-primary-foreground">
                 <div className="flex flex-col gap-1">
                   <span className="text-sm font-medium">Connected to {activeService.name}</span>
-                  <span className="text-sm text-primary-foreground break-all">{activeService.userEmail || "Connected"}</span>
+                  <span className="text-sm break-all">{activeService.userEmail || "Connected"}</span>
                 </div>
 
                 <div className="flex flex-col gap-1">
