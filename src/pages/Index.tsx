@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Note, NoteType, TextNote, ListNote } from "@/types/note";
-import { loadNotes, saveNotes } from "@/lib/note-storage";
+import { loadNotes, saveNote, deleteNote, getLegacyWebNotes, migrateWebNotes, clearLegacyWebNotes } from "@/lib/note-storage";
 import NoteCard from "@/components/NoteCard";
 import TextNoteEditor from "@/components/TextNoteEditor";
 import ListNoteEditor from "@/components/ListNoteEditor";
@@ -44,27 +44,32 @@ const Index = () => {
 
   const { session, supabase } = useSession();
 
-  // Load notes on mount, regardless of session
+  // Load notes on mount + Migration Logic
   useEffect(() => {
-    setNotes(loadNotes());
-  }, []); // Only run once on mount
+    const initNotes = async () => {
+      // MIGRATION CHECK
+      const MIGRATION_KEY = 'migrated_to_native_v1';
+      const hasMigrated = localStorage.getItem(MIGRATION_KEY);
 
-  // We no longer rely on session to load/clear notes initially
-  // useEffect(() => {
-  //   if (session) {
-  //     setNotes(loadNotes());
-  //   } else {
-  //     setNotes([]); // Clear notes if not logged in
-  //   }
-  // }, [session]); 
+      if (!hasMigrated) {
+        const legacyNotes = getLegacyWebNotes();
+        if (legacyNotes.length > 0) {
+          console.log("Migrating notes to native database...", legacyNotes.length);
+          await migrateWebNotes(legacyNotes);
+          // clearLegacyWebNotes(); // Optional: keep for safety for now
+        }
+        localStorage.setItem(MIGRATION_KEY, 'true');
+      }
 
-  useEffect(() => {
-    // Save notes whenever they change. 
-    // We allow saving even if !session because storage is local.
-    saveNotes(notes);
-  }, [notes]);
+      const loadedNotes = await loadNotes();
+      setNotes(loadedNotes);
+    };
 
-  const handleSaveNote = (noteToSave: Note) => {
+    initNotes();
+  }, []);
+
+  const handleSaveNote = async (noteToSave: Note) => {
+    // Optimistic Update
     setNotes((prevNotes) => {
       const existingNoteIndex = prevNotes.findIndex((n) => n.id === noteToSave.id);
       if (existingNoteIndex > -1) {
@@ -75,6 +80,9 @@ const Index = () => {
         return [noteToSave, ...prevNotes];
       }
     });
+
+    // Write to DB
+    await saveNote(noteToSave);
   };
 
   const handleEditNote = (note: Note) => {
@@ -86,42 +94,57 @@ const Index = () => {
     }
   };
 
-  const handlePinToggle = (id: string) => {
+  const handlePinToggle = async (id: string) => {
+    const note = notes.find(n => n.id === id);
+    if (!note) return;
+
+    const updatedNote = { ...note, isPinned: !note.isPinned, updatedAt: Date.now() }; // User requested auto update time
+
+    // UI Update
     setNotes((prevNotes) =>
-      prevNotes.map((note) =>
-        note.id === id ? { ...note, isPinned: !note.isPinned } : note
-      )
+      prevNotes.map((n) => (n.id === id ? updatedNote : n))
     );
+
+    // DB Update
+    await saveNote(updatedNote);
   };
 
-  const handleArchiveToggle = (id: string) => {
+  const handleArchiveToggle = async (id: string) => {
+    const note = notes.find(n => n.id === id);
+    if (!note) return;
+
+    const updatedNote = { ...note, isArchived: !note.isArchived, updatedAt: Date.now() };
+
     setNotes((prevNotes) =>
-      prevNotes.map((note) =>
-        note.id === id ? { ...note, isArchived: !note.isArchived } : note
-      )
+      prevNotes.map((n) => (n.id === id ? updatedNote : n))
     );
+    await saveNote(updatedNote);
   };
 
-  const handleDeleteNote = (id: string) => {
+  const handleDeleteNote = async (id: string) => {
+    // UI Update
     setNotes((prevNotes) => prevNotes.filter((note) => note.id !== id));
+    // DB Update
+    await deleteNote(id);
   };
 
-  const handleToggleListItem = (noteId: string, itemId: string) => {
+  const handleToggleListItem = async (noteId: string, itemId: string) => {
+    const note = notes.find(n => n.id === noteId);
+    if (!note || note.type !== NoteType.List) return;
+
+    const listNote = note as ListNote;
+    const updatedNote = {
+      ...listNote,
+      items: listNote.items.map((item) =>
+        item.id === itemId ? { ...item, isCompleted: !item.isCompleted } : item
+      ),
+      updatedAt: Date.now(),
+    };
+
     setNotes((prevNotes) =>
-      prevNotes.map((note) => {
-        if (note.id === noteId && note.type === NoteType.List) {
-          const listNote = note as ListNote;
-          return {
-            ...listNote,
-            items: listNote.items.map((item) =>
-              item.id === itemId ? { ...item, isCompleted: !item.isCompleted } : item
-            ),
-            updatedAt: Date.now(), // Update timestamp when an item is toggled
-          };
-        }
-        return note;
-      })
+      prevNotes.map((n) => (n.id === noteId ? updatedNote : n))
     );
+    await saveNote(updatedNote);
   };
 
   const uniqueTags = useMemo(() => {
@@ -175,47 +198,61 @@ const Index = () => {
     setSelectedNoteIds(new Set());
   };
 
-  const handleBulkPin = () => {
-    setNotes((prevNotes) => {
-      // Determine if we should pin or unpin based on the first selected note
-      // Or: if any are unpinned, pin them all. If all are pinned, unpin them all.
-      // Let's go with: if any selected is unpinned, pin all selected. Otherwise unpin all.
-      const selectedNotes = prevNotes.filter(n => selectedNoteIds.has(n.id));
-      const anyUnpinned = selectedNotes.some(n => !n.isPinned);
+  const handleBulkPin = async () => {
+    // Logic: if any selected is unpinned, pin all. Else unpin all.
+    const selectedNotes = notes.filter(n => selectedNoteIds.has(n.id));
+    if (selectedNotes.length === 0) return;
 
-      return prevNotes.map(note => {
-        if (selectedNoteIds.has(note.id)) {
-          return { ...note, isPinned: anyUnpinned };
-        }
-        return note;
-      });
+    const anyUnpinned = selectedNotes.some(n => !n.isPinned);
+    const newPinnedState = anyUnpinned;
+    const now = Date.now();
+
+    const updates: Note[] = [];
+
+    const newNotes = notes.map(note => {
+      if (selectedNoteIds.has(note.id)) {
+        const updated = { ...note, isPinned: newPinnedState, updatedAt: now };
+        updates.push(updated);
+        return updated;
+      }
+      return note;
     });
-    // Optional: Keep selection or clear it? Google Keep keeps it.
+
+    setNotes(newNotes);
+
+    // Loop save. Parallel is fine.
+    await Promise.all(updates.map(n => saveNote(n)));
   };
 
-  const handleBulkArchive = () => {
-    setNotes((prevNotes) =>
-      prevNotes.map(note => {
-        if (selectedNoteIds.has(note.id)) {
-          return { ...note, isArchived: !note.isArchived }; // Toggle or just archive? Usually "Archive" action means archive. But if we are in Archive view?
-          // For now let's assume "Archive" action always archives. 
-          // But wait, the button says "Archive". If we are in "Archived" view, maybe it should be "Unarchive".
-          // Keep simplifies: The button toggles or there are separate buttons. 
-          // Let's simple toggle 'isArchived' to TRUE for now, or toggle if it's already there?
-          // Google Keep has "Archive" button. If note is archived, it has "Unarchive".
-          // Let's implement toggle for now, or just force true.
-          // Requirement: "Archive". 
-          return { ...note, isArchived: true };
-        }
-        return note;
-      })
-    );
+  const handleBulkArchive = async () => {
+    const selectedNotes = notes.filter(n => selectedNoteIds.has(n.id));
+    if (selectedNotes.length === 0) return;
+
+    const now = Date.now();
+    const updates: Note[] = [];
+
+    const newNotes = notes.map(note => {
+      if (selectedNoteIds.has(note.id)) {
+        const updated = { ...note, isArchived: true, updatedAt: now }; // Always archive as per previous logic
+        updates.push(updated);
+        return updated;
+      }
+      return note;
+    });
+
+    setNotes(newNotes);
+    await Promise.all(updates.map(n => saveNote(n)));
+
     handleClearSelection();
     showSuccess("Notes archived");
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
+    const idsToDelete = Array.from(selectedNoteIds);
     setNotes((prevNotes) => prevNotes.filter(note => !selectedNoteIds.has(note.id)));
+
+    await Promise.all(idsToDelete.map(id => deleteNote(id)));
+
     handleClearSelection();
     showSuccess("Notes deleted");
   };
@@ -264,8 +301,6 @@ const Index = () => {
     }
   };
 
-
-
   // Tag management for selection
   const tagStates = useMemo(() => {
     const states: Record<string, boolean | 'indeterminate'> = {};
@@ -285,34 +320,37 @@ const Index = () => {
     return states;
   }, [selectedNoteIds, notes, uniqueTags]);
 
-  const handleTagToggle = (tag: string) => {
-    setNotes(prevNotes => {
-      const selectedNotes = prevNotes.filter(n => selectedNoteIds.has(n.id));
-      const allHave = selectedNotes.every(n => n.tags.includes(tag));
+  const handleTagToggle = async (tag: string) => {
+    // Calculate changes
+    const selectedNotes = notes.filter(n => selectedNoteIds.has(n.id));
+    if (selectedNotes.length === 0) return;
 
-      // If all have it, remove it.
-      // If some or none have it, add it.
-      const shouldAdd = !allHave;
+    const allHave = selectedNotes.every(n => n.tags.includes(tag));
+    const shouldAdd = !allHave;
+    const now = Date.now();
+    const updates: Note[] = [];
 
-      return prevNotes.map(note => {
-        if (selectedNoteIds.has(note.id)) {
-          let newTags = note.tags;
-          if (shouldAdd) {
-            if (!newTags.includes(tag)) {
-              newTags = [...newTags, tag];
-            }
-          } else {
-            newTags = newTags.filter(t => t !== tag);
-          }
-          return { ...note, tags: newTags, updatedAt: Date.now() };
+    const newNotes = notes.map(note => {
+      if (selectedNoteIds.has(note.id)) {
+        let newTags = note.tags;
+        if (shouldAdd) {
+          if (!newTags.includes(tag)) newTags = [...newTags, tag];
+        } else {
+          newTags = newTags.filter(t => t !== tag);
         }
-        return note;
-      });
+        const updated = { ...note, tags: newTags, updatedAt: now };
+        updates.push(updated);
+        return updated;
+      }
+      return note;
     });
+
+    setNotes(newNotes);
+    await Promise.all(updates.map(n => saveNote(n)));
   };
 
   const mainContent = (
-    <div className="flex flex-col flex-1 p-4 sm:p-6 md:p-8">
+    <div className="flex flex-col flex-1 px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 sm:pb-6 sm:pt-[calc(1.5rem+env(safe-area-inset-top))] md:px-8 md:pb-8 md:pt-[calc(2rem+env(safe-area-inset-top))]">
       {/* Combined top bar for mobile and desktop */}
       <div className="flex items-center gap-2 mb-6">
         {isMobile && (
@@ -396,6 +434,7 @@ const Index = () => {
         notes={notes}
         onImportNotes={(importedNotes) => {
           setNotes((prev) => [...importedNotes, ...prev]);
+          importedNotes.forEach(saveNote); // Save imported notes
         }}
       />
     </div >
