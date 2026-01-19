@@ -1,7 +1,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { initOneDrive, loginToOneDrive, syncNotesWithOneDrive, logoutFromOneDrive, msalInstance } from "@/lib/one-drive";
-import { loadNotes, saveNotes } from "@/lib/note-storage";
+import { loadNotes, saveNote } from "@/lib/note-storage";
 import { showSuccess, showError } from "@/utils/toast";
 
 export const useOneDrive = () => {
@@ -47,11 +47,11 @@ export const useOneDrive = () => {
             // Ensure initialized
             await initOneDrive();
 
-            const localNotes = loadNotes();
+            const localNotes = await loadNotes();
             const mergedNotes = await syncNotesWithOneDrive(localNotes);
 
             // Save merged notes locally
-            saveNotes(mergedNotes);
+            await Promise.all(mergedNotes.map(n => saveNote(n)));
 
             // Notify UI
             window.dispatchEvent(new Event("notes-updated"));

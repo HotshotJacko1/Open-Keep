@@ -1,7 +1,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { initDropbox, getAuthenticationUrl, handleAuthRedirect, syncNotesWithDropbox } from "@/lib/dropbox";
-import { loadNotes, saveNotes } from "@/lib/note-storage";
+import { loadNotes, saveNote } from "@/lib/note-storage";
 import { showSuccess, showError } from "@/utils/toast";
 
 export const useDropbox = () => {
@@ -71,10 +71,10 @@ export const useDropbox = () => {
 
         setIsSyncing(true);
         try {
-            const localNotes = loadNotes();
+            const localNotes = await loadNotes();
             const mergedNotes = await syncNotesWithDropbox(localNotes);
 
-            saveNotes(mergedNotes);
+            await Promise.all(mergedNotes.map(n => saveNote(n)));
             window.dispatchEvent(new Event("notes-updated"));
 
             const now = new Date().toLocaleString();

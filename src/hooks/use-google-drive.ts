@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
 import { initGoogleDrive, setAccessToken, syncNotesWithDrive } from "@/lib/google-drive";
-import { loadNotes, saveNotes } from "@/lib/note-storage";
+import { loadNotes, saveNote } from "@/lib/note-storage";
 import { showSuccess, showError } from "@/utils/toast";
 
 export const useGoogleDrive = () => {
@@ -45,11 +45,12 @@ export const useGoogleDrive = () => {
             // In a real app we'd check for token expiry here. 
             // If this fails with 401, it usually means token is missing/expired.
 
-            const localNotes = loadNotes();
+            const localNotes = await loadNotes();
             const mergedNotes = await syncNotesWithDrive(localNotes);
 
             // Save merged notes locally
-            saveNotes(mergedNotes);
+            // We use saveNote for each to ensure upsert (REPLACE strategy)
+            await Promise.all(mergedNotes.map(note => saveNote(note)));
 
             // Force a reload of notes in the UI? 
             // The app probably reads from localStorage on mount or has a listener.
