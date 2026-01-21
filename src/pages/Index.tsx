@@ -444,7 +444,7 @@ const Index = () => {
           <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="mr-2">
-                <Menu className="h-6 w-6" />
+                <Menu className="h-6 w-6 text-muted-foreground" />
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-64 p-0 bg-sidebar-background text-sidebar-foreground border-r-sidebar-border">
