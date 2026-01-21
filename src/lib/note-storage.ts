@@ -1,5 +1,5 @@
 import { registerPlugin } from "@capacitor/core";
-import { Note } from "@/types/note";
+import { Note, NoteType } from "@/types/note";
 
 export interface NoteStoragePlugin {
   loadNotes(): Promise<{ notes: any[] }>;
@@ -30,16 +30,50 @@ const parseNote = (n: any): Note => {
     parsedTags = [];
   }
 
-  return {
-    ...n,
+  // Robustly handle 'items' for ListNote
+  let parsedItems: any[] = [];
+  const noteType = n.type === NoteType.List ? NoteType.List : NoteType.Text;
+
+  if (noteType === NoteType.List) {
+    try {
+      if (Array.isArray(n.items)) {
+        parsedItems = n.items;
+      } else if (typeof n.items === 'string') {
+        // Handle stringified JSON items if applicable
+        if (n.items.trim().startsWith('[')) {
+          parsedItems = JSON.parse(n.items);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to parse items for list note", n.id, e);
+    }
+  }
+
+  const baseNote = {
+    id: n.id,
+    title: n.title || "",
     tags: parsedTags,
-    // Ensure booleans are booleans (SQLite might return 0/1 if not handled by plugin, but Plugin returns boolean usually)
+    // Ensure booleans are booleans
     isPinned: !!n.isPinned,
     isArchived: !!n.isArchived,
     // Ensure numbers are numbers
-    createdAt: Number(n.createdAt),
-    updatedAt: Number(n.updatedAt)
+    createdAt: Number(n.createdAt) || Date.now(),
+    updatedAt: Number(n.updatedAt) || Date.now()
   };
+
+  if (noteType === NoteType.List) {
+    return {
+      ...baseNote,
+      type: NoteType.List,
+      items: parsedItems
+    };
+  } else {
+    return {
+      ...baseNote,
+      type: NoteType.Text,
+      content: n.content || ""
+    };
+  }
 };
 
 export const loadNotes = async (): Promise<Note[]> => {
