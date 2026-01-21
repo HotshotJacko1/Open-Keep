@@ -76,14 +76,14 @@ class NoteStoragePlugin : Plugin() {
                 val tagsString = tagsArray.toString()
 
                 val note = NoteEntity(
-                    id = noteObj.getString("id"),
-                    title = noteObj.getString("title"),
-                    content = noteObj.getString("content"),
-                    type = noteObj.getString("type"),
-                    createdAt = noteObj.getLong("createdAt"),
-                    updatedAt = noteObj.getLong("updatedAt"),
-                    isPinned = noteObj.getBoolean("isPinned"),
-                    isArchived = noteObj.getBoolean("isArchived"),
+                    id = noteObj.getString("id") ?: "",
+                    title = noteObj.getString("title") ?: "",
+                    content = noteObj.getString("content") ?: "",
+                    type = noteObj.getString("type") ?: "TEXT",
+                    createdAt = noteObj.getLong("createdAt") ?: 0L,
+                    updatedAt = noteObj.getLong("updatedAt") ?: 0L,
+                    isPinned = noteObj.getBoolean("isPinned") ?: false,
+                    isArchived = noteObj.getBoolean("isArchived") ?: false,
                     deleted = false,
                     tags = tagsString,
                     syncState = "PENDING"
