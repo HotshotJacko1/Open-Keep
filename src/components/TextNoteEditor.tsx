@@ -162,7 +162,7 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon" onClick={handleCloseEditor}>
-                <ArrowLeft className="h-5 w-5 text-black dark:text-white" />
+                <ArrowLeft className="h-5 w-5 text-secondary" />
                 <span className="sr-only">Back</span>
               </Button>
             </TooltipTrigger>
@@ -177,7 +177,7 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
                   variant="ghost"
                   size="icon"
                   onClick={() => setIsPinned(!isPinned)}
-                  className={isPinned ? "text-yellow-400" : "text-black dark:text-white"}
+                  className={isPinned ? "text-yellow-400" : "text-secondary"}
                 >
                   <Pin className="h-5 w-5" />
                   <span className="sr-only">{isPinned ? "Unpin Note" : "Pin Note"}</span>
@@ -193,7 +193,7 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
                   variant="ghost"
                   size="icon"
                   onClick={() => setIsArchived(!isArchived)}
-                  className={isArchived ? "text-blue-400" : "text-black dark:text-white"}
+                  className={isArchived ? "text-blue-400" : "text-secondary"}
                 >
                   <Archive className="h-5 w-5" />
                   <span className="sr-only">{isArchived ? "Unarchive Note" : "Archive Note"}</span>
@@ -230,11 +230,11 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
           {/* Tags row removed as requested */}
         </div>
 
-        <DialogFooter className="flex justify-between p-2 border-t border-gray-200 dark:border-gray-700">
+        <DialogFooter className="flex justify-end gap-2 p-2 border-t border-gray-200 dark:border-gray-700">
           <div className="flex gap-2">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-black dark:text-white">
+                <Button variant="ghost" size="icon" className="text-secondary">
                   <Type className="h-5 w-5" />
                   <span className="sr-only">Text Formatting</span>
                 </Button>
@@ -245,7 +245,7 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-black dark:text-white">
+                <Button variant="ghost" size="icon" className="text-secondary">
                   <Tag className="h-5 w-5" />
                   <span className="sr-only">Add Labels</span>
                 </Button>
@@ -260,7 +260,7 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
                   variant="ghost"
                   size="icon" // Changed size to "icon" to match other icon buttons
                   onClick={handleExport}
-                  className="text-black dark:text-white"
+                  className="text-secondary"
                 >
                   <Upload className="h-5 w-5" /> {/* Adjusted icon size to match others */}
                   <span className="sr-only">Export Note</span> {/* Added sr-only for accessibility */}

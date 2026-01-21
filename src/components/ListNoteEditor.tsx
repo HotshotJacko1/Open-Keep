@@ -248,7 +248,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
               variant="ghost"
               size="icon"
               onClick={() => setIsPinned(!isPinned)}
-              className={isPinned ? "text-yellow-400" : "text-black dark:text-white"}
+              className={isPinned ? "text-yellow-400" : "text-secondary"}
             >
               <Pin className="h-5 w-5" />
               <span className="sr-only">{isPinned ? "Unpin Note" : "Pin Note"}</span>
@@ -257,7 +257,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
               variant="ghost"
               size="icon"
               onClick={() => setIsArchived(!isArchived)}
-              className={isArchived ? "text-blue-400" : "text-black dark:text-white"}
+              className={isArchived ? "text-blue-400" : "text-secondary"}
             >
               <Archive className="h-5 w-5" />
               <span className="sr-only">{isArchived ? "Unarchive Note" : "Archive Note"}</span>
@@ -309,18 +309,18 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
                 placeholder="Add new item"
                 className="bg-white dark:bg-[#202124] text-black dark:text-white border-gray-700"
               />
-              <Button type="button" variant="ghost" onClick={handleAddItem} size="icon" className="text-black dark:text-white">
+              <Button type="button" variant="ghost" onClick={handleAddItem} size="icon" className="text-secondary">
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
         </div>
-        <DialogFooter className="flex justify-between p-2 border-t border-gray-200 dark:border-gray-700">
+        <DialogFooter className="flex justify-end gap-2 p-2 border-t border-gray-200 dark:border-gray-700">
           <div className="flex gap-2">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-black dark:text-white">
+                <Button variant="ghost" size="icon" className="text-secondary">
                   <Type className="h-5 w-5" />
                   <span className="sr-only">Text Formatting</span>
                 </Button>
@@ -331,7 +331,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-black dark:text-white">
+                <Button variant="ghost" size="icon" className="text-secondary">
                   <Tag className="h-5 w-5" />
                   <span className="sr-only">Add Labels</span>
                 </Button>
@@ -346,7 +346,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
                   variant="ghost"
                   size="icon"
                   onClick={handleExport}
-                  className="text-black dark:text-white"
+                  className="text-secondary"
                 >
                   <Upload className="h-5 w-5" />
                   <span className="sr-only">Export Note</span>

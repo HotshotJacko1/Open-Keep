@@ -494,10 +494,7 @@ const Index = () => {
         ))}
       </div>
 
-      <AddNoteOptions
-        onNewTextNote={handleNewTextNote}
-        onNewListNote={handleNewListNote}
-      />
+
 
       <TextNoteEditor
         isOpen={isTextEditorOpen}
@@ -542,6 +539,11 @@ const Index = () => {
         availableTags={uniqueTags}
         tagStates={tagStates}
         onTagToggle={handleTagToggle}
+      />
+
+      <AddNoteOptions
+        onNewTextNote={handleNewTextNote}
+        onNewListNote={handleNewListNote}
       />
 
       {isMobile ? (
