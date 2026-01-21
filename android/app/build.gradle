@@ -33,6 +33,9 @@ android {
     }
 }
 
+kotlin {
+    jvmToolchain(21)
+}
 
 repositories {
     flatDir{
