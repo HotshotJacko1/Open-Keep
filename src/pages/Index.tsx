@@ -4,6 +4,10 @@ import { loadNotes, saveNote, deleteNote, getLegacyWebNotes, migrateWebNotes, cl
 import NoteCard from "@/components/NoteCard";
 import TextNoteEditor from "@/components/TextNoteEditor";
 import ListNoteEditor from "@/components/ListNoteEditor";
+import { useGoogleDrive } from "@/hooks/use-google-drive";
+import { useOneDrive } from "@/hooks/use-one-drive";
+import { useDropbox } from "@/hooks/use-dropbox";
+import { Loader2 } from "lucide-react";
 import SidebarNav from "@/components/SidebarNav";
 import SettingsDialog from "@/components/SettingsDialog";
 import AddNoteOptions from "@/components/AddNoteOptions";
@@ -42,7 +46,68 @@ const Index = () => {
     setSelectedTag(searchParams.get("tag"));
   }, [searchParams]);
 
+  useEffect(() => {
+    setSelectedTag(searchParams.get("tag"));
+  }, [searchParams]);
+
   const { session, supabase } = useSession();
+
+  // Cloud Sync Hooks
+  const googleDrive = useGoogleDrive();
+  const oneDrive = useOneDrive();
+  const dropbox = useDropbox();
+
+  const activeService = useMemo(() => {
+    if (googleDrive.isConnected) return { ...googleDrive, name: "Google Drive" };
+    if (oneDrive.isConnected) return { ...oneDrive, name: "OneDrive" };
+    if (dropbox.isConnected) return { ...dropbox, name: "Dropbox" };
+    return null;
+  }, [googleDrive.isConnected, oneDrive.isConnected, dropbox.isConnected, googleDrive, oneDrive, dropbox]);
+
+  // Pull to Refresh State
+  const [pullStartPoint, setPullStartPoint] = useState(0);
+  const [pullChange, setPullChange] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const PULL_THRESHOLD = 150; // px to trigger refresh
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY === 0 && !isSelectionMode) {
+      setPullStartPoint(e.targetTouches[0].clientY);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (pullStartPoint > 0 && window.scrollY === 0 && !isSelectionMode) {
+      const pullY = e.targetTouches[0].clientY;
+      const dist = pullY - pullStartPoint;
+      if (dist > 0) {
+        // Resistance effect
+        setPullChange(dist < PULL_THRESHOLD ? dist : PULL_THRESHOLD + (dist - PULL_THRESHOLD) * 0.3);
+      }
+    }
+  };
+
+  const handleTouchEnd = async () => {
+    if (pullChange > PULL_THRESHOLD / 1.5 && activeService) {
+      setIsRefreshing(true);
+      setPullChange(60); // Hold position
+      try {
+        await activeService.sync();
+        const loadedNotes = await loadNotes(); // Reload local notes after sync
+        setNotes(loadedNotes);
+        showSuccess(`Synced with ${activeService.name}`);
+      } catch (error) {
+        console.error("Sync failed", error);
+      } finally {
+        setIsRefreshing(false);
+        setPullChange(0);
+        setPullStartPoint(0);
+      }
+    } else {
+      setPullChange(0);
+      setPullStartPoint(0);
+    }
+  };
 
   // Load notes on mount + Migration Logic
   useEffect(() => {
@@ -350,7 +415,29 @@ const Index = () => {
   };
 
   const mainContent = (
-    <div className="flex flex-col flex-1 px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 sm:pb-6 sm:pt-[calc(1.5rem+env(safe-area-inset-top))] md:px-8 md:pb-8 md:pt-[calc(2rem+env(safe-area-inset-top))]">
+    <div
+      className="flex flex-col flex-1 px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 sm:pb-6 sm:pt-[calc(1.5rem+env(safe-area-inset-top))] md:px-8 md:pb-8 md:pt-[calc(2rem+env(safe-area-inset-top))]"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      style={{
+        transform: `translateY(${pullChange > 0 ? pullChange : 0}px)`,
+        transition: isRefreshing ? 'transform 0.2s ease-out' : pullChange === 0 ? 'transform 0.3s ease-out' : 'none'
+      }}
+    >
+      {/* Pull to Refresh Indicator */}
+      {(pullChange > 0 || isRefreshing) && (
+        <div
+          className="absolute top-[-50px] left-0 right-0 flex justify-center items-center h-[50px] transition-opacity duration-300"
+          style={{ opacity: Math.min(pullChange / 50, 1) }}
+        >
+          {isRefreshing ? (
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          ) : (
+            <span className="text-sm text-muted-foreground font-medium">Pull to sync</span>
+          )}
+        </div>
+      )}
       {/* Combined top bar for mobile and desktop */}
       <div className="flex items-center gap-2 mb-6">
         {isMobile && (
