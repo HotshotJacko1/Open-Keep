@@ -21,7 +21,7 @@ const AddNoteOptions: React.FC<AddNoteOptionsProps> = ({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          className="fixed bottom-8 right-8 p-4 rounded-full shadow-lg 
+          className="fixed bottom-8 right-8 z-50 p-4 rounded-full shadow-lg 
                      bg-[hsl(218_4%_39%)] text-white hover:bg-[hsl(218_4%_30%)] 
                      dark:bg-[hsl(240_2%_89%)] dark:text-gray-900 dark:hover:bg-[hsl(240_2%_80%)]
                      transition-all duration-200"

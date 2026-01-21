@@ -231,46 +231,44 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
         </div>
 
         <DialogFooter className="flex justify-end gap-2 p-2 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-secondary">
-                  <Type className="h-5 w-5" />
-                  <span className="sr-only">Text Formatting</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Text Formatting</p>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-secondary">
-                  <Tag className="h-5 w-5" />
-                  <span className="sr-only">Add Labels</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Add Labels</p>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon" // Changed size to "icon" to match other icon buttons
-                  onClick={handleExport}
-                  className="text-secondary"
-                >
-                  <Upload className="h-5 w-5" /> {/* Adjusted icon size to match others */}
-                  <span className="sr-only">Export Note</span> {/* Added sr-only for accessibility */}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Export Note</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-secondary">
+                <Type className="h-5 w-5" />
+                <span className="sr-only">Text Formatting</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Text Formatting</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-secondary">
+                <Tag className="h-5 w-5" />
+                <span className="sr-only">Add Labels</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Add Labels</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleExport}
+                className="text-secondary"
+              >
+                <Upload className="h-5 w-5" />
+                <span className="sr-only">Export Note</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Export Note</p>
+            </TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon" onClick={handleDelete} className="text-red-400">
