@@ -230,7 +230,7 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
           {/* Tags row removed as requested */}
         </div>
 
-        <DialogFooter className="flex justify-end gap-2 p-2 border-t border-gray-200 dark:border-gray-700">
+        <DialogFooter className="flex flex-row items-center justify-end gap-2 p-2 border-t border-gray-200 dark:border-gray-700">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon" className="text-secondary">
