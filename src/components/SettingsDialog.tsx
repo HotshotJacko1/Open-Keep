@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/theme-provider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Sun, Moon, Monitor, Upload, Download, Loader2 } from "lucide-react";
+import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText } from "lucide-react";
 import SyncDialog from "./SyncDialog";
 import AppLockDialog from "./AppLockDialog";
 import { useSession } from "@/context/session-provider";
@@ -255,6 +255,23 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
                 </span>
               </div>
             )}
+
+            <div className="flex flex-col gap-2 mt-4">
+              <Button
+                variant="outline"
+                onClick={() => window.open("https://jorvikwebdesigns.com/open-keep-privacy-policy/", "_blank")}
+                className="w-full justify-start"
+              >
+                <Shield className="h-4 w-4 mr-2" /> Privacy Policy
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => window.open("https://jorvikwebdesigns.com/open-keep-privacy-policy-2/", "_blank")}
+                className="w-full justify-start"
+              >
+                <FileText className="h-4 w-4 mr-2" /> Terms of Service
+              </Button>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={onClose}>
