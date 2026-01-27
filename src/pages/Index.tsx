@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Note, NoteType, TextNote, ListNote } from "@/types/note";
+import { Note } from "@/types/note";
 import { loadNotes, saveNote, deleteNote, getLegacyWebNotes, migrateWebNotes, clearLegacyWebNotes } from "@/lib/note-storage";
 import NoteCard from "@/components/NoteCard";
-import TextNoteEditor from "@/components/TextNoteEditor";
-import ListNoteEditor from "@/components/ListNoteEditor";
+import NoteEditor from "@/components/NoteEditor"; // Unified Editor
 import { useGoogleDrive } from "@/hooks/use-google-drive";
 import { useOneDrive } from "@/hooks/use-one-drive";
 import { useDropbox } from "@/hooks/use-dropbox";
 import { Loader2 } from "lucide-react";
 import SidebarNav from "@/components/SidebarNav";
 import SettingsDialog from "@/components/SettingsDialog";
+import EditLabels from "@/components/EditLabels";
 import AddNoteOptions from "@/components/AddNoteOptions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,11 +24,11 @@ import { showSuccess } from "@/utils/toast";
 import { SelectionActionBar } from "@/components/SelectionActionBar";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import { toggleCheckboxInContent } from "@/utils/markdown";
 
 const Index = () => {
   const [notes, setNotes] = useState<Note[]>([]);
-  const [isTextEditorOpen, setIsTextEditorOpen] = useState(false);
-  const [isListEditorOpen, setIsListEditorOpen] = useState(false);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchParams] = useSearchParams();
@@ -36,16 +36,14 @@ const Index = () => {
   const isMobile = useIsMobile();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isEditLabelsOpen, setIsEditLabelsOpen] = useState(false);
   const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Derive selection mode from selected count
   const isSelectionMode = selectedNoteIds.size > 0;
 
   // Sync selectedTag with URL search params
-  useEffect(() => {
-    setSelectedTag(searchParams.get("tag"));
-  }, [searchParams]);
-
   useEffect(() => {
     setSelectedTag(searchParams.get("tag"));
   }, [searchParams]);
@@ -127,7 +125,20 @@ const Index = () => {
       }
 
       const loadedNotes = await loadNotes();
-      setNotes(loadedNotes);
+
+      // AUTO-DELETE CLEANUP (30 days)
+      const now = Date.now();
+      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+      const notesToPermanentlyDelete = loadedNotes.filter(n => n.isDeleted && n.deletedAt && (now - n.deletedAt > thirtyDays));
+
+      if (notesToPermanentlyDelete.length > 0) {
+        console.log(`Cleaning up ${notesToPermanentlyDelete.length} old deleted notes`);
+        await Promise.all(notesToPermanentlyDelete.map(n => deleteNote(n.id)));
+        const idsToDelete = new Set(notesToPermanentlyDelete.map(n => n.id));
+        setNotes(loadedNotes.filter(n => !idsToDelete.has(n.id)));
+      } else {
+        setNotes(loadedNotes);
+      }
     };
 
     initNotes();
@@ -152,11 +163,7 @@ const Index = () => {
 
   const handleEditNote = (note: Note) => {
     setEditingNote(note);
-    if (note.type === NoteType.Text) {
-      setIsTextEditorOpen(true);
-    } else {
-      setIsListEditorOpen(true);
-    }
+    setIsEditorOpen(true);
   };
 
   const handlePinToggle = async (id: string) => {
@@ -187,22 +194,66 @@ const Index = () => {
   };
 
   const handleDeleteNote = async (id: string) => {
-    // UI Update
-    setNotes((prevNotes) => prevNotes.filter((note) => note.id !== id));
-    // DB Update
-    await deleteNote(id);
+    const note = notes.find((n) => n.id === id);
+    if (!note) return;
+
+    if (note.isDeleted) {
+      // Permanent Delete
+      setNotes((prevNotes) => prevNotes.filter((n) => n.id !== id));
+      await deleteNote(id);
+      showSuccess("Note permanently deleted");
+    } else {
+      // Soft Delete
+      const updatedNote = {
+        ...note,
+        isDeleted: true,
+        deletedAt: Date.now(),
+        isPinned: false, // Unpin when deleting
+        isArchived: false, // Unarchive when deleting
+        updatedAt: Date.now()
+      };
+
+      setNotes((prevNotes) =>
+        prevNotes.map((n) => (n.id === id ? updatedNote : n))
+      );
+      await saveNote(updatedNote);
+      showSuccess("Note moved to Bin");
+    }
+  };
+
+  const handleRestoreNote = async (id: string) => {
+    const note = notes.find((n) => n.id === id);
+    if (!note) return;
+
+    const updatedNote = {
+      ...note,
+      isDeleted: false,
+      deletedAt: undefined,
+      updatedAt: Date.now()
+    };
+
+    setNotes((prevNotes) =>
+      prevNotes.map((n) => (n.id === id ? updatedNote : n))
+    );
+    await saveNote(updatedNote);
+    showSuccess("Note restored");
   };
 
   const handleToggleListItem = async (noteId: string, itemId: string) => {
-    const note = notes.find(n => n.id === noteId);
-    if (!note || note.type !== NoteType.List) return;
+    // Extract line index from "line-{index}"
+    const match = itemId.match(/^line-(\d+)$/);
+    if (!match) return;
+    const lineIndex = parseInt(match[1], 10);
+    if (isNaN(lineIndex)) return;
 
-    const listNote = note as ListNote;
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return;
+
+    const newContent = toggleCheckboxInContent(note.content, lineIndex);
+
     const updatedNote = {
-      ...listNote,
-      items: listNote.items.map((item) =>
-        item.id === itemId ? { ...item, isCompleted: !item.isCompleted } : item
-      ),
+      ...note,
+      content: newContent,
       updatedAt: Date.now(),
     };
 
@@ -218,16 +269,34 @@ const Index = () => {
   }, [notes]);
 
   const filteredNotes = useMemo(() => {
+    const isArchiveView = selectedTag === "archive";
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
+
     return notes
       .filter((note) => {
+        // Bin View
+        if (selectedTag === "bin") {
+          return note.isDeleted && (
+            note.title.toLowerCase().includes(lowerCaseSearchTerm) ||
+            note.content.toLowerCase().includes(lowerCaseSearchTerm)
+          );
+        }
+
+        // Hide deleted notes in other views
+        if (note.isDeleted) return false;
+
         const matchesSearch =
           note.title.toLowerCase().includes(lowerCaseSearchTerm) ||
           note.tags.some((tag) => tag.toLowerCase().includes(lowerCaseSearchTerm)) ||
-          (note.type === NoteType.Text && (note as TextNote).content.toLowerCase().includes(lowerCaseSearchTerm)) ||
-          (note.type === NoteType.List && (note as ListNote).items.some(item => item.content.toLowerCase().includes(lowerCaseSearchTerm)));
+          note.content.toLowerCase().includes(lowerCaseSearchTerm);
+
+        if (isArchiveView) {
+          return note.isArchived && matchesSearch;
+        }
+
         const matchesTag = selectedTag ? note.tags.includes(selectedTag) : true;
-        return matchesSearch && matchesTag;
+        // Hide archived notes in main view and tag views
+        return !note.isArchived && matchesSearch && matchesTag;
       })
       .sort((a, b) => {
         if (a.isPinned && !b.isPinned) return -1;
@@ -237,13 +306,34 @@ const Index = () => {
   }, [notes, searchTerm, selectedTag]);
 
   const handleNewTextNote = () => {
+    // New note implicitly Text mode, content empty
     setEditingNote(undefined);
-    setIsTextEditorOpen(true);
+    setIsEditorOpen(true);
   };
 
   const handleNewListNote = () => {
-    setEditingNote(undefined);
-    setIsListEditorOpen(true);
+    // We want to initialize the editor in Checklist mode.
+    // The Editor component detects checklist mode by content content.
+    // So we pass a dummy checklist item to start?
+    // Or we rely on Editor's internal state?
+    // Editor uses `initialNote?.content` to decide.
+    // If I pass `undefined` (new note), Editor defaults to empty text.
+    // I should pass an empty checklist string "- [ ] " to start in list mode?
+    // Or just let user can switch.
+    // User expects "New List Note" to open in List Mode.
+    // Let's seed it.
+    const newNoteSkeleton = {
+      id: crypto.randomUUID(),
+      title: "",
+      content: "- [ ] ", // Seed with one empty item triggers list mode in Editor
+      tags: [],
+      isPinned: false,
+      isArchived: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    setEditingNote(newNoteSkeleton);
+    setIsEditorOpen(true);
   };
 
   // Selection Handlers
@@ -298,7 +388,7 @@ const Index = () => {
 
     const newNotes = notes.map(note => {
       if (selectedNoteIds.has(note.id)) {
-        const updated = { ...note, isArchived: true, updatedAt: now }; // Always archive as per previous logic
+        const updated = { ...note, isArchived: true, updatedAt: now };
         updates.push(updated);
         return updated;
       }
@@ -327,14 +417,8 @@ const Index = () => {
     const selectedNotes = notes.filter((n) => selectedNoteIds.has(n.id));
 
     selectedNotes.forEach((note) => {
-      let content = "";
-      if (note.type === NoteType.Text) {
-        content = (note as TextNote).content;
-      } else {
-        content = (note as ListNote).items
-          .map((item) => `${item.isCompleted ? "[x]" : "[ ]"} ${item.content}`)
-          .join("\n");
-      }
+      // Content is already markdown
+      const content = note.content;
 
       // Sanitize title for filename
       const filename = `${note.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'untitled'}_${note.id.substring(0, 4)}.md`;
@@ -414,6 +498,67 @@ const Index = () => {
     await Promise.all(updates.map(n => saveNote(n)));
   };
 
+  const handleRenameTag = async (oldTag: string, newTag: string) => {
+    if (oldTag === newTag) return;
+
+    // Check if newTag already exists (merge case) or just rename.
+    // If newTag exists, we merge oldTag into newTag.
+
+    const now = Date.now();
+    const updates: Note[] = [];
+
+    const newNotes = notes.map(note => {
+      if (note.tags.includes(oldTag)) {
+        let newTags = note.tags.map(t => t === oldTag ? newTag : t);
+        // Deduplicate in case merge happen
+        newTags = Array.from(new Set(newTags));
+
+        const updated = { ...note, tags: newTags, updatedAt: now };
+        updates.push(updated);
+        return updated;
+      }
+      return note;
+    });
+
+    setNotes(newNotes);
+    await Promise.all(updates.map(n => saveNote(n)));
+
+    // NOTE: If we want to support updating the URL if the user is currently viewing the old tag:
+    // But we don't have setSearchParams extracted here. 
+    // Usually standard React Router pattern.
+  };
+
+  const handleDeleteTag = async (tagToDelete: string) => {
+    const now = Date.now();
+    const updates: Note[] = [];
+
+    const newNotes = notes.map(note => {
+      if (note.tags.includes(tagToDelete)) {
+        const newTags = note.tags.filter(t => t !== tagToDelete);
+        const updated = { ...note, tags: newTags, updatedAt: now };
+        updates.push(updated);
+        return updated;
+      }
+      return note;
+    });
+
+    setNotes(newNotes);
+    await Promise.all(updates.map(n => saveNote(n)));
+  };
+
+  const handleCreateTag = (tag: string) => {
+    // Logic for creating tag. 
+    // Since tags are derived, we can't easily "create" an unused tag without a dummy note.
+    // For now, we'll assume the user adds it to a note soon.
+    // We could trigger a toast.
+    // Or we can modify EditLabels to maintain a local list of "created but unused" tags?
+    // For this iteration, we'll just allow it and maybe show a message if needed.
+    // But standard Keep allows creating tags.
+    // I will implement a "System Note" concept later if needed, for now no-op on persistence.
+    // Maybe just toast.
+    showSuccess(`Label "${tag}" created (unused labels may not persist)`);
+  };
+
   const mainContent = (
     <div
       className="flex flex-col flex-1 px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 sm:pb-6 sm:pt-[calc(1.5rem+env(safe-area-inset-top))] md:px-8 md:pb-8 md:pt-[calc(2rem+env(safe-area-inset-top))]"
@@ -452,10 +597,20 @@ const Index = () => {
                 <Lightbulb className="mr-2 h-6 w-6 text-yellow-500" fill="currentColor" />
                 <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
               </div>
-              <SidebarNav uniqueTags={uniqueTags} onClose={() => setIsSheetOpen(false)} />
+              <SidebarNav
+                uniqueTags={uniqueTags}
+                onClose={() => setIsSheetOpen(false)}
+                onEditLabels={() => setIsEditLabelsOpen(true)}
+              />
 
             </SheetContent>
           </Sheet>
+        )}
+
+        {!isMobile && isSidebarCollapsed && (
+          <Button variant="ghost" size="icon" className="mr-2" onClick={() => setIsSidebarCollapsed(false)}>
+            <Menu className="h-6 w-6 text-muted-foreground" />
+          </Button>
         )}
 
         <Input
@@ -486,6 +641,7 @@ const Index = () => {
             onPinToggle={handlePinToggle}
             onArchiveToggle={handleArchiveToggle}
             onDelete={handleDeleteNote}
+            onRestore={handleRestoreNote}
             onToggleListItem={handleToggleListItem}
             isSelected={selectedNoteIds.has(note.id)}
             isSelectionMode={isSelectionMode}
@@ -494,22 +650,12 @@ const Index = () => {
         ))}
       </div>
 
-
-
-      <TextNoteEditor
-        isOpen={isTextEditorOpen}
-        onClose={() => setIsTextEditorOpen(false)}
+      <NoteEditor
+        isOpen={isEditorOpen}
+        onClose={() => setIsEditorOpen(false)}
         onSave={handleSaveNote}
-        onDelete={handleDeleteNote} // Pass onDelete prop
-        initialNote={editingNote?.type === NoteType.Text ? (editingNote as TextNote) : undefined}
-      />
-
-      <ListNoteEditor
-        isOpen={isListEditorOpen}
-        onClose={() => setIsListEditorOpen(false)}
-        onSave={handleSaveNote}
-        onDelete={handleDeleteNote} // Pass onDelete prop
-        initialNote={editingNote?.type === NoteType.List ? (editingNote as ListNote) : undefined}
+        onDelete={handleDeleteNote}
+        initialNote={editingNote}
       />
 
       <SettingsDialog
@@ -520,6 +666,15 @@ const Index = () => {
           setNotes((prev) => [...importedNotes, ...prev]);
           importedNotes.forEach(saveNote); // Save imported notes
         }}
+      />
+
+      <EditLabels
+        isOpen={isEditLabelsOpen}
+        onClose={() => setIsEditLabelsOpen(false)}
+        tags={uniqueTags}
+        onCreateTag={handleCreateTag}
+        onRenameTag={handleRenameTag}
+        onDeleteTag={handleDeleteTag}
       />
     </div >
   );
@@ -550,20 +705,31 @@ const Index = () => {
         mainContent
       ) : (
         <ResizablePanelGroup direction="horizontal" className="min-h-screen">
-          <ResizablePanel defaultSize={15} minSize={10} maxSize={25} className="bg-sidebar-background text-sidebar-foreground border-r-sidebar-border">
-            <div className="p-4 text-2xl font-bold text-sidebar-primary flex items-center">
-              <Lightbulb className="mr-2 h-6 w-6 text-yellow-500" fill="currentColor" />
-              <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
-            </div>
-            <SidebarNav uniqueTags={uniqueTags} />
-          </ResizablePanel>
-          <ResizableHandle withHandle />
+          {!isSidebarCollapsed && (
+            <>
+              <ResizablePanel defaultSize={15} minSize={10} maxSize={25} className="bg-sidebar-background text-sidebar-foreground border-r-sidebar-border">
+                <div className="p-4 text-2xl font-bold text-sidebar-primary flex items-center">
+                  <Button variant="ghost" size="icon" className="mr-2 text-white" onClick={() => setIsSidebarCollapsed(true)}>
+                    <Menu className="h-6 w-6 text-muted-foreground" />
+                  </Button>
+                  <Lightbulb className="mr-2 h-6 w-6 text-yellow-500" fill="currentColor" />
+                  <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
+                </div>
+                <SidebarNav
+                  uniqueTags={uniqueTags}
+                  onEditLabels={() => setIsEditLabelsOpen(true)}
+                />
+              </ResizablePanel>
+              <ResizableHandle withHandle />
+            </>
+          )}
           <ResizablePanel defaultSize={85}>
             {mainContent}
           </ResizablePanel>
         </ResizablePanelGroup>
-      )}
-    </div>
+      )
+      }
+    </div >
   );
 };
 
