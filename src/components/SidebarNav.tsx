@@ -32,7 +32,7 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
         onClick={handleNavigation}
       >
         <Link to="/">
-          <Lightbulb className="mr-4 h-5 w-5 flex-shrink-0 text-black dark:text-white" />
+          <Lightbulb className="mr-4 h-5 w-5 flex-shrink-0" />
           Notes
         </Link>
       </Button>
