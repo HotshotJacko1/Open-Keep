@@ -48,7 +48,7 @@ const EditLabels: React.FC<EditLabelsProps> = ({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[425px] text-black dark:text-white">
                 <DialogHeader>
                     <DialogTitle>Edit Labels</DialogTitle>
                 </DialogHeader>
