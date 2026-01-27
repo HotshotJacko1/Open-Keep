@@ -61,7 +61,7 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
         {onEditLabels && (
           <Button
             variant="ghost"
-            className="justify-start px-4 py-2 rounded-full text-lg w-full mt-2 text-black"
+            className="justify-start px-4 py-2 rounded-full text-lg w-full mt-2 text-black dark:text-white"
             onClick={onEditLabels}
           >
             <Pencil className="mr-4 h-5 w-5" />
