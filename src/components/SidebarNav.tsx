@@ -74,7 +74,7 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
         <Button
           variant="ghost"
           className={cn(
-            "justify-start px-4 py-2 rounded-full text-lg w-full",
+            "text-black justify-start px-4 py-2 rounded-full text-lg w-full",
             selectedTag === "archive" && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/90"
           )}
           asChild
