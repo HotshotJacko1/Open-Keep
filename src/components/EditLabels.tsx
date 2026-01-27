@@ -68,7 +68,7 @@ const EditLabels: React.FC<EditLabelsProps> = ({
                             value={newLabel}
                             onChange={(e) => setNewLabel(e.target.value)}
                             placeholder="Create new label"
-                            className="border-none shadow-none focus-visible:ring-0 px-0 placeholder:text-muted-foreground/50 placeholder-shown:text-muted-foreground"
+                            className="border-none shadow-none focus-visible:ring-0 px-0 placeholder:text-muted-foreground/50 placeholder-shown:text-white"
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') handleCreate();
                             }}
