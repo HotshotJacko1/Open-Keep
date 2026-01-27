@@ -25,7 +25,7 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
       <Button
         variant="ghost"
         className={cn(
-          "justify-start px-4 py-2 rounded-full text-lg",
+          "text-black justify-start px-4 py-2 rounded-full text-lg",
           !selectedTag && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/90"
         )}
         asChild
