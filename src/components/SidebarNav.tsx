@@ -1,15 +1,16 @@
 import React from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Lightbulb, Tag } from "lucide-react";
+import { Lightbulb, Tag, Archive, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface SidebarNavProps {
   uniqueTags: string[];
   onClose?: () => void; // Optional for closing sheet on mobile
+  onEditLabels?: () => void;
 }
 
-const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose }) => {
+const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabels }) => {
   const [searchParams] = useSearchParams();
   const selectedTag = searchParams.get("tag");
 
@@ -37,9 +38,8 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose }) => {
       </Button>
 
       <div className="pt-4">
-        <h3 className="text-sm font-medium text-muted-foreground px-4 mb-2">Tags</h3>
         {uniqueTags.length === 0 && (
-          <p className="text-sm text-muted-foreground px-4">No tags yet.</p>
+          <p className="text-sm text-muted-foreground px-4">No labels yet.</p>
         )}
         {uniqueTags.map((tag) => (
           <Button
@@ -58,6 +58,33 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose }) => {
             </Link>
           </Button>
         ))}
+        {onEditLabels && (
+          <Button
+            variant="ghost"
+            className="justify-start px-4 py-2 rounded-full text-lg w-full mt-2 text-sidebar-foreground"
+            onClick={onEditLabels}
+          >
+            <Pencil className="mr-4 h-5 w-5" />
+            Edit labels
+          </Button>
+        )}
+      </div>
+
+      <div className="pt-4 mt-2">
+        <Button
+          variant="ghost"
+          className={cn(
+            "justify-start px-4 py-2 rounded-full text-lg w-full",
+            selectedTag === "archive" && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/90"
+          )}
+          asChild
+          onClick={handleNavigation}
+        >
+          <Link to="/?tag=archive">
+            <Archive className="mr-4 h-5 w-5" />
+            Archive
+          </Link>
+        </Button>
       </div>
     </nav>
   );
