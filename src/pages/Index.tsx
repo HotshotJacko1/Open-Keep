@@ -709,8 +709,8 @@ const Index = () => {
             <>
               <ResizablePanel defaultSize={15} minSize={10} maxSize={25} className="bg-sidebar-background text-sidebar-foreground border-r-sidebar-border">
                 <div className="p-4 text-2xl font-bold text-sidebar-primary flex items-center">
-                  <Button variant="ghost" size="icon" className="mr-2 text-white" onClick={() => setIsSidebarCollapsed(true)}>
-                    <Menu className="h-6 w-6 text-muted-foreground" />
+                  <Button variant="ghost" size="icon" className="mr-2" onClick={() => setIsSidebarCollapsed(true)}>
+                    <Menu className="h-6 w-6 text-white" />
                   </Button>
                   <Lightbulb className="mr-2 h-6 w-6 text-yellow-500" fill="currentColor" />
                   <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
