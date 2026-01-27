@@ -26,7 +26,7 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
         variant="ghost"
         className={cn(
           "text-black justify-start px-4 py-2 rounded-full text-lg whitespace-nowrap overflow-hidden transition-all",
-          !selectedTag && "bg-sidebar-accent text-white dark:text-black  hover:bg-sidebar-accent/90"
+          !selectedTag && "bg-sidebar-accent text-black dark:text-white  hover:bg-sidebar-accent/90"
         )}
         asChild
         onClick={handleNavigation}
