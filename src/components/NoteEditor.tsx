@@ -13,7 +13,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Plus, X, GripVertical, ArrowLeft, Pin, Archive, Type, Tag, Trash2, Upload, ListChecks } from "lucide-react";
+import { Plus, X, GripVertical, ArrowLeft, Pin, Archive, Type, Tag, Trash2, Upload, ListChecks, Bold, Italic, Underline } from "lucide-react";
 import NoteLabels from "@/components/NoteLabels";
 import {
     DndContext,
@@ -38,6 +38,10 @@ import {
     convertListToText,
     ChecklistItem
 } from "@/utils/markdown";
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import UnderlineExtension from '@tiptap/extension-underline'
+import Placeholder from '@tiptap/extension-placeholder'
 
 interface NoteEditorProps {
     isOpen: boolean;
@@ -135,6 +139,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const [isPinned, setIsPinned] = useState(false);
     const [isArchived, setIsArchived] = useState(false);
     const [isLabelsOpen, setIsLabelsOpen] = useState(false);
+    const [showFormatting, setShowFormatting] = useState(false);
 
     // Checklist Mode State
     const [isChecklistMode, setIsChecklistMode] = useState(false);
@@ -144,6 +149,25 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const noteIdRef = useRef<string>(initialNote?.id || crypto.randomUUID());
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const prevIsOpen = useRef(isOpen);
+
+    const editor = useEditor({
+        extensions: [
+            StarterKit,
+            UnderlineExtension,
+            Placeholder.configure({
+                placeholder: 'Take a note...',
+            }),
+        ],
+        content: content,
+        editorProps: {
+            attributes: {
+                class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none h-full min-h-[300px] text-black dark:text-white',
+            },
+        },
+        onUpdate: ({ editor }) => {
+            setContent(editor.getHTML());
+        },
+    });
 
     // Initialize form
     useEffect(() => {
@@ -156,15 +180,16 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 setIsPinned(initialNote.isPinned);
                 setIsArchived(initialNote.isArchived);
 
+                // Update Editor Content
+                if (editor) {
+                    editor.commands.setContent(initialNote.content);
+                }
+
                 // Detect mode
                 const isList = isChecklist(initialNote.content);
                 setIsChecklistMode(isList);
                 if (isList) {
                     const { items } = parseChecklist(initialNote.content);
-                    // Re-assign stable IDs for DnD to prevent jumpiness if we generated random ones?
-                    // Actually parseChecklist generates IDs based on index 'line-0', 'line-1'.
-                    // This is "okay" for initial load, but for reordering we need stable ones.
-                    // Let's replace them with random UUIDs for the session immediately.
                     setChecklistItems(items.map(i => ({ ...i, id: crypto.randomUUID() })));
                 }
             } else {
@@ -177,13 +202,17 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 setIsArchived(false);
                 setIsChecklistMode(false);
                 setChecklistItems([]);
+
+                if (editor) {
+                    editor.commands.setContent('');
+                }
             }
         }
         prevIsOpen.current = isOpen;
-    }, [initialNote, isOpen]);
+    }, [initialNote, isOpen, editor]);
 
     // Sync Checklist Items -> Content string (Only when in checklist mode)
-    // This is how we treat Markdown as authoritative: we rebuild it from UI state.
+    // This now writes internal content state.
     useEffect(() => {
         if (isChecklistMode && isOpen) {
             const newContent = checklistItems
@@ -193,9 +222,25 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             // Avoid infinite loop if content is already same (though comparison might be expensive)
             if (newContent !== content) {
                 setContent(newContent);
+                // We typically don't update Editor here because we are in Checklist Mode (hidden editor).
+                // But if we switch back, we want fresh content.
+                // We'll handle that in toggle.
             }
         }
     }, [checklistItems, isChecklistMode, isOpen]);
+
+    // Update editor when switching TO text mode
+    useEffect(() => {
+        if (!isChecklistMode && editor && content) {
+            // Only update if editor is desynced? 
+            // editor.getHTML() might differ largely from 'content' if we just switched from list.
+            // But we don't want to overwrite typing loop.
+            // This is tricky. simpler: only set content on mode switch.
+            // Handled in handleToggleMode below? No, that handles state.
+            // Let's leave this manual sync for handleToggleMode.
+        }
+    }, [isChecklistMode, editor]);
+
 
     // Auto-save logic
     useEffect(() => {
@@ -205,8 +250,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         }
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
-        // Don't save if completely empty
-        if (title.trim() === "" && content.trim() === "") {
+        // Don't save if completely empty (stripped HTML check?)
+        const plainText = content.replace(/<[^>]+>/g, '').trim();
+        if (title.trim() === "" && plainText === "") {
             return;
         }
 
@@ -214,7 +260,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             const newNote: Note = {
                 id: noteIdRef.current,
                 title,
-                content,
+                content, // Saves HTML now
                 tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
                 isPinned,
                 isArchived,
@@ -236,9 +282,19 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             const newContent = convertListToText(content);
             setContent(newContent);
             setIsChecklistMode(false);
+            // Editor needs update
+            if (editor) editor.commands.setContent(newContent);
         } else {
             // Text -> List
-            const newContent = convertTextToList(content);
+            // If content is HTML, convert to text first
+            let textContent = content;
+            if (content.includes('<')) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = content;
+                textContent = tempDiv.innerText; // Preserves newlines usually
+            }
+
+            const newContent = convertTextToList(textContent);
             setContent(newContent);
             setIsChecklistMode(true);
 
@@ -440,18 +496,14 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                 </div>
                             </div>
                         ) : (
-                            <Textarea
-                                id="content"
-                                value={content}
-                                onChange={(e) => setContent(e.target.value)}
-                                className="w-full h-full min-h-[300px] resize-none bg-white dark:bg-[#202124] text-black dark:text-white border-none focus-visible:ring-0 p-0 leading-relaxed text-base"
-                                placeholder="Note"
-                            />
+                            <div onClick={() => editor?.chain().focus().run()} className="w-full h-full min-h-[300px] cursor-text">
+                                <EditorContent editor={editor} className="outline-none min-h-[300px]" />
+                            </div>
                         )}
                     </div>
 
                     {/* Footer */}
-                    <DialogFooter className="flex flex-row items-center justify-between p-2 border-t border-gray-200 dark:border-gray-700 shrink-0">
+                    <DialogFooter className="flex flex-row items-center justify-between sm:justify-between p-2 border-t border-gray-200 dark:border-gray-700 shrink-0">
                         <div className="flex gap-2">
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -480,13 +532,67 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="text-secondary">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className={`text-secondary ${showFormatting ? "bg-accent" : ""}`}
+                                        onClick={() => setShowFormatting(!showFormatting)}
+                                    >
                                         <Type className="h-5 w-5" />
                                         <span className="sr-only">Formatting</span>
                                     </Button>
                                 </TooltipTrigger>
                                 <TooltipContent><p>Formatting</p></TooltipContent>
                             </Tooltip>
+
+                            {showFormatting && editor && !isChecklistMode && (
+                                <>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className={`text-secondary ${editor.isActive('bold') ? 'bg-accent' : ''}`}
+                                                onClick={() => editor.chain().focus().toggleBold().run()}
+                                            >
+                                                <Bold className="h-4 w-4" />
+                                                <span className="sr-only">Bold</span>
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent><p>Bold</p></TooltipContent>
+                                    </Tooltip>
+
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className={`text-secondary ${editor.isActive('italic') ? 'bg-accent' : ''}`}
+                                                onClick={() => editor.chain().focus().toggleItalic().run()}
+                                            >
+                                                <Italic className="h-4 w-4" />
+                                                <span className="sr-only">Italic</span>
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent><p>Italic</p></TooltipContent>
+                                    </Tooltip>
+
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className={`text-secondary ${editor.isActive('underline') ? 'bg-accent' : ''}`}
+                                                onClick={() => editor.chain().focus().toggleUnderline().run()}
+                                            >
+                                                <Underline className="h-4 w-4" />
+                                                <span className="sr-only">Underline</span>
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent><p>Underline</p></TooltipContent>
+                                    </Tooltip>
+                                </>
+                            )}
                         </div>
 
                         <div className="flex gap-2">

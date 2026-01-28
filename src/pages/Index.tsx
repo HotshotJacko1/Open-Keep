@@ -39,6 +39,14 @@ const Index = () => {
   const [isEditLabelsOpen, setIsEditLabelsOpen] = useState(false);
   const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [customTags, setCustomTags] = useState<string[]>(() => {
+    const saved = localStorage.getItem("custom-tags");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem("custom-tags", JSON.stringify(customTags));
+  }, [customTags]);
 
   // Derive selection mode from selected count
   const isSelectionMode = selectedNoteIds.size > 0;
@@ -282,9 +290,9 @@ const Index = () => {
   };
 
   const uniqueTags = useMemo(() => {
-    const allTags = notes.flatMap((note) => note.tags);
-    return Array.from(new Set(allTags)).sort();
-  }, [notes]);
+    const noteTags = notes.flatMap((note) => note.tags);
+    return Array.from(new Set([...noteTags, ...customTags])).sort();
+  }, [notes, customTags]);
 
   const filteredNotes = useMemo(() => {
     const isArchiveView = selectedTag === "archive";
@@ -519,6 +527,13 @@ const Index = () => {
   const handleRenameTag = async (oldTag: string, newTag: string) => {
     if (oldTag === newTag) return;
 
+    // Update custom tags if necessary
+    setCustomTags(prev => {
+      const newTags = prev.map(t => t === oldTag ? newTag : t);
+      // Deduplicate
+      return Array.from(new Set(newTags));
+    });
+
     // Check if newTag already exists (merge case) or just rename.
     // If newTag exists, we merge oldTag into newTag.
 
@@ -547,6 +562,9 @@ const Index = () => {
   };
 
   const handleDeleteTag = async (tagToDelete: string) => {
+    // Remove from custom tags
+    setCustomTags(prev => prev.filter(t => t !== tagToDelete));
+
     const now = Date.now();
     const updates: Note[] = [];
 
@@ -565,21 +583,21 @@ const Index = () => {
   };
 
   const handleCreateTag = (tag: string) => {
-    // Logic for creating tag. 
-    // Since tags are derived, we can't easily "create" an unused tag without a dummy note.
-    // For now, we'll assume the user adds it to a note soon.
-    // We could trigger a toast.
-    // Or we can modify EditLabels to maintain a local list of "created but unused" tags?
-    // For this iteration, we'll just allow it and maybe show a message if needed.
-    // But standard Keep allows creating tags.
-    // I will implement a "System Note" concept later if needed, for now no-op on persistence.
-    // Maybe just toast.
-    showSuccess(`Label "${tag}" created (unused labels may not persist)`);
+    if (!tag.trim()) return;
+
+    // Check if it already exists
+    if (uniqueTags.includes(tag)) {
+      showSuccess(`Label "${tag}" already exists`);
+      return;
+    }
+
+    setCustomTags(prev => [...prev, tag]);
+    showSuccess(`Label "${tag}" created`);
   };
 
   const mainContent = (
     <div
-      className="flex flex-col flex-1 px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 sm:pb-6 sm:pt-[calc(1.5rem+env(safe-area-inset-top))] md:px-8 md:pb-8 md:pt-[calc(2rem+env(safe-area-inset-top))]"
+      className="flex flex-col flex-1 px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-6 md:px-8 md:pb-8 md:pt-8"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -743,9 +761,9 @@ const Index = () => {
                 {/* Mini Sidebar */}
                 <div
                   className="relative z-20 flex-none bg-sidebar-background border-r border-sidebar-border flex flex-col pt-4"
-                  style={{ width: '80px' }}
+                  style={{ width: '60px' }}
                 >
-                  <div className="absolute top-0 left-0 h-full bg-sidebar-background border-r border-sidebar-border transition-all duration-300 ease-in-out overflow-hidden shadow-none hover:shadow-2xl flex flex-col z-30 group w-[80px] hover:w-64 pt-4">
+                  <div className="absolute top-0 left-0 h-full bg-sidebar-background border-r border-sidebar-border transition-all duration-300 ease-in-out overflow-hidden shadow-none hover:shadow-2xl flex flex-col z-30 group w-[60px] hover:w-64 pt-4">
                     <SidebarNav
                       uniqueTags={uniqueTags}
                       onEditLabels={() => setIsEditLabelsOpen(true)}

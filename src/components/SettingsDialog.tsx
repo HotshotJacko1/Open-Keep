@@ -223,11 +223,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
               </div>
             </div>
 
-            {/* Button to open PasscodeDialog */}
+            {/* Button to open App Lock Dialog */}
             <div className="flex flex-col gap-2 mt-4">
-              <Label>App Passcode</Label>
+              <Label>App Lock</Label>
               <Button variant="outline" onClick={() => setIsPasscodeDialogOpen(true)}>
-                Manage Passcode
+                Manage App Lock
               </Button>
             </div>
 
