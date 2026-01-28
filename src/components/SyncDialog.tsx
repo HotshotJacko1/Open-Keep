@@ -12,6 +12,7 @@ import { useGoogleDrive } from "@/hooks/use-google-drive";
 import { useOneDrive } from "@/hooks/use-one-drive";
 import { useDropbox } from "@/hooks/use-dropbox";
 import { Loader2, FolderSync } from "lucide-react";
+import { showSuccess, showError } from "@/utils/toast";
 
 interface SyncDialogProps {
   isOpen: boolean;
@@ -49,13 +50,31 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
 
             {!activeService ? (
               <div className="flex flex-col gap-2">
-                <Button onClick={() => googleDrive.login()} className="w-full justify-start" variant="outline">
+                <Button
+                  onClick={() => {
+                    const performLogin = async () => {
+                      // Immediate feedback to confirm click registration
+                      showSuccess("Initiating Google Login...");
+                      try {
+                        console.log("Calling googleDrive.login()");
+                        googleDrive.login();
+                      } catch (e) {
+                        console.error("Login call failed synchronously", e);
+                        showError("Failed to start login");
+                      }
+                    };
+                    performLogin();
+                  }}
+                  className="w-full justify-start"
+                  variant="outline"
+                  type="button"
+                >
                   <FolderSync className="mr-2 h-4 w-4" /> Sync with Google Drive
                 </Button>
-                <Button onClick={() => oneDrive.login()} className="w-full justify-start" variant="outline">
+                <Button onClick={() => oneDrive.login()} className="w-full justify-start" variant="outline" type="button">
                   <FolderSync className="mr-2 h-4 w-4" /> Sync with OneDrive
                 </Button>
-                <Button onClick={() => dropbox.login()} className="w-full justify-start" variant="outline">
+                <Button onClick={() => dropbox.login()} className="w-full justify-start" variant="outline" type="button">
                   <FolderSync className="mr-2 h-4 w-4" /> Sync with Dropbox
                 </Button>
               </div>

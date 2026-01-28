@@ -183,9 +183,10 @@ const NoteCard: React.FC<NoteCardProps> = ({
             {/* If trimmed, show ... */}
           </ul>
         ) : (
-          <p className="text-sm text-secondary-foreground whitespace-pre-wrap max-h-[300px] overflow-hidden text-ellipsis">
-            {note.content}
-          </p>
+          <div
+            className="text-sm text-secondary-foreground max-h-[300px] overflow-hidden text-ellipsis prose prose-sm dark:prose-invert prose-p:my-0 prose-headings:my-1"
+            dangerouslySetInnerHTML={{ __html: note.content }}
+          />
         )}
         {note.tags.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
