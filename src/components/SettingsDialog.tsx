@@ -14,7 +14,7 @@ import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText } from 
 import SyncDialog from "./SyncDialog";
 import AppLockDialog from "./AppLockDialog";
 import { useSession } from "@/context/session-provider";
-import { Note, NoteType, TextNote } from "@/types/note";
+import { Note } from "@/types/note";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { showSuccess, showError } from "@/utils/toast";
@@ -46,7 +46,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
     if (file.name.endsWith('.md')) {
       const text = await file.text();
       const title = file.name.replace('.md', '');
-      const newNote: TextNote = {
+      const newNote: Note = {
         id: crypto.randomUUID(),
         title: title,
         content: text,
@@ -55,7 +55,6 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
         isArchived: false,
         createdAt: Date.now(),
         updatedAt: Date.now(),
-        type: NoteType.Text
       };
       importedNotes.push(newNote);
     } else if (file.name.endsWith('.zip')) {
@@ -70,7 +69,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
               const filename = zipEntry.name.split('/').pop() || zipEntry.name;
               const title = filename.replace('.md', '');
 
-              const newNote: TextNote = {
+              const newNote: Note = {
                 id: crypto.randomUUID(),
                 title: title,
                 content: content,
@@ -79,7 +78,6 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
                 isArchived: false,
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
-                type: NoteType.Text
               };
               importedNotes.push(newNote);
             });
@@ -139,14 +137,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
       const zip = new JSZip();
 
       notes.forEach((note) => {
-        let content = "";
-        if (note.type === NoteType.Text) {
-          content = (note as TextNote).content;
-        } else {
-          content = (note as any).items
-            .map((item: any) => `${item.isCompleted ? "[x]" : "[ ]"} ${item.content}`)
-            .join("\n");
-        }
+        // Content is always markdown now
+        const content = note.content;
 
         // Sanitize title for filename
         const filename = `${note.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'untitled'}_${note.id.substring(0, 4)}.md`;
@@ -260,14 +252,14 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
               <Button
                 variant="outline"
                 onClick={() => window.open("https://jorvikwebdesigns.com/open-keep-privacy-policy/", "_blank")}
-                className="w-full justify-start"
+                className="w-full"
               >
                 <Shield className="h-4 w-4 mr-2" /> Privacy Policy
               </Button>
               <Button
                 variant="outline"
                 onClick={() => window.open("https://jorvikwebdesigns.com/open-keep-privacy-policy-2/", "_blank")}
-                className="w-full justify-start"
+                className="w-full"
               >
                 <FileText className="h-4 w-4 mr-2" /> Terms of Service
               </Button>

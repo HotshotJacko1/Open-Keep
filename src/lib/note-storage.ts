@@ -1,5 +1,5 @@
 import { registerPlugin } from "@capacitor/core";
-import { Note, NoteType } from "@/types/note";
+import { Note } from "@/types/note";
 
 export interface NoteStoragePlugin {
   loadNotes(): Promise<{ notes: any[] }>;
@@ -30,28 +30,36 @@ const parseNote = (n: any): Note => {
     parsedTags = [];
   }
 
-  // Robustly handle 'items' for ListNote
-  let parsedItems: any[] = [];
-  const noteType = n.type === NoteType.List ? NoteType.List : NoteType.Text;
-
-  if (noteType === NoteType.List) {
+  // MIGRATION LOGIC:
+  // If it was a list note, convert items to markdown checklist
+  let content = n.content || "";
+  // Check for legacy "list" type OR if items array exists
+  if (n.type === "list" || (n.items && Array.isArray(n.items))) {
     try {
-      if (Array.isArray(n.items)) {
-        parsedItems = n.items;
-      } else if (typeof n.items === 'string') {
-        // Handle stringified JSON items if applicable
-        if (n.items.trim().startsWith('[')) {
-          parsedItems = JSON.parse(n.items);
+      let items = n.items;
+      if (typeof items === 'string') {
+        if (items.trim().startsWith('[')) {
+          items = JSON.parse(items);
         }
       }
+
+      if (Array.isArray(items)) {
+        // Convert legacy items to checklist markdown
+        content = items.map((item: any) => {
+          const isChecked = item.isCompleted || false;
+          const text = item.content || "";
+          return `- [${isChecked ? 'x' : ' '}] ${text}`;
+        }).join('\n');
+      }
     } catch (e) {
-      console.warn("Failed to parse items for list note", n.id, e);
+      console.warn("Failed to parse legacy items for list note", n.id, e);
     }
   }
 
-  const baseNote = {
+  return {
     id: n.id,
     title: n.title || "",
+    content: content,
     tags: parsedTags,
     // Ensure booleans are booleans
     isPinned: !!n.isPinned,
@@ -60,20 +68,6 @@ const parseNote = (n: any): Note => {
     createdAt: Number(n.createdAt) || Date.now(),
     updatedAt: Number(n.updatedAt) || Date.now()
   };
-
-  if (noteType === NoteType.List) {
-    return {
-      ...baseNote,
-      type: NoteType.List,
-      items: parsedItems
-    };
-  } else {
-    return {
-      ...baseNote,
-      type: NoteType.Text,
-      content: n.content || ""
-    };
-  }
 };
 
 export const loadNotes = async (): Promise<Note[]> => {
@@ -88,20 +82,18 @@ export const loadNotes = async (): Promise<Note[]> => {
 
 export const saveNote = async (note: Note): Promise<void> => {
   try {
-    // Convert tags to string if needed, or pass as array and let Plugin handle?
-    // Plugin expects tags to be array in JSON object or whatever we decided.
-    // Kotlin side: `val tagsArray = noteObj.optJSONArray("tags") ?: JSONArray()`
-    // So passing array is fine.
-    await NoteStorage.saveNote({ note });
+    // We send the plain object. 
+    // The native plugin might expect 'type' field still if it validates schemas.
+    // For safety, we can send type='text' implicitly to satisfy any strict validation on the native side if it exists.
+    const noteToSave = {
+      ...note,
+      type: 'text' // Implicitly set type for compatibility
+    };
+    await NoteStorage.saveNote({ note: noteToSave });
   } catch (error) {
     console.error("Error saving note to native storage:", error);
   }
 };
-
-// Legacy saveNotes signature for compatibility/refactoring ease? 
-// The user wanted "Notes auto-save". 
-// If Index.tsx calls saveNotes(notes[]) we should probably deprecate/warn or implement loop.
-// But better to remove that usage. I will NOT implement saveNotes(notes[]).
 
 export const deleteNote = async (id: string): Promise<void> => {
   try {
@@ -111,9 +103,27 @@ export const deleteNote = async (id: string): Promise<void> => {
   }
 };
 
-export const migrateWebNotes = async (notes: Note[]): Promise<void> => {
+export const migrateWebNotes = async (notes: any[]): Promise<void> => {
+  // Pre-convert legacy web notes to the new format before sending migration
+  const migratedNotes = notes.map(n => {
+    let content = n.content || "";
+    if (n.type === "list" || (n.items && Array.isArray(n.items))) {
+      const items = n.items;
+      if (Array.isArray(items)) {
+        content = items.map((item: any) => `- [${item.isCompleted ? 'x' : ' '}] ${item.content}`).join('\n');
+      }
+    }
+
+    return {
+      ...n,
+      content,
+      type: 'text', // Normalize to text type for native DB
+      items: undefined // Remove legacy items
+    };
+  });
+
   try {
-    await NoteStorage.migrateFromWeb({ notes });
+    await NoteStorage.migrateFromWeb({ notes: migratedNotes });
   } catch (error) {
     console.error("Error migrating web notes:", error);
   }
@@ -121,7 +131,7 @@ export const migrateWebNotes = async (notes: Note[]): Promise<void> => {
 
 // Legacy LocalStorage helpers
 const LOCAL_STORAGE_KEY = "markdown-notes-app";
-export const getLegacyWebNotes = (): Note[] => {
+export const getLegacyWebNotes = (): any[] => {
   try {
     const json = localStorage.getItem(LOCAL_STORAGE_KEY);
     return json ? JSON.parse(json) : [];

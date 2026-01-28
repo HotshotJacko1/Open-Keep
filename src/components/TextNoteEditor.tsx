@@ -43,43 +43,30 @@ const TextNoteEditor: React.FC<TextNoteEditorProps> = ({
 
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Effect to load initial note data or reset for new note
+  const prevIsOpen = useRef(isOpen);
+
+  // Unified effect to handle opening/resetting
   useEffect(() => {
-    if (initialNote) {
-      noteIdRef.current = initialNote.id;
-      setTitle(initialNote.title);
-      setContent(initialNote.content);
-      setTags(initialNote.tags.join(", "));
-      setIsPinned(initialNote.isPinned);
-      setIsArchived(initialNote.isArchived);
-    } else {
-      // For a new note, we generate a fresh ID only when the editor opens fresh.
-      // But we need to be careful not to regenerate it if we are just re-rendering.
-      // Ideally, we should reset it only when `isOpen` changes from false to true.
-      // However, since this effect runs on [initialNote, isOpen], lets handle it carefully.
-      if (isOpen && !initialNote) {
-        // If opening a new note, ensure we have an ID (could be from previous render if not cleared, 
-        // but for safety let's assume we want a new one if we are "resetting")
-        // Actually, simpler: if `isOpen` is true and no initialNote, we are starting fresh.
-        // BUT, we might have already started editing.
-        // The safe bet for "new note" is usually handled by the parent unmounting or resetting key.
-        // Given how this component seems to stay mounted but just hidden/shown (based on isOpen),
-        // we should reset the ID when it OPENS.
+    // Only run logic when transitioning from closed -> open
+    if (isOpen && !prevIsOpen.current) {
+      if (initialNote) {
+        noteIdRef.current = initialNote.id;
+        setTitle(initialNote.title);
+        setContent(initialNote.content);
+        setTags(initialNote.tags.join(", "));
+        setIsPinned(initialNote.isPinned);
+        setIsArchived(initialNote.isArchived);
+      } else {
+        // Fresh note
+        noteIdRef.current = crypto.randomUUID();
+        setTitle("");
+        setContent("");
+        setTags("");
+        setIsPinned(false);
+        setIsArchived(false);
       }
     }
-  }, [initialNote, isOpen]);
-
-  // When opening fresh (without initialNote), we might want to ensure a fresh ID.
-  // We can do this with a separate effect that runs only when `isOpen` becomes true.
-  useEffect(() => {
-    if (isOpen && !initialNote) {
-      noteIdRef.current = crypto.randomUUID();
-      setTitle("");
-      setContent("");
-      setTags("");
-      setIsPinned(false);
-      setIsArchived(false);
-    }
+    prevIsOpen.current = isOpen;
   }, [isOpen, initialNote]);
 
   // Auto-save effect with debounce

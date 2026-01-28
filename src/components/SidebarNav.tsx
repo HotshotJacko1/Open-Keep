@@ -25,8 +25,8 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
       <Button
         variant="ghost"
         className={cn(
-          "text-black justify-start px-4 py-2 rounded-full text-lg whitespace-nowrap overflow-hidden transition-all",
-          !selectedTag && "bg-sidebar-accent text-black dark:text-white  hover:bg-sidebar-accent/90"
+          "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg whitespace-nowrap overflow-hidden transition-all",
+          !selectedTag && "bg-sidebar-accent hover:bg-sidebar-accent/90"
         )}
         asChild
         onClick={handleNavigation}
@@ -46,8 +46,8 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
             key={tag}
             variant="ghost"
             className={cn(
-              "justify-start px-4 py-2 rounded-full text-lg whitespace-nowrap overflow-hidden transition-all",
-              selectedTag === tag && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/90"
+              "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg whitespace-nowrap overflow-hidden transition-all",
+              selectedTag === tag && "bg-sidebar-accent hover:bg-sidebar-accent/90"
             )}
             asChild
             onClick={handleNavigation}
@@ -75,7 +75,7 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
           variant="ghost"
           className={cn(
             "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg w-full whitespace-nowrap overflow-hidden transition-all",
-            selectedTag === "archive" && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/90"
+            selectedTag === "archive" && "bg-sidebar-accent hover:bg-sidebar-accent/90"
           )}
           asChild
           onClick={handleNavigation}
@@ -89,7 +89,7 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
           variant="ghost"
           className={cn(
             "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg w-full whitespace-nowrap overflow-hidden transition-all",
-            selectedTag === "bin" && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/90"
+            selectedTag === "bin" && "bg-sidebar-accent hover:bg-sidebar-accent/90"
           )}
           asChild
           onClick={handleNavigation}

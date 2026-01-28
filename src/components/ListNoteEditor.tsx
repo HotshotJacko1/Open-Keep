@@ -115,20 +115,32 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
 
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Use a ref to store the current note ID, similar to TextNoteEditor
+  const noteIdRef = useRef<string>(initialNote?.id || crypto.randomUUID());
+
+  const prevIsOpen = useRef(isOpen);
+
   useEffect(() => {
-    if (initialNote) {
-      setTitle(initialNote.title);
-      setItems(initialNote.items);
-      setTags(initialNote.tags.join(", "));
-      setIsPinned(initialNote.isPinned);
-      setIsArchived(initialNote.isArchived);
-    } else {
-      setTitle("");
-      setItems([{ id: crypto.randomUUID(), content: "", isCompleted: false }]);
-      setTags("");
-      setIsPinned(false);
-      setIsArchived(false);
+    // Only run logic when transitioning from closed -> open
+    if (isOpen && !prevIsOpen.current) {
+      if (initialNote) {
+        noteIdRef.current = initialNote.id;
+        setTitle(initialNote.title);
+        setItems(initialNote.items);
+        setTags(initialNote.tags.join(", "));
+        setIsPinned(initialNote.isPinned);
+        setIsArchived(initialNote.isArchived);
+      } else {
+        // Fresh note
+        noteIdRef.current = crypto.randomUUID();
+        setTitle("");
+        setItems([{ id: crypto.randomUUID(), content: "", isCompleted: false }]);
+        setTags("");
+        setIsPinned(false);
+        setIsArchived(false);
+      }
     }
+    prevIsOpen.current = isOpen;
   }, [initialNote, isOpen]);
 
   // Auto-save effect with debounce
@@ -146,7 +158,7 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
 
     saveTimeoutRef.current = setTimeout(() => {
       const newNote: ListNote = {
-        id: initialNote?.id || crypto.randomUUID(),
+        id: noteIdRef.current,
         type: NoteType.List,
         title,
         items: items.filter(item => item.content.trim() !== ''), // Only save non-empty items
@@ -204,17 +216,16 @@ const ListNoteEditor: React.FC<ListNoteEditorProps> = ({
   };
 
   const handleDelete = () => {
-    if (initialNote?.id) {
-      onDelete(initialNote.id);
-      onClose();
-    }
+    // Rely on noteIdRef.current which should be stable/set
+    onDelete(noteIdRef.current);
+    onClose();
   };
 
   const handleCloseEditor = () => {
     // If the note is existing and both title is blank and there are no non-empty items, delete it
     const hasContent = title.trim() !== "" || items.some(item => item.content.trim() !== '');
-    if (initialNote?.id && !hasContent) {
-      onDelete(initialNote.id);
+    if (!hasContent) {
+      onDelete(noteIdRef.current);
     }
     onClose();
   };

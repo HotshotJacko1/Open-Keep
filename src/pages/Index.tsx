@@ -12,12 +12,12 @@ import SettingsDialog from "@/components/SettingsDialog";
 import EditLabels from "@/components/EditLabels";
 import AddNoteOptions from "@/components/AddNoteOptions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Menu, Lightbulb, Settings } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
+import TopBar from "@/components/TopBar";
 import { useSession } from '@/context/session-provider';
 
 import { showSuccess } from "@/utils/toast";
@@ -47,6 +47,24 @@ const Index = () => {
   useEffect(() => {
     setSelectedTag(searchParams.get("tag"));
   }, [searchParams]);
+
+  const getHeaderContent = () => {
+    if (selectedTag === "archive") {
+      return <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Archive</span>;
+    }
+    if (selectedTag === "bin") {
+      return <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Bin</span>;
+    }
+    if (selectedTag) {
+      return <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3] truncate max-w-[150px]">{selectedTag}</span>;
+    }
+    return (
+      <div className="flex items-center">
+        <Lightbulb className="mr-2 h-6 w-6 text-yellow-500 flex-shrink-0" fill="currentColor" />
+        <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
+      </div>
+    );
+  };
 
   const { session, supabase } = useSession();
 
@@ -583,50 +601,9 @@ const Index = () => {
           )}
         </div>
       )}
-      {/* Combined top bar for mobile and desktop */}
-      <div className="flex items-center gap-2 mb-6">
-        {isMobile && (
-          <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="mr-2">
-                <Menu className="h-6 w-6 text-muted-foreground" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-64 p-0 bg-sidebar-background text-sidebar-foreground border-r-sidebar-border">
-              <div className="p-4 text-2xl font-bold text-sidebar-primary flex items-center">
-                <Lightbulb className="mr-2 h-6 w-6 text-yellow-500" fill="currentColor" />
-                <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
-              </div>
-              <SidebarNav
-                uniqueTags={uniqueTags}
-                onClose={() => setIsSheetOpen(false)}
-                onEditLabels={() => setIsEditLabelsOpen(true)}
-              />
-
-            </SheetContent>
-          </Sheet>
-        )}
-
-        {!isMobile && isSidebarCollapsed && (
-          <Button variant="ghost" size="icon" className="mr-2" onClick={() => setIsSidebarCollapsed(false)}>
-            <Menu className="h-6 w-6 text-muted-foreground" />
-          </Button>
-        )}
-
-        <Input
-          type="text"
-          placeholder="Search notes by title, content, or tags..."
-          className="flex-grow p-2 rounded-lg shadow focus:ring-2 focus:ring-primary bg-white dark:bg-[#202124] text-card-foreground border-input"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-        <Button variant="ghost" size="icon" onClick={() => setIsSettingsOpen(true)}>
-          <Settings className="h-6 w-6 text-muted-foreground" />
-        </Button>
-      </div>
 
       <div
-        className="grid gap-4"
+        className="grid gap-4 pt-4"
         style={{
           columnCount: "auto",
           columnGap: "1rem",
@@ -656,6 +633,7 @@ const Index = () => {
         onSave={handleSaveNote}
         onDelete={handleDeleteNote}
         initialNote={editingNote}
+        availableTags={uniqueTags}
       />
 
       <SettingsDialog
@@ -679,57 +657,112 @@ const Index = () => {
     </div >
   );
 
+  const topBarStartAdornment = (
+    <div className="flex items-center">
+      {isMobile ? (
+        <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon" className="mr-2">
+              <Menu className="h-6 w-6 text-muted-foreground" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-64 p-0 bg-sidebar-background text-sidebar-foreground border-r-sidebar-border">
+            <div className="p-4 text-2xl font-bold text-sidebar-primary flex items-center">
+              <Lightbulb className="mr-2 h-6 w-6 text-yellow-500" fill="currentColor" />
+              <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
+            </div>
+            <SidebarNav
+              uniqueTags={uniqueTags}
+              onClose={() => setIsSheetOpen(false)}
+              onEditLabels={() => setIsEditLabelsOpen(true)}
+            />
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Button variant="ghost" size="icon" className="mr-2" onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}>
+          <Menu className="h-6 w-6 text-muted-foreground" />
+        </Button>
+      )}
+      {!isMobile && (
+        <div className="text-xl font-bold flex items-center">
+          {getHeaderContent()}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div
-      className="min-h-screen bg-neutral-100 dark:bg-[#202124] text-foreground"
+      className="h-screen flex flex-col bg-neutral-100 dark:bg-[#202124] text-foreground overflow-hidden"
       onClick={handleBackgroundClick} // Handle click outside
     >
-      <SelectionActionBar
-        selectedCount={selectedNoteIds.size}
-        onClearSelection={handleClearSelection}
-        onPin={handleBulkPin}
-        onArchive={handleBulkArchive}
-        onDelete={handleBulkDelete}
-        onExport={handleBulkExport}
-        availableTags={uniqueTags}
-        tagStates={tagStates}
-        onTagToggle={handleTagToggle}
+      <TopBar
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        onSettingsClick={() => setIsSettingsOpen(true)}
+        startAdornment={topBarStartAdornment}
       />
 
-      <AddNoteOptions
-        onNewTextNote={handleNewTextNote}
-        onNewListNote={handleNewListNote}
-      />
+      <div className="flex-1 flex overflow-hidden">
+        <SelectionActionBar
+          selectedCount={selectedNoteIds.size}
+          onClearSelection={handleClearSelection}
+          onPin={handleBulkPin}
+          onArchive={handleBulkArchive}
+          onDelete={handleBulkDelete}
+          onExport={handleBulkExport}
+          availableTags={uniqueTags}
+          tagStates={tagStates}
+          onTagToggle={handleTagToggle}
+        />
 
-      {isMobile ? (
-        mainContent
-      ) : (
-        <ResizablePanelGroup direction="horizontal" className="min-h-screen">
-          {!isSidebarCollapsed && (
-            <>
-              <ResizablePanel defaultSize={15} minSize={10} maxSize={25} className="bg-sidebar-background text-sidebar-foreground border-r-sidebar-border">
-                <div className="p-4 text-2xl font-bold text-sidebar-primary flex items-center">
-                  <Button variant="ghost" size="icon" className="mr-2" onClick={() => setIsSidebarCollapsed(true)}>
-                    <Menu className="h-6 w-6 text-white" />
-                  </Button>
-                  <Lightbulb className="mr-2 h-6 w-6 text-yellow-500" fill="currentColor" />
-                  <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
+        <AddNoteOptions
+          onNewTextNote={handleNewTextNote}
+          onNewListNote={handleNewListNote}
+        />
+
+        {isMobile ? (
+          mainContent
+        ) : (
+          <div className="flex flex-1 min-w-0">
+            {!isSidebarCollapsed ? (
+              <ResizablePanelGroup direction="horizontal" className="h-full">
+                <ResizablePanel defaultSize={15} minSize={10} maxSize={25} className="bg-sidebar-background text-sidebar-foreground border-r-sidebar-border pt-4">
+                  <SidebarNav
+                    uniqueTags={uniqueTags}
+                    onEditLabels={() => setIsEditLabelsOpen(true)}
+                  />
+                </ResizablePanel>
+                <ResizableHandle withHandle />
+                <ResizablePanel defaultSize={85}>
+                  {mainContent}
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            ) : (
+              <>
+                {/* Mini Sidebar */}
+                <div
+                  className="relative z-20 flex-none bg-sidebar-background border-r border-sidebar-border flex flex-col pt-4"
+                  style={{ width: '80px' }}
+                >
+                  <div className="absolute top-0 left-0 h-full bg-sidebar-background border-r border-sidebar-border transition-all duration-300 ease-in-out overflow-hidden shadow-none hover:shadow-2xl flex flex-col z-30 group w-[80px] hover:w-64 pt-4">
+                    <SidebarNav
+                      uniqueTags={uniqueTags}
+                      onEditLabels={() => setIsEditLabelsOpen(true)}
+                    />
+                  </div>
                 </div>
-                <SidebarNav
-                  uniqueTags={uniqueTags}
-                  onEditLabels={() => setIsEditLabelsOpen(true)}
-                />
-              </ResizablePanel>
-              <ResizableHandle withHandle />
-            </>
-          )}
-          <ResizablePanel defaultSize={85}>
-            {mainContent}
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      )
-      }
-    </div >
+
+                {/* Main Content */}
+                <div className="flex-1 min-w-0">
+                  {mainContent}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 

@@ -1,15 +1,7 @@
 import React from "react";
 import { X, Pin, Archive, Trash2, Upload, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuTrigger,
-    DropdownMenuCheckboxItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+import NoteLabels from "@/components/NoteLabels";
 import { cn } from "@/lib/utils";
 
 interface SelectionActionBarProps {
@@ -35,6 +27,8 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
     tagStates,
     onTagToggle,
 }) => {
+    const [isLabelsOpen, setIsLabelsOpen] = React.useState(false);
+
     if (selectedCount === 0) return null;
 
     return (
@@ -77,37 +71,23 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                     <Trash2 className="h-5 w-5" />
                 </Button>
 
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Change labels"
-                            className="text-primary hover:text-primary-foreground"
-                        >
-                            <Tag className="h-5 w-5" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56 bg-[#202124] text-white border-gray-700">
-                        <DropdownMenuLabel>Change labels</DropdownMenuLabel>
-                        <DropdownMenuSeparator className="bg-gray-700" />
-                        {availableTags.length === 0 && (
-                            <div className="p-2 text-sm text-primary">No labels created yet</div>
-                        )}
-                        {availableTags.map(tag => (
-                            <DropdownMenuCheckboxItem
-                                key={tag}
-                                checked={tagStates[tag] === true || tagStates[tag] === 'indeterminate'}
-                                onCheckedChange={() => onTagToggle(tag)}
-                                className="focus:bg-gray-700 focus:text-white cursor-pointer"
-                            >
-                                <span className={cn("flex items-center gap-2", tagStates[tag] === 'indeterminate' && "opacity-70")}>
-                                    {tag} {tagStates[tag] === 'indeterminate' && "(some)"}
-                                </span>
-                            </DropdownMenuCheckboxItem>
-                        ))}
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Change labels"
+                    className="text-primary hover:text-primary-foreground"
+                    onClick={() => setIsLabelsOpen(true)}
+                >
+                    <Tag className="h-5 w-5" />
+                </Button>
+
+                <NoteLabels
+                    isOpen={isLabelsOpen}
+                    onClose={() => setIsLabelsOpen(false)}
+                    availableTags={availableTags}
+                    selectedTags={tagStates}
+                    onTagToggle={onTagToggle}
+                />
 
                 <Button
                     variant="ghost"
