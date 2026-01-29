@@ -79,8 +79,8 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock }) => {
                 </div>
 
                 <div className="text-center space-y-2">
-                    <h1 className="text-2xl font-bold tracking-tight">App Locked</h1>
-                    <p className="text-muted-foreground">Enter your 4-digit passcode to unlock</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-black dark:text-white">App Locked</h1>
+                    <p className="text-black dark:text-white">Enter your 4-digit passcode to unlock</p>
                 </div>
 
                 <div className={errorPing ? "animate-shake" : ""}>
@@ -91,10 +91,10 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock }) => {
                         onChange={handlePasscodeChange}
                     >
                         <InputOTPGroup>
-                            <InputOTPSlot index={0} className="w-14 h-14 text-2xl" />
-                            <InputOTPSlot index={1} className="w-14 h-14 text-2xl" />
-                            <InputOTPSlot index={2} className="w-14 h-14 text-2xl" />
-                            <InputOTPSlot index={3} className="w-14 h-14 text-2xl" />
+                            <InputOTPSlot index={0} className="w-14 h-14 text-2xl text-black dark:text-white" />
+                            <InputOTPSlot index={1} className="w-14 h-14 text-2xl text-black dark:text-white" />
+                            <InputOTPSlot index={2} className="w-14 h-14 text-2xl text-black dark:text-white" />
+                            <InputOTPSlot index={3} className="w-14 h-14 text-2xl text-black dark:text-white" />
                         </InputOTPGroup>
                     </InputOTP>
                 </div>

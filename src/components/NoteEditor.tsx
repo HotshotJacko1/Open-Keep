@@ -57,13 +57,17 @@ interface SortableListItemProps {
     onUpdateItem: (id: string, newContent: string) => void;
     onRemoveItem: (id: string) => void;
     onToggleItem: (id: string) => void;
+    onEnter: (id: string) => void;
+    autoFocus?: boolean;
 }
 
 const SortableListItem: React.FC<SortableListItemProps> = ({
     item,
     onUpdateItem,
     onRemoveItem,
-    onToggleItem
+    onToggleItem,
+    onEnter,
+    autoFocus
 }) => {
     const {
         attributes,
@@ -110,6 +114,13 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
             <Input
                 value={item.content}
                 onChange={(e) => onUpdateItem(item.id, e.target.value)}
+                onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                        e.preventDefault();
+                        onEnter(item.id);
+                    }
+                }}
+                autoFocus={autoFocus}
                 placeholder="List item"
                 className={`flex-1 bg-white dark:bg-[#202124] text-black dark:text-white border-none focus-visible:ring-0 ${item.checked ? 'line-through text-gray-500' : ''}`}
             />
@@ -145,6 +156,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const [isChecklistMode, setIsChecklistMode] = useState(false);
     const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
     const [newItemContent, setNewItemContent] = useState("");
+    const [focusItemId, setFocusItemId] = useState<string | null>(null);
 
     const noteIdRef = useRef<string>(initialNote?.id || crypto.randomUUID());
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -279,19 +291,39 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const handleToggleMode = () => {
         if (isChecklistMode) {
             // List -> Text
-            const newContent = convertListToText(content);
-            setContent(newContent);
+            // Convert list to text, then wrap lines in <p> for Tiptap to respect newlines
+            const plainText = convertListToText(content);
+            const htmlContent = plainText
+                .split('\n')
+                .map(line => `<p>${line}</p>`)
+                .join('');
+
+            setContent(htmlContent);
             setIsChecklistMode(false);
             // Editor needs update
-            if (editor) editor.commands.setContent(newContent);
+            if (editor) {
+                editor.commands.setContent(htmlContent);
+                editor.commands.focus('end');
+            }
         } else {
             // Text -> List
-            // If content is HTML, convert to text first
+            // Parse HTML to text manually to ensure we get lines back
+            // We use a temporary div but pre-process HTML to ensure newlines are preserved
             let textContent = content;
+
             if (content.includes('<')) {
+                const tempHtml = content
+                    .replace(/<\/p>/gi, '\n') // End of paragraph = newline
+                    .replace(/<br\s*\/?>/gi, '\n') // Break tag = newline
+                    .replace(/<\/div>/gi, '\n'); // End of div = newline
+
                 const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = content;
-                textContent = tempDiv.innerText; // Preserves newlines usually
+                tempDiv.innerHTML = tempHtml;
+                textContent = tempDiv.textContent || tempDiv.innerText || "";
+
+                // DEBUG: Inspect values
+                console.log('Toggle Debug:', { content, tempHtml, textContent });
+                (window as any).debugContent = { content, tempHtml, textContent };
             }
 
             const newContent = convertTextToList(textContent);
@@ -321,6 +353,23 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         }
     };
 
+    const handleInsertItemAfter = (currentId: string) => {
+        const index = checklistItems.findIndex(i => i.id === currentId);
+        if (index === -1) return;
+
+        const newItem: ChecklistItem = {
+            id: crypto.randomUUID(),
+            content: "",
+            checked: false,
+            indentation: ""
+        };
+
+        const newItems = [...checklistItems];
+        newItems.splice(index + 1, 0, newItem);
+        setChecklistItems(newItems);
+        setFocusItemId(newItem.id);
+    };
+
     const handleAddItem = () => {
         if (newItemContent.trim()) {
             const newItem = {
@@ -331,6 +380,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             };
             setChecklistItems(prev => [...prev, newItem]);
             setNewItemContent("");
+            setFocusItemId(null);
         }
     };
 
@@ -478,6 +528,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                                 onUpdateItem={handleUpdateItem}
                                                 onRemoveItem={handleRemoveItem}
                                                 onToggleItem={handleToggleItem}
+                                                onEnter={handleInsertItemAfter}
+                                                autoFocus={item.id === focusItemId}
                                             />
                                         ))}
                                     </SortableContext>
@@ -507,7 +559,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         <div className="flex gap-2">
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" onClick={() => setIsChecklistMode(!isChecklistMode)} className="text-secondary">
+                                    <Button variant="ghost" size="icon" onClick={handleToggleMode} className="text-secondary">
                                         <ListChecks className={`h-5 w-5 ${isChecklistMode ? "text-primary" : ""}`} />
                                         <span className="sr-only">{isChecklistMode ? "Hide Checkboxes" : "Show Checkboxes"}</span>
                                     </Button>

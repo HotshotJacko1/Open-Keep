@@ -145,7 +145,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
         {isList && displayContent ? (
           <ul className="space-y-1">
             {displayContent.map((item, index) => (
-              <li key={index} className="flex items-center gap-2 text-sm text-foreground">
+              <li key={index} className="flex items-center gap-2 text-sm text-black dark:text-white">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -175,7 +175,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                     <Square className="h-4 w-4 text-muted-foreground" />
                   )}
                 </Button>
-                <span className={cn(item.checked && "line-through text-muted-foreground")}>
+                <span className={cn(item.checked && "line-through text-black dark:text-white")}>
                   {item.content}
                 </span>
               </li>

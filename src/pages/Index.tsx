@@ -684,7 +684,7 @@ const Index = () => {
               <Menu className="h-6 w-6 text-muted-foreground" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-64 p-0 bg-sidebar-background text-sidebar-foreground border-r-sidebar-border">
+          <SheetContent side="left" className="w-64 p-0 bg-sidebar text-sidebar-foreground border-r-sidebar-border">
             <div className="p-4 text-2xl font-bold text-sidebar-primary flex items-center">
               <Lightbulb className="mr-2 h-6 w-6 text-yellow-500" fill="currentColor" />
               <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
@@ -745,7 +745,7 @@ const Index = () => {
           <div className="flex flex-1 min-w-0">
             {!isSidebarCollapsed ? (
               <ResizablePanelGroup direction="horizontal" className="h-full">
-                <ResizablePanel defaultSize={15} minSize={10} maxSize={25} className="bg-sidebar-background text-sidebar-foreground border-r-sidebar-border pt-4">
+                <ResizablePanel defaultSize={15} minSize={10} maxSize={25} className="bg-sidebar text-sidebar-foreground border-r-sidebar-border pt-4">
                   <SidebarNav
                     uniqueTags={uniqueTags}
                     onEditLabels={() => setIsEditLabelsOpen(true)}
@@ -760,10 +760,10 @@ const Index = () => {
               <>
                 {/* Mini Sidebar */}
                 <div
-                  className="relative z-20 flex-none bg-sidebar-background border-r border-sidebar-border flex flex-col pt-4"
+                  className="relative z-20 flex-none bg-sidebar flex flex-col pt-4"
                   style={{ width: '60px' }}
                 >
-                  <div className="absolute top-0 left-0 h-full bg-sidebar-background border-r border-sidebar-border transition-all duration-300 ease-in-out overflow-hidden shadow-none hover:shadow-2xl flex flex-col z-30 group w-[60px] hover:w-64 pt-4">
+                  <div className="absolute top-0 left-0 h-full bg-sidebar border-r border-sidebar-border transition-all duration-300 ease-in-out overflow-hidden shadow-none hover:shadow-2xl flex flex-col z-30 group w-[60px] hover:w-64 pt-4">
                     <SidebarNav
                       uniqueTags={uniqueTags}
                       onEditLabels={() => setIsEditLabelsOpen(true)}

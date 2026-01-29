@@ -12,7 +12,8 @@ import { useTheme } from "@/context/theme-provider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText } from "lucide-react";
 import SyncDialog from "./SyncDialog";
-import AppLockDialog from "./AppLockDialog";
+// import AppLockDialog from "./AppLockDialog";
+import PasscodeDialog from "./PasscodeDialog";
 import { useSession } from "@/context/session-provider";
 import { Note } from "@/types/note";
 import JSZip from "jszip";
@@ -278,7 +279,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
         onClose={() => setIsSyncDialogOpen(false)}
       />
 
-      <AppLockDialog
+      <PasscodeDialog
         isOpen={isPasscodeDialogOpen}
         onClose={() => setIsPasscodeDialogOpen(false)}
       />
