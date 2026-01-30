@@ -103,11 +103,11 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock }) => {
                     <Button
                         variant="ghost"
                         size="lg"
-                        className="mt-8 flex gap-2 items-center"
+                        className="mt-8 flex gap-2 items-center text-black dark:text-white"
                         onClick={handleBiometricUnlock}
                     >
                         <Fingerprint className="w-6 h-6" />
-                        Unlock with FacelD / TouchID
+                        Unlock with biometrics
                     </Button>
                 )}
             </div>

@@ -27,7 +27,7 @@ const TopBar: React.FC<TopBarProps> = ({
 
             <Input
                 type="text"
-                placeholder="Search notes by title, content, or tags..."
+                placeholder="Search notes by title, content, or labels..."
                 className="flex-grow p-2 rounded-lg shadow focus:ring-2 focus:ring-primary bg-white dark:bg-[#202124] text-card-foreground border-input max-w-3xl mx-auto" // Added max-w and mx-auto for centering style
                 value={searchTerm}
                 onChange={(e) => onSearchChange(e.target.value)}
