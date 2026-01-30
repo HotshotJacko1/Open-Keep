@@ -23,8 +23,11 @@ export const getAuthenticationUrl = async () => {
     // The SDK might handle this if we use getAuthenticationUrl
     // ensure using PKCE
 
+    const redirectUri = window.location.origin;
+    console.log("Dropbox Redirect URI:", redirectUri);
+
     const authUrl = await dbxAuth.getAuthenticationUrl(
-        window.location.origin, // redirect URI
+        redirectUri, // redirect URI
         undefined, // state
         'code', // response_type
         'offline', // tokenAccessType (offline for refresh tokens if needed, but implicit/code flow usually gives us what we need for session)
@@ -49,7 +52,9 @@ export const handleAuthRedirect = async (code: string) => {
     const dbxAuth = new DropboxAuth({ clientId: CLIENT_ID });
 
     // This will read the code_verifier from storage and exchange code
-    const response = await dbxAuth.getAccessTokenFromCode(window.location.origin, code);
+    const redirectUri = window.location.origin;
+    console.log("Dropbox Redirect URI (Token Exchange):", redirectUri);
+    const response = await dbxAuth.getAccessTokenFromCode(redirectUri, code);
     const accessToken = (response.result as DropboxAccessTokenResponse).access_token;
 
     // Refresh token might also be available: response.result.refresh_token

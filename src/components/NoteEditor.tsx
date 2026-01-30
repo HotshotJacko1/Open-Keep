@@ -6,6 +6,7 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import {
@@ -100,17 +101,11 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
             >
                 <GripVertical className="h-4 w-4" />
             </Button>
-            <div
-                className="cursor-pointer"
-                onClick={() => onToggleItem(item.id)}
-            >
-                <input
-                    type="checkbox"
-                    checked={item.checked}
-                    readOnly
-                    className="h-4 w-4 cursor-pointer"
-                />
-            </div>
+            <Checkbox
+                checked={item.checked}
+                onCheckedChange={() => onToggleItem(item.id)}
+                className="h-4 w-4 bg-transparent border-gray-400 data-[state=checked]:bg-transparent data-[state=checked]:text-black dark:data-[state=checked]:text-white"
+            />
             <Input
                 value={item.content}
                 onChange={(e) => onUpdateItem(item.id, e.target.value)}
@@ -393,7 +388,28 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     };
 
     const handleToggleItem = (id: string) => {
-        setChecklistItems(prev => prev.map(i => i.id === id ? { ...i, checked: !i.checked } : i));
+        setChecklistItems(prev => {
+            const itemIndex = prev.findIndex(i => i.id === id);
+            if (itemIndex === -1) return prev;
+
+            const newItems = [...prev];
+            const item = newItems[itemIndex];
+            const isChecked = !item.checked;
+
+            // Remove current item
+            newItems.splice(itemIndex, 1);
+            const updatedItem = { ...item, checked: isChecked };
+
+            if (isChecked) {
+                // Move to bottom if checked
+                newItems.push(updatedItem);
+            } else {
+                // Keep in place (insert back at same index) if unchecked
+                newItems.splice(itemIndex, 0, updatedItem);
+            }
+
+            return newItems;
+        });
     };
 
     const handleCloseEditor = () => {
