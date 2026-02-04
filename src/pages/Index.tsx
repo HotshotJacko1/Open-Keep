@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Note } from "@/types/note";
 import { loadNotes, saveNote, deleteNote, getLegacyWebNotes, migrateWebNotes, clearLegacyWebNotes } from "@/lib/note-storage";
 import NoteCard from "@/components/NoteCard";
@@ -25,6 +25,7 @@ import { SelectionActionBar } from "@/components/SelectionActionBar";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { toggleCheckboxInContent } from "@/utils/markdown";
+import { App as CapacitorApp } from "@capacitor/app";
 
 const Index = () => {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -43,6 +44,7 @@ const Index = () => {
     const saved = localStorage.getItem("custom-tags");
     return saved ? JSON.parse(saved) : [];
   });
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     localStorage.setItem("custom-tags", JSON.stringify(customTags));
@@ -95,13 +97,14 @@ const Index = () => {
   const PULL_THRESHOLD = 150; // px to trigger refresh
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (window.scrollY === 0 && !isSelectionMode) {
+    // Check if we are at the top of the scroll container
+    if ((!scrollContainerRef.current || scrollContainerRef.current.scrollTop === 0) && !isSelectionMode) {
       setPullStartPoint(e.targetTouches[0].clientY);
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (pullStartPoint > 0 && window.scrollY === 0 && !isSelectionMode) {
+    if (pullStartPoint > 0 && (!scrollContainerRef.current || scrollContainerRef.current.scrollTop === 0) && !isSelectionMode) {
       const pullY = e.targetTouches[0].clientY;
       const dist = pullY - pullStartPoint;
       if (dist > 0) {
@@ -169,6 +172,36 @@ const Index = () => {
 
     initNotes();
   }, []);
+
+  // Back Button Handler (Mobile)
+  useEffect(() => {
+    const setupBackButton = async () => {
+      const listener = await CapacitorApp.addListener("backButton", ({ canGoBack }) => {
+        if (isEditorOpen) {
+          setIsEditorOpen(false);
+        } else if (isSettingsOpen) {
+          setIsSettingsOpen(false);
+        } else if (isEditLabelsOpen) {
+          setIsEditLabelsOpen(false);
+        } else if (isSheetOpen) {
+          setIsSheetOpen(false);
+        } else if (selectedNoteIds.size > 0) {
+          setSelectedNoteIds(new Set()); // Clear selection
+        } else {
+          // If none of the above, exit app
+          CapacitorApp.exitApp();
+        }
+      });
+
+      return listener;
+    };
+
+    const listenerPromise = setupBackButton();
+
+    return () => {
+      listenerPromise.then(listener => listener.remove());
+    };
+  }, [isEditorOpen, isSettingsOpen, isEditLabelsOpen, isSheetOpen, selectedNoteIds]);
 
   const handleSaveNote = async (noteToSave: Note) => {
     // Optimistic Update
@@ -597,7 +630,7 @@ const Index = () => {
 
   const mainContent = (
     <div
-      className="flex flex-col flex-1 px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-6 md:px-8 md:pb-8 md:pt-8"
+      className="flex flex-col flex-1 h-full min-h-0"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -621,28 +654,33 @@ const Index = () => {
       )}
 
       <div
-        className="grid gap-4 pt-4"
-        style={{
-          columnCount: "auto",
-          columnGap: "1rem",
-          columnWidth: "min(100%, 280px)",
-        }}
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-6 md:px-8 md:pb-8 md:pt-8"
       >
-        {filteredNotes.map((note) => (
-          <NoteCard
-            key={note.id}
-            note={note}
-            onEdit={handleEditNote}
-            onPinToggle={handlePinToggle}
-            onArchiveToggle={handleArchiveToggle}
-            onDelete={handleDeleteNote}
-            onRestore={handleRestoreNote}
-            onToggleListItem={handleToggleListItem}
-            isSelected={selectedNoteIds.has(note.id)}
-            isSelectionMode={isSelectionMode}
-            onSelect={handleSelectNote}
-          />
-        ))}
+        <div
+          className="grid gap-4 pt-4"
+          style={{
+            columnCount: "auto",
+            columnGap: "1rem",
+            columnWidth: "min(100%, 280px)",
+          }}
+        >
+          {filteredNotes.map((note) => (
+            <NoteCard
+              key={note.id}
+              note={note}
+              onEdit={handleEditNote}
+              onPinToggle={handlePinToggle}
+              onArchiveToggle={handleArchiveToggle}
+              onDelete={handleDeleteNote}
+              onRestore={handleRestoreNote}
+              onToggleListItem={handleToggleListItem}
+              isSelected={selectedNoteIds.has(note.id)}
+              isSelectionMode={isSelectionMode}
+              onSelect={handleSelectNote}
+            />
+          ))}
+        </div>
       </div>
 
       <NoteEditor

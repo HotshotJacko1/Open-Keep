@@ -79,6 +79,32 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
         isDragging,
     } = useSortable({ id: item.id });
 
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const adjustHeight = () => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = `${textarea.scrollHeight}px`;
+        }
+    };
+
+    useEffect(() => {
+        adjustHeight();
+    }, [item.content]);
+
+    // Adjust height on initial render/focus if needed
+    useEffect(() => {
+        if (autoFocus && textareaRef.current) {
+            textareaRef.current.focus();
+            // Move cursor to end
+            textareaRef.current.setSelectionRange(
+                textareaRef.current.value.length,
+                textareaRef.current.value.length
+            );
+        }
+    }, [autoFocus]);
+
     const style = {
         transform: CSS.Transform.toString(transform),
         transition,
@@ -90,12 +116,12 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
         <div
             ref={setNodeRef}
             style={style}
-            className="flex items-center gap-2 bg-white dark:bg-[#202124] rounded-md mb-1"
+            className="flex items-start gap-2 bg-white dark:bg-[#202124] rounded-md mb-1 py-1"
         >
             <Button
                 variant="ghost"
                 size="icon"
-                className="cursor-grab text-black dark:text-white"
+                className="cursor-grab text-black dark:text-white mt-1 h-6 w-6 shrink-0"
                 {...listeners}
                 {...attributes}
             >
@@ -104,26 +130,30 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
             <Checkbox
                 checked={item.checked}
                 onCheckedChange={() => onToggleItem(item.id)}
-                className="h-4 w-4 bg-transparent border-gray-400 data-[state=checked]:bg-transparent data-[state=checked]:text-black dark:data-[state=checked]:text-white"
+                className="mt-2 h-4 w-4 bg-transparent border-gray-400 data-[state=checked]:bg-transparent data-[state=checked]:text-black dark:data-[state=checked]:text-white shrink-0"
             />
-            <Input
+            <textarea
+                ref={textareaRef}
                 value={item.content}
-                onChange={(e) => onUpdateItem(item.id, e.target.value)}
+                onChange={(e) => {
+                    onUpdateItem(item.id, e.target.value);
+                    adjustHeight();
+                }}
                 onKeyDown={(e) => {
                     if (e.key === "Enter") {
                         e.preventDefault();
                         onEnter(item.id);
                     }
                 }}
-                autoFocus={autoFocus}
+                rows={1}
                 placeholder="List item"
-                className={`flex-1 bg-white dark:bg-[#202124] text-black dark:text-white border-none focus-visible:ring-0 ${item.checked ? 'line-through text-gray-500' : ''}`}
+                className={`flex-1 bg-white dark:bg-[#202124] text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] py-1 ${item.checked ? 'line-through text-gray-500' : ''}`}
             />
             <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => onRemoveItem(item.id)}
-                className="text-black dark:text-white"
+                className="text-black dark:text-white mt-1 h-6 w-6 shrink-0"
             >
                 <X className="h-4 w-4" />
             </Button>
@@ -214,6 +244,31 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     editor.commands.setContent('');
                 }
             }
+
+            // Focus logic
+            // We use setTimeout to ensure the Dialog animation/mounting is complete enough for focus to take
+            setTimeout(() => {
+                // Focus on content as requested.
+                if (editor && !isChecklist(initialNote?.content || "")) {
+                    editor.commands.focus();
+                } else {
+                    // Checklist focus is handled by 'focusItemId' usually, but here we manually finding the input.
+                    const content = initialNote?.content || "";
+                    if (isChecklist(content)) {
+                        const { items } = parseChecklist(content);
+                        if (items.length > 0) {
+                            // Look for the first textarea in the dialog.
+                            // We use a slightly more specific selector if possible, or just the first one.
+                            const firstTextarea = document.querySelector('div[role="dialog"] textarea') as HTMLTextAreaElement;
+                            if (firstTextarea) {
+                                firstTextarea.focus();
+                                // Ensure cursor is at end
+                                firstTextarea.setSelectionRange(firstTextarea.value.length, firstTextarea.value.length);
+                            }
+                        }
+                    }
+                }
+            }, 100);
         }
         prevIsOpen.current = isOpen;
     }, [initialNote, isOpen, editor]);
@@ -413,9 +468,29 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     };
 
     const handleCloseEditor = () => {
+        // Clear any pending auto-save to prevent race conditions
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+        }
+
+        const plainText = content.replace(/<[^>]+>/g, '').trim();
+
         // Cleanup empty note if needed
-        if (title.trim() === "" && content.trim() === "") {
+        if (title.trim() === "" && plainText === "") {
             onDelete(noteIdRef.current);
+        } else {
+            // Force immediate save on close
+            const finalNote: Note = {
+                id: noteIdRef.current,
+                title,
+                content,
+                tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+                isPinned,
+                isArchived,
+                createdAt: initialNote?.createdAt || Date.now(),
+                updatedAt: Date.now(),
+            };
+            onSave(finalNote);
         }
         onClose();
     };
@@ -465,8 +540,11 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
     return (
         <>
-            <Dialog open={isOpen} onOpenChange={handleCloseEditor}>
-                <DialogContent className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px] h-[80vh] flex flex-col p-0 gap-0 bg-white dark:bg-[#202124] text-black dark:text-white">
+            <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseEditor()}>
+                <DialogContent
+                    className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px] h-[80vh] flex flex-col p-0 gap-0 bg-white dark:bg-[#202124] text-black dark:text-white"
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                >
 
                     {/* Header */}
                     <div className="flex justify-between items-center p-2 border-b border-gray-200 dark:border-gray-700 shrink-0">
