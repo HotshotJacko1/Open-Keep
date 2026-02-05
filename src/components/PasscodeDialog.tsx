@@ -70,7 +70,7 @@ const PasscodeDialog: React.FC<PasscodeDialogProps> = ({ isOpen, onClose }) => {
       localStorage.setItem(LOCAL_STORAGE_PASSCODE_KEY, passcode);
       setCurrentPasscode(passcode);
       showSuccess("Passcode set successfully!");
-      onClose(); // Close dialog after saving
+      // onClose(); // Removed auto-close
     } else if (passcode === "") {
       localStorage.removeItem(LOCAL_STORAGE_PASSCODE_KEY);
       setCurrentPasscode(null);
@@ -97,7 +97,10 @@ const PasscodeDialog: React.FC<PasscodeDialogProps> = ({ isOpen, onClose }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px] bg-background text-primary-foreground">
+      <DialogContent
+        className="sm:max-w-[425px] bg-background text-primary-foreground"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>App Passcode</DialogTitle>
         </DialogHeader>

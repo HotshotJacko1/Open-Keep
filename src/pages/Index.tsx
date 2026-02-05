@@ -30,6 +30,7 @@ import { App as CapacitorApp } from "@capacitor/app";
 const Index = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [shouldAutoFocus, setShouldAutoFocus] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchParams] = useSearchParams();
@@ -222,6 +223,7 @@ const Index = () => {
 
   const handleEditNote = (note: Note) => {
     setEditingNote(note);
+    setShouldAutoFocus(false);
     setIsEditorOpen(true);
   };
 
@@ -367,6 +369,7 @@ const Index = () => {
   const handleNewTextNote = () => {
     // New note implicitly Text mode, content empty
     setEditingNote(undefined);
+    setShouldAutoFocus(true);
     setIsEditorOpen(true);
   };
 
@@ -392,6 +395,7 @@ const Index = () => {
       updatedAt: Date.now()
     };
     setEditingNote(newNoteSkeleton);
+    setShouldAutoFocus(true);
     setIsEditorOpen(true);
   };
 
@@ -690,6 +694,7 @@ const Index = () => {
         onDelete={handleDeleteNote}
         initialNote={editingNote}
         availableTags={uniqueTags}
+        autoFocus={shouldAutoFocus}
       />
 
       <SettingsDialog

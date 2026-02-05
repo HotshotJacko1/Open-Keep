@@ -39,6 +39,9 @@ import {
     convertListToText,
     ChecklistItem
 } from "@/utils/markdown";
+import { Capacitor } from "@capacitor/core";
+import { Share } from "@capacitor/share";
+import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import UnderlineExtension from '@tiptap/extension-underline'
@@ -51,6 +54,7 @@ interface NoteEditorProps {
     onDelete: (id: string) => void;
     initialNote?: Note;
     availableTags: string[];
+    autoFocus?: boolean;
 }
 
 interface SortableListItemProps {
@@ -168,6 +172,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     onDelete,
     initialNote,
     availableTags = [],
+    autoFocus = true,
 }) => {
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
@@ -248,6 +253,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             // Focus logic
             // We use setTimeout to ensure the Dialog animation/mounting is complete enough for focus to take
             setTimeout(() => {
+                if (!autoFocus) return;
+
                 // Focus on content as requested.
                 if (editor && !isChecklist(initialNote?.content || "")) {
                     editor.commands.focus();
@@ -270,6 +277,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 }
             }, 100);
         }
+
         prevIsOpen.current = isOpen;
     }, [initialNote, isOpen, editor]);
 
@@ -525,24 +533,49 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     // Merge unique tags for display
     const distplayTags = Array.from(new Set([...availableTags, ...currentTagList])).sort();
 
-    const handleExport = () => {
+    const handleExport = async () => {
         const filename = (title.trim() || "Untitled").replace(/[<>:"/\\|?*]/g, '_') + ".md";
-        const blob = new Blob([content], { type: "text/markdown" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+
+        if (Capacitor.isNativePlatform()) {
+            try {
+                // Write file to cache directory
+                const result = await Filesystem.writeFile({
+                    path: filename,
+                    data: content,
+                    directory: Directory.Cache,
+                    encoding: Encoding.UTF8,
+                });
+
+                // Share the file
+                await Share.share({
+                    title: title || "Untitled Note",
+                    text: "Here is your note from Open Keep",
+                    url: result.uri,
+                    dialogTitle: "Export Note",
+                });
+            } catch (error) {
+                console.error("Error exporting note:", error);
+                // Fallback or alert user? For now just log.
+            }
+        } else {
+            // Web fallback
+            const blob = new Blob([content], { type: "text/markdown" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
     };
 
     return (
         <>
             <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseEditor()}>
                 <DialogContent
-                    className="sm:max-w-[425px] md:max-w-[600px] lg:max-w-[800px] h-[80vh] flex flex-col p-0 gap-0 bg-white dark:bg-[#202124] text-black dark:text-white"
+                    className="w-full max-w-none h-[100dvh] rounded-none sm:rounded-lg sm:max-w-[425px] sm:h-[80vh] md:max-w-[600px] lg:max-w-[800px] flex flex-col p-0 gap-0 bg-white dark:bg-[#202124] text-black dark:text-white"
                     onOpenAutoFocus={(e) => e.preventDefault()}
                 >
 
@@ -628,16 +661,29 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                         ))}
                                     </SortableContext>
                                 </DndContext>
-                                <div className="flex items-center gap-2 mt-2 pl-2">
-                                    <Plus className="h-4 w-4 text-gray-400" />
-                                    <Input
+                                <div className="flex items-start gap-2 mt-2 pl-2">
+                                    <Plus className="h-4 w-4 text-gray-400 mt-1.5" />
+                                    <textarea
                                         value={newItemContent}
-                                        onChange={(e) => setNewItemContent(e.target.value)}
-                                        onKeyPress={(e) => {
-                                            if (e.key === "Enter") handleAddItem();
+                                        onChange={(e) => {
+                                            setNewItemContent(e.target.value);
+                                            e.target.style.height = 'auto';
+                                            e.target.style.height = `${e.target.scrollHeight}px`;
                                         }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                                e.preventDefault();
+                                                handleAddItem();
+                                                // Reset height after adding
+                                                setTimeout(() => {
+                                                    const target = e.target as HTMLTextAreaElement;
+                                                    target.style.height = 'auto';
+                                                }, 0);
+                                            }
+                                        }}
+                                        rows={1}
                                         placeholder="List item"
-                                        className="bg-transparent border-none focus-visible:ring-0 flex-1"
+                                        className="bg-transparent border-none focus:outline-none resize-none overflow-hidden min-h-[24px] flex-1 py-1"
                                     />
                                 </div>
                             </div>

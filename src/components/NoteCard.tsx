@@ -6,6 +6,8 @@ import { Pin, Archive, Trash2, Square, Check, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isChecklist, parseChecklist } from "@/utils/markdown";
 
+import useLongPress from "@/hooks/use-long-press";
+
 interface NoteCardProps {
   note: Note;
   onEdit: (note: Note) => void;
@@ -31,7 +33,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
   isSelectionMode,
   onSelect,
 }) => {
-  const handleCardClick = (e: React.MouseEvent) => {
+  const handleCardClick = () => {
     if (note.isDeleted) return; // Prevent editing deleted notes
     if (isSelectionMode) {
       onSelect(note.id, !isSelected);
@@ -39,6 +41,20 @@ const NoteCard: React.FC<NoteCardProps> = ({
       onEdit(note);
     }
   };
+
+  const handleLongPress = (e: React.TouchEvent | React.MouseEvent) => {
+    if (note.isDeleted) return;
+    // If already in selection mode, long press could just toggle or do nothing.
+    // User requested: "long pressing... should select it".
+    // If not in selection mode, this should enter selection mode (which selecting a note implies if the parent handles it).
+    // The parent presumably enters selection mode if at least one note is selected.
+    onSelect(note.id, !isSelected);
+  };
+
+  const longPressProps = useLongPress(handleLongPress, handleCardClick, {
+    shouldPreventDefault: true,
+    delay: 500,
+  });
 
   const handleSelectionClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -57,7 +73,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
         isSelected && "border-secondary-foreground shadow-lg bg-foreground",
         note.isDeleted && "opacity-75"
       )}
-      onClick={handleCardClick}
+      {...longPressProps}
     >
       {/* Selection Checkbox */}
       <div
@@ -66,6 +82,10 @@ const NoteCard: React.FC<NoteCardProps> = ({
           (isSelected || isSelectionMode) && "opacity-100"
         )}
         onClick={handleSelectionClick}
+        onMouseDown={(e) => e.stopPropagation()}
+        onMouseUp={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
       >
         <div className={cn(
           "w-6 h-6 rounded-full border-2 border-secondary dark:border-secondary bg-transparent flex items-center justify-center hover:bg-secondary-foreground",
