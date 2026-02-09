@@ -13,7 +13,7 @@ class NoteRepository(context: Context) {
         fun initialize(context: Context, passphrase:  CharArray) {
              System.loadLibrary("sqlcipher")
              
-             val factory = net.sqlcipher.database.SupportFactory(net.sqlcipher.database.SQLiteDatabase.getBytes(passphrase))
+             val factory = net.zetetic.database.sqlcipher.SupportOpenHelperFactory(String(passphrase).toByteArray())
              
              synchronized(this) {
                 if (INSTANCE == null) {
