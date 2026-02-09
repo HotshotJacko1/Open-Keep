@@ -11,8 +11,7 @@ class NoteRepository(context: Context) {
         private var INSTANCE: AppDatabase? = null
 
         fun initialize(context: Context, passphrase:  CharArray) {
-             val state = net.sqlcipher.database.SQLiteDatabase.LibraryLoader(context)
-             state.load()
+             System.loadLibrary("sqlcipher")
              
              val factory = net.sqlcipher.database.SupportFactory(net.sqlcipher.database.SQLiteDatabase.getBytes(passphrase))
              
