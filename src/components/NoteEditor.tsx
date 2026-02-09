@@ -42,6 +42,8 @@ import {
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
+import { useIsMobile } from "@/hooks/use-mobile";
+
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import UnderlineExtension from '@tiptap/extension-underline'
@@ -174,6 +176,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     availableTags = [],
     autoFocus = true,
 }) => {
+    const isMobile = useIsMobile();
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
     const [tags, setTags] = useState("");
@@ -191,6 +194,32 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const noteIdRef = useRef<string>(initialNote?.id || crypto.randomUUID());
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const prevIsOpen = useRef(isOpen);
+
+    // Mobile Back Button Handling
+    useEffect(() => {
+        if (!isMobile || !isOpen) return;
+
+        // Push state when opening on mobile
+        window.history.pushState({ dialog: 'note-editor' }, "");
+
+        const handlePopState = (event: PopStateEvent) => {
+            // If the user presses back, close the editor
+            handleCloseEditor();
+        };
+
+        window.addEventListener('popstate', handlePopState);
+
+        return () => {
+            window.removeEventListener('popstate', handlePopState);
+            // If we are closing normally (not via back button), we might need to clean up the history state
+            // to avoid leaving a "forward" state that does nothing.
+            // Check if our state is still top of stack.
+            if (window.history.state?.dialog === 'note-editor') {
+                window.history.back();
+            }
+        };
+    }, [isOpen, isMobile]);
+
 
     const editor = useEditor({
         extensions: [
@@ -575,7 +604,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         <>
             <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseEditor()}>
                 <DialogContent
-                    className="w-full max-w-none h-[100dvh] rounded-none sm:rounded-lg sm:max-w-[425px] sm:h-[80vh] md:max-w-[600px] lg:max-w-[800px] flex flex-col p-0 gap-0 bg-white dark:bg-[#202124] text-black dark:text-white"
+                    className="w-full max-w-none h-[100dvh] rounded-none sm:rounded-lg sm:max-w-[425px] sm:h-[80vh] md:max-w-[600px] lg:max-w-[800px] flex flex-col p-0 gap-0 bg-white dark:bg-[#202124] text-black dark:text-white pt-[env(safe-area-inset-top)]"
                     onOpenAutoFocus={(e) => e.preventDefault()}
                 >
 

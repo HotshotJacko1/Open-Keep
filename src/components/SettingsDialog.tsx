@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/theme-provider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText } from "lucide-react";
+import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText, Mail } from "lucide-react";
 import SyncDialog from "./SyncDialog";
 // import AppLockDialog from "./AppLockDialog";
 import PasscodeDialog from "./PasscodeDialog";
@@ -252,6 +252,13 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
             <div className="flex flex-col gap-2 mt-4">
               <Button
                 variant="outline"
+                onClick={() => window.location.href = "mailto:openkeep@jorvikwebdesigns.com"}
+                className="w-full"
+              >
+                <Mail className="h-4 w-4 mr-2" /> Suggestions & Feedback
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => window.open("https://jorvikwebdesigns.com/open-keep-privacy-policy/", "_blank")}
                 className="w-full"
               >
@@ -259,7 +266,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
               </Button>
               <Button
                 variant="outline"
-                onClick={() => window.open("https://jorvikwebdesigns.com/open-keep-privacy-policy-2/", "_blank")}
+                onClick={() => window.open("https://jorvikwebdesigns.com/open-keep-privacy-policy/", "_blank")}
                 className="w-full"
               >
                 <FileText className="h-4 w-4 mr-2" /> Terms of Service

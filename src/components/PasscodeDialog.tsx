@@ -110,9 +110,16 @@ const PasscodeDialog: React.FC<PasscodeDialogProps> = ({ isOpen, onClose }) => {
             <Input
               id="passcode"
               type="password"
+              inputMode="numeric"
+              pattern="[0-9]*"
               maxLength={4}
               value={passcode}
-              onChange={(e) => setPasscode(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (/^\d*$/.test(val)) {
+                  setPasscode(val);
+                }
+              }}
               onKeyDown={handleKeyDown}
               placeholder={currentPasscode ? "Enter new passcode or leave empty to remove" : "Set a 4-digit passcode"}
             />

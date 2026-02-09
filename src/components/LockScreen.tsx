@@ -1,22 +1,25 @@
 import React, { useState, useEffect } from "react";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Fingerprint, Lock, ShieldCheck } from "lucide-react";
 import { NativeBiometric } from "capacitor-native-biometric";
 import { showSuccess, showError } from "@/utils/toast";
 
 interface LockScreenProps {
-    onUnlock: () => void;
+    onUnlock: (pin?: string) => void | Promise<boolean>;
+    isNativeEncryption?: boolean;
 }
 
 const LOCAL_STORAGE_PASSCODE_KEY = "app-passcode";
 
-const LockScreen: React.FC<LockScreenProps> = ({ onUnlock }) => {
+const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption }) => {
     const [passcode, setPasscode] = useState("");
     const [savedPasscode, setSavedPasscode] = useState<string | null>(null);
     const [isBiometricsAvailable, setIsBiometricsAvailable] = useState(false);
     const [isBiometricsEnabled, setIsBiometricsEnabled] = useState(false);
     const [errorPing, setErrorPing] = useState(false); // To shake/animate error
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         // Load saved passcode
@@ -48,27 +51,56 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock }) => {
                 subtitle: "",
                 description: "",
             });
-            // Success
-            onUnlock();
+
+            // If native encryption, we might need the PIN to unlock the DB.
+            // Biometrics can't retrieve the PIN unless we stored it in Keystore wrapped with biometric auth.
+            // For now, if Native Encryption is ON, Biometrics might not be enough to unlock the DB 
+            // UNLESS we implement the Keystore retrieval. 
+            // The current plan didn't explicitly cover "Biometric + SQLCipher".
+            // So if isNativeEncryption, we might have to disable Biometrics OR simply skip it for now.
+            // Let's assume for this iteration: Biometrics is for the legacy "Lock Screen" only.
+            // If isNativeEncryption, we mandate PIN.
+            if (!isNativeEncryption) {
+                onUnlock();
+            } else {
+                showError("Biometric unlock not supported with Encryption yet. Please enter PIN.");
+            }
         } catch (error) {
             console.log("Biometric unlock failed or cancelled", error);
-            // Ensure we don't block passcode entry
         }
     };
 
-    const handlePasscodeChange = (value: string) => {
-        setPasscode(value);
-        if (value.length === 4) {
-            if (value === savedPasscode) {
+    const handleSubmit = async (e?: React.FormEvent) => {
+        e?.preventDefault();
+
+        if (passcode.length < 4) {
+            setErrorPing(true);
+            setTimeout(() => setErrorPing(false), 500);
+            return;
+        }
+
+        setIsLoading(true);
+
+        if (isNativeEncryption) {
+            const success = await onUnlock(passcode);
+            if (!success) {
+                setPasscode("");
+                setErrorPing(true);
+                setTimeout(() => setErrorPing(false), 500);
+                showError("Incorrect PIN");
+            }
+        } else {
+            // Legacy local storage check
+            if (passcode === savedPasscode) {
                 onUnlock();
             } else {
-                // Wrong passcode
                 setPasscode("");
                 setErrorPing(true);
                 setTimeout(() => setErrorPing(false), 500);
                 showError("Incorrect passcode");
             }
         }
+        setIsLoading(false);
     };
 
     return (
@@ -79,31 +111,34 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock }) => {
                 </div>
 
                 <div className="text-center space-y-2">
-                    <h1 className="text-2xl font-bold tracking-tight text-black dark:text-white">App Locked</h1>
-                    <p className="text-black dark:text-white">Enter your 4-digit passcode to unlock</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-foreground">App Locked</h1>
+                    <p className="text-muted-foreground">Enter your 4-6 digit PIN to unlock</p>
                 </div>
 
-                <div className={errorPing ? "animate-shake" : ""}>
-                    <InputOTP
-                        autoFocus
-                        maxLength={4}
-                        value={passcode}
-                        onChange={handlePasscodeChange}
-                    >
-                        <InputOTPGroup>
-                            <InputOTPSlot index={0} className="w-14 h-14 text-2xl text-black dark:text-white" />
-                            <InputOTPSlot index={1} className="w-14 h-14 text-2xl text-black dark:text-white" />
-                            <InputOTPSlot index={2} className="w-14 h-14 text-2xl text-black dark:text-white" />
-                            <InputOTPSlot index={3} className="w-14 h-14 text-2xl text-black dark:text-white" />
-                        </InputOTPGroup>
-                    </InputOTP>
-                </div>
+                <form onSubmit={handleSubmit} className={`w-full max-w-[240px] space-y-4 ${errorPing ? "animate-shake" : ""}`}>
+                    <div className="flex gap-2 justify-center">
+                        <Input
+                            type="password"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            className="text-center text-lg tracking-widest"
+                            value={passcode}
+                            onChange={(e) => setPasscode(e.target.value)}
+                            placeholder="PIN"
+                            maxLength={6}
+                            autoFocus
+                        />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={isLoading || passcode.length < 4}>
+                        {isLoading ? "Unlocking..." : "Unlock"}
+                    </Button>
+                </form>
 
-                {isBiometricsAvailable && isBiometricsEnabled && (
+                {isBiometricsAvailable && isBiometricsEnabled && !isNativeEncryption && (
                     <Button
                         variant="ghost"
                         size="lg"
-                        className="mt-8 flex gap-2 items-center text-black dark:text-white"
+                        className="mt-4 flex gap-2 items-center text-foreground"
                         onClick={handleBiometricUnlock}
                     >
                         <Fingerprint className="w-6 h-6" />

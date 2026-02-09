@@ -10,33 +10,51 @@ class NoteRepository(context: Context) {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        fun getDatabase(context: Context): AppDatabase {
-            return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    "open-keep-db"
-                ).build()
-                INSTANCE = instance
-                instance
+        fun initialize(context: Context, passphrase:  CharArray) {
+             val state = net.sqlcipher.database.SQLiteDatabase.LibraryLoader(context)
+             state.load()
+             
+             val factory = net.sqlcipher.database.SupportFactory(net.sqlcipher.database.SQLiteDatabase.getBytes(passphrase))
+             
+             synchronized(this) {
+                if (INSTANCE == null) {
+                    val instance = Room.databaseBuilder(
+                        context.applicationContext,
+                        AppDatabase::class.java,
+                        "open-keep-db"
+                    )
+                    .openHelperFactory(factory)
+                    .fallbackToDestructiveMigration() // For now, if schema changes or key is wrong and we can't migrate
+                    .build()
+                    INSTANCE = instance
+                }
             }
+        }
+        
+        fun isInitialized(): Boolean {
+            return INSTANCE != null
+        }
+
+        fun getDatabase(): AppDatabase {
+            return INSTANCE ?: throw IllegalStateException("Database not initialized. Call initialize() first.")
         }
     }
 
-    private val db = getDatabase(context)
-    private val dao = db.noteDao()
+    private fun getDao(): NoteDao {
+         return getDatabase().noteDao()
+    }
 
-    fun getAllNotes(): Flow<List<NoteEntity>> = dao.getAllNotes()
+    fun getAllNotes(): Flow<List<NoteEntity>> = getDao().getAllNotes()
 
     suspend fun saveNote(note: NoteEntity) {
-        dao.insertNote(note)
+        getDao().insertNote(note)
     }
 
     suspend fun deleteNote(id: String) {
-        dao.markDeleted(id, System.currentTimeMillis())
+        getDao().markDeleted(id, System.currentTimeMillis())
     }
 
     suspend fun bulkInsert(notes: List<NoteEntity>) {
-        dao.insertAll(notes)
+        getDao().insertAll(notes)
     }
 }

@@ -2,16 +2,19 @@
 import { Note } from "@/types/note";
 import { PublicClientApplication, Configuration, PopupRequest } from "@azure/msal-browser";
 
-const CLIENT_ID = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
+export const CLIENT_ID = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
 const FOLDER_NAME = "Open Keep Notes";
 const NOTES_FILE_NAME = "notes.json";
 
 // MSAL Configuration
+// MSAL Configuration
+export const REDIRECT_URI = import.meta.env.VITE_ONEDRIVE_REDIRECT_URI || window.location.origin;
+
 const msalConfig: Configuration = {
     auth: {
         clientId: CLIENT_ID,
         authority: "https://login.microsoftonline.com/common",
-        redirectUri: window.location.origin, // Ensure this is registered in Azure Portal
+        redirectUri: REDIRECT_URI, // Ensure this is registered in Azure Portal
     },
     cache: {
         cacheLocation: "localStorage", // This configures where your cache will be stored

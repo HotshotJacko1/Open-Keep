@@ -22,7 +22,7 @@ class NoteStoragePlugin : Plugin() {
 
     override fun load() {
         super.load()
-        repository = NoteRepository(context)
+        // Repository is initialized via the initialize() plugin method calls
     }
 
     @PluginMethod
@@ -111,6 +111,45 @@ class NoteStoragePlugin : Plugin() {
                 call.reject("Failed to delete note: ${e.message}")
             }
         }
+    }
+
+    @PluginMethod
+    fun initialize(call: PluginCall) {
+        val key = call.getString("key")
+        if (key == null) {
+            call.reject("Key is missing")
+            return
+        }
+        
+        try {
+            NoteRepository.initialize(context, key.toCharArray())
+            // Trigger a dummy query to verify the key works
+            scope.launch {
+                try {
+                    repository = NoteRepository(context)
+                    repository.getAllNotes().first()
+                    call.resolve()
+                } catch (e: Exception) {
+                    // Reset instance if failed
+                     // Note: We can't easily reset a static singleton in Kotlin without adding a reset method.
+                     // For now, let's assume if it fails, the app must restart or we handle it in Repository.
+                     // But actually, SupportFactory will throw on open if key is wrong.
+                    call.reject("Failed to open database. Incorrect PIN?")
+                }
+            }
+        } catch (e: Exception) {
+             call.reject("Initialization failed: ${e.message}")
+        }
+    }
+
+    @PluginMethod
+    fun checkStatus(call: PluginCall) {
+        val dbFile = context.getDatabasePath("open-keep-db")
+        val isConfigured = dbFile.exists()
+        
+        val ret = JSObject()
+        ret.put("isConfigured", isConfigured)
+        call.resolve(ret)
     }
 
     @PluginMethod

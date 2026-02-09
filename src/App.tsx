@@ -7,30 +7,52 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import { App as CapacitorApp } from "@capacitor/app";
 import LockScreen from "./components/LockScreen";
+import EncryptionSetupScreen from "./components/EncryptionSetupScreen";
 import React, { useState, useEffect, useRef } from "react";
+import { checkDatabaseStatus, initializeDatabase } from "./lib/note-storage";
+import { Capacitor } from "@capacitor/core";
 
 const queryClient = new QueryClient();
 
 const App = () => {
-  const [isLocked, setIsLocked] = useState(false);
-  // Ref to track if we should lock on resume. 
-  // We generally want to lock if the app was in background for > X seconds, or always.
-  // For simplicity, let's lock immediately if backgrounded.
+  const [appState, setAppState] = useState<'loading' | 'setup' | 'locked' | 'ready'>('loading');
+
+  // We need to know if we are on web or native to decide flow
+  const isNative = Capacitor.isNativePlatform();
 
   useEffect(() => {
-    // Check initial passcode
-    const hasPasscode = localStorage.getItem("app-passcode");
-    if (hasPasscode) {
-      setIsLocked(true);
+    // If web, just go to ready for now (or handle legacy auth)
+    if (!isNative) {
+      setAppState('ready');
+      return;
     }
+
+    const init = async () => {
+      try {
+        const status = await checkDatabaseStatus();
+        if (status.isConfigured) {
+          setAppState('locked');
+        } else {
+          setAppState('setup');
+        }
+      } catch (e) {
+        console.error("Failed to check DB status", e);
+        // Fallback to setup if check fails? Or error screen?
+        setAppState('setup');
+      }
+    };
+
+    init();
 
     // Handle App State
     const listener = CapacitorApp.addListener("appStateChange", ({ isActive }) => {
       if (!isActive) {
         // App went to background
-        // Check again if passcode is set, because user might have removed it.
-        if (localStorage.getItem("app-passcode")) {
-          setIsLocked(true);
+        // In native encryption mode, we might want to lock again
+        // But simply setting 'locked' might not be enough if we need to close the DB connection
+        // For now, let's just show lock screen which will require re-enter PIN to 're-initialize' (which is effectively a no-op if open, or re-open if closed)
+        if (isNative && appState === 'ready') {
+          setAppState('locked');
         }
       }
     });
@@ -38,22 +60,69 @@ const App = () => {
     return () => {
       listener.then(handle => handle.remove());
     };
-  }, []);
+  }, [isNative, appState]); // check appState in dependency to ensure we capture transitions? No, careful with loops.
+
+  const handleUnlock = async (pin: string) => {
+    try {
+      await initializeDatabase(pin);
+      setAppState('ready');
+      return true;
+    } catch (e) {
+      console.error("Unlock failed", e);
+      return false;
+    }
+  };
+
+  const handleSetupComplete = () => {
+    setAppState('ready');
+  };
+
+  if (appState === 'loading') {
+    return <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>;
+  }
+
+  if (appState === 'setup') {
+    return (
+      <React.Fragment>
+        <Toaster />
+        <EncryptionSetupScreen onSetupComplete={handleSetupComplete} />
+      </React.Fragment>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
-      {isLocked && <LockScreen onUnlock={() => setIsLocked(false)} />}
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+      {(appState === 'locked') && (
+        <LockScreen
+          onUnlock={async (pin) => {
+            if (isNative) {
+              const success = await handleUnlock(pin);
+              if (success) setAppState('ready');
+              // LockScreen component expects us to call its callback or state?
+              // Actually LockScreen prop is `onUnlock: () => void`. We need to change it to accept pin or async.
+              // For now, let's assume LockScreen simply calls this and we handle state.
+              // Wait, existing LockScreen might not pass PIN. Need to check LockScreen.
+            } else {
+              setAppState('ready');
+            }
+          }}
+          isNativeEncryption={isNative}
+        />
+      )}
+
+      {/* Only render app content if ready (or if locked is an overlay, but we want to block access) */}
+      <div style={{ display: appState === 'ready' ? 'block' : 'none' }}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </div>
     </QueryClientProvider>
   );
 };

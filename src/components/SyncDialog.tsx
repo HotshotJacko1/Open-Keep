@@ -4,6 +4,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useGoogleDrive } from "@/hooks/use-google-drive";
 import { useOneDrive } from "@/hooks/use-one-drive";
 import { useDropbox } from "@/hooks/use-dropbox";
+import { REDIRECT_URI, CLIENT_ID } from "@/lib/one-drive";
 import { Loader2, FolderSync } from "lucide-react";
 import { showSuccess, showError } from "@/utils/toast";
 
@@ -23,6 +25,12 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
   const googleDrive = useGoogleDrive();
   const oneDrive = useOneDrive();
   const dropbox = useDropbox();
+
+  React.useEffect(() => {
+    if (isOpen) {
+      console.log("Debug - OneDrive Redirect:", REDIRECT_URI);
+    }
+  }, [isOpen]);
 
   // Determine which service is active
   const activeService = useMemo(() => {
@@ -39,10 +47,24 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
       <DialogContent className="sm:max-w-[425px] bg-background text-primary-foreground">
         <DialogHeader>
           <DialogTitle>Sync Options</DialogTitle>
+          <DialogDescription>
+            Manage your cloud sync connections and settings.
+          </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="flex flex-col gap-4">
             <Label>Cloud Sync</Label>
+
+            {/* Debug info - remove later */}
+            <div className="text-xs text-muted-foreground">
+              Client ID Status: {import.meta.env.VITE_GOOGLE_CLIENT_ID ? "Present" : "Missing"}
+              <br />
+              Origin: {window.location.origin}
+              <br />
+              <b>OneDrive Redirect: {REDIRECT_URI || "UNDEFINED/EMPTY"}</b>
+              <br />
+              <b>MS Client ID: {CLIENT_ID}</b>
+            </div>
 
             <p className="text-sm text-primary-foreground">
               Sync your notes to a cloud provider to keep them backed up and accessible.
@@ -52,18 +74,9 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
               <div className="flex flex-col gap-2">
                 <Button
                   onClick={() => {
-                    const performLogin = async () => {
-                      // Immediate feedback to confirm click registration
-                      showSuccess("Initiating Google Login...");
-                      try {
-                        console.log("Calling googleDrive.login()");
-                        googleDrive.login();
-                      } catch (e) {
-                        console.error("Login call failed synchronously", e);
-                        showError("Failed to start login");
-                      }
-                    };
-                    performLogin();
+                    showSuccess("Initiating Google Login...");
+                    console.log("Calling googleDrive.login()");
+                    googleDrive.login();
                   }}
                   className="w-full justify-start"
                   variant="outline"

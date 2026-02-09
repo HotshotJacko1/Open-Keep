@@ -6,6 +6,8 @@ export interface NoteStoragePlugin {
   saveNote(options: { note: any }): Promise<void>;
   deleteNote(options: { id: string }): Promise<void>;
   migrateFromWeb(options: { notes: any[] }): Promise<void>;
+  initialize(options: { key: string }): Promise<void>;
+  checkStatus(): Promise<{ isConfigured: boolean }>;
 }
 
 const NoteStorage = registerPlugin<NoteStoragePlugin>("NoteStorage");
@@ -126,6 +128,25 @@ export const migrateWebNotes = async (notes: any[]): Promise<void> => {
     await NoteStorage.migrateFromWeb({ notes: migratedNotes });
   } catch (error) {
     console.error("Error migrating web notes:", error);
+  }
+};
+
+export const initializeDatabase = async (key: string): Promise<void> => {
+  try {
+    await NoteStorage.initialize({ key });
+  } catch (error) {
+    console.error("Error initializing database:", error);
+    throw error;
+  }
+};
+
+export const checkDatabaseStatus = async (): Promise<{ isConfigured: boolean }> => {
+  try {
+    const status = await NoteStorage.checkStatus();
+    return status;
+  } catch (error) {
+    console.error("Error checking database status:", error);
+    return { isConfigured: false };
   }
 };
 

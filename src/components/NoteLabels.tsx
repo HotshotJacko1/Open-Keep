@@ -30,7 +30,7 @@ const NoteLabels: React.FC<NoteLabelsProps> = ({
             setSearchQuery("");
             setFilteredTags(availableTags);
         }
-    }, [isOpen, availableTags]);
+    }, [isOpen]); // Only reset when dialog opens
 
     useEffect(() => {
         if (!searchQuery.trim()) {
@@ -39,7 +39,7 @@ const NoteLabels: React.FC<NoteLabelsProps> = ({
         }
         const lowerQuery = searchQuery.toLowerCase();
         setFilteredTags(availableTags.filter(tag => tag.toLowerCase().includes(lowerQuery)));
-    }, [searchQuery, availableTags]);
+    }, [searchQuery, availableTags]); // Filter when query or tags change
 
     const handleCreate = () => {
         if (searchQuery.trim() && onCreateTag) {

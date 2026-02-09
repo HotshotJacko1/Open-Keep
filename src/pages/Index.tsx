@@ -727,7 +727,7 @@ const Index = () => {
               <Menu className="h-6 w-6 text-muted-foreground" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-64 p-0 bg-sidebar text-sidebar-foreground border-r-sidebar-border">
+          <SheetContent side="left" className="w-64 p-0 bg-sidebar text-sidebar-foreground border-r-sidebar-border pt-[env(safe-area-inset-top)]">
             <div className="p-4 text-2xl font-bold text-sidebar-primary flex items-center">
               <Lightbulb className="mr-2 h-6 w-6 text-yellow-500" fill="currentColor" />
               <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>

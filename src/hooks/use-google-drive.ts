@@ -34,8 +34,14 @@ export const useGoogleDrive = () => {
             console.error("Login Failed:", error);
             showError("Google Sign-In Failed");
         },
+        onNonOAuthError: (error) => {
+            console.error("Non-OAuth Login Error:", error);
+            // This often happens if the client ID is missing or script failed to load
+            showError("Google Sign-In Error (Non-OAuth)");
+        },
         scope: "https://www.googleapis.com/auth/drive.file",
         flow: 'implicit',
+        prompt: 'select_account',
     });
 
     const sync = useCallback(async () => {
