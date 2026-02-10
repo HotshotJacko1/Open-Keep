@@ -43,7 +43,9 @@ const App = () => {
     };
 
     init();
+  }, [isNative]);
 
+  useEffect(() => {
     // Handle App State
     const listener = CapacitorApp.addListener("appStateChange", ({ isActive }) => {
       if (!isActive) {
@@ -60,9 +62,10 @@ const App = () => {
     return () => {
       listener.then(handle => handle.remove());
     };
-  }, [isNative, appState]); // check appState in dependency to ensure we capture transitions? No, careful with loops.
+  }, [isNative, appState]);
 
-  const handleUnlock = async (pin: string) => {
+  const handleUnlock = async (pin?: string) => {
+    if (!pin) return false;
     try {
       await initializeDatabase(pin);
       setAppState('ready');
