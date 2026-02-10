@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Fingerprint, Lock, ShieldCheck } from "lucide-react";
-import { NativeBiometric } from "capacitor-native-biometric";
+import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 import { showSuccess, showError } from "@/utils/toast";
 
 interface LockScreenProps {

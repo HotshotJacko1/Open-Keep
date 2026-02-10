@@ -101,12 +101,10 @@ const App = () => {
             if (isNative) {
               const success = await handleUnlock(pin);
               if (success) setAppState('ready');
-              // LockScreen component expects us to call its callback or state?
-              // Actually LockScreen prop is `onUnlock: () => void`. We need to change it to accept pin or async.
-              // For now, let's assume LockScreen simply calls this and we handle state.
-              // Wait, existing LockScreen might not pass PIN. Need to check LockScreen.
+              return success;
             } else {
               setAppState('ready');
+              return true;
             }
           }}
           isNativeEncryption={isNative}

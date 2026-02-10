@@ -35,6 +35,9 @@ importers:
       '@capacitor/share':
         specifier: ^8.0.0
         version: 8.0.0(@capacitor/core@8.0.0)
+      '@capgo/capacitor-native-biometric':
+        specifier: ^8.3.7
+        version: 8.3.7(@capacitor/core@8.0.0)
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -161,9 +164,6 @@ importers:
       '@types/jszip':
         specifier: ^3.4.0
         version: 3.4.1
-      capacitor-native-biometric:
-        specifier: ^4.2.2
-        version: 4.2.2
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -346,9 +346,6 @@ packages:
     engines: {node: '>=22.0.0'}
     hasBin: true
 
-  '@capacitor/core@3.9.0':
-    resolution: {integrity: sha512-j1lL0+/7stY8YhIq1Lm6xixvUqIn89vtyH5ZpJNNmcZ0kwz6K9eLkcG6fvq1UWMDgSVZg9JrRGSFhb4LLoYOsw==}
-
   '@capacitor/core@8.0.0':
     resolution: {integrity: sha512-250HTVd/W/KdMygoqaedisvNbHbpbQTN2Hy/8ZYGm1nAqE0Fx7sGss4l0nDg33STxEdDhtVRoL2fIaaiukKseA==}
 
@@ -369,6 +366,11 @@ packages:
 
   '@capacitor/synapse@1.0.4':
     resolution: {integrity: sha512-/C1FUo8/OkKuAT4nCIu/34ny9siNHr9qtFezu4kxm6GY1wNFxrCFWjfYx5C1tUhVGz3fxBABegupkpjXvjCHrw==}
+
+  '@capgo/capacitor-native-biometric@8.3.7':
+    resolution: {integrity: sha512-EbQQngAF9cFaqDV5peQ8w2381Ct1jxXtYSv1iakwyiaLW87yApAAxEUbLya+KFmiD6gTd5bWZ0PjzqA4yQUWcw==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
 
   '@dnd-kit/accessibility@3.1.1':
     resolution: {integrity: sha512-2P+YgaXF+gRsIihwwY1gCsQSYnu9Zyj2py8kY5fFvUM1qm2WA2u639R6YNVfU4GWr+ZM5mqEsfHZZLoRONbemw==}
@@ -1958,9 +1960,6 @@ packages:
   caniuse-lite@1.0.30001714:
     resolution: {integrity: sha512-mtgapdwDLSSBnCI3JokHM7oEQBLxiJKVRtg10AxM1AyeiKcM96f0Mkbqeq+1AbiCtvMcHRulAAEMu693JrSWqg==}
 
-  capacitor-native-biometric@4.2.2:
-    resolution: {integrity: sha512-stg0h48UxgkNuNcCAgCXLp2DUspRQs79bCBPntpCBhsDxk2bhDRUu+J/QpFtDQHG4M4DioSUcYaAsVw2N6N7wA==}
-
   chalk@4.1.2:
     resolution: {integrity: sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==}
     engines: {node: '>=10'}
@@ -3425,10 +3424,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@capacitor/core@3.9.0':
-    dependencies:
-      tslib: 2.8.1
-
   '@capacitor/core@8.0.0':
     dependencies:
       tslib: 2.8.1
@@ -3447,6 +3442,10 @@ snapshots:
       '@capacitor/core': 8.0.0
 
   '@capacitor/synapse@1.0.4': {}
+
+  '@capgo/capacitor-native-biometric@8.3.7(@capacitor/core@8.0.0)':
+    dependencies:
+      '@capacitor/core': 8.0.0
 
   '@dnd-kit/accessibility@3.1.1(react@18.3.1)':
     dependencies:
@@ -5048,10 +5047,6 @@ snapshots:
   camelcase-css@2.0.1: {}
 
   caniuse-lite@1.0.30001714: {}
-
-  capacitor-native-biometric@4.2.2:
-    dependencies:
-      '@capacitor/core': 3.9.0
 
   chalk@4.1.2:
     dependencies:

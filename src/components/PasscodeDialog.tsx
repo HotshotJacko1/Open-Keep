@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { NativeBiometric } from "capacitor-native-biometric";
+import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
