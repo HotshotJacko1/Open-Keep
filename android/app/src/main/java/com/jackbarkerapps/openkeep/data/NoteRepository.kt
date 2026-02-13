@@ -10,10 +10,11 @@ class NoteRepository(context: Context) {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        fun initialize(context: Context, passphrase:  CharArray) {
+        fun initialize(context: Context, keyBytes: ByteArray) {
              System.loadLibrary("sqlcipher")
              
-             val factory = net.zetetic.database.sqlcipher.SupportOpenHelperFactory(String(passphrase).toByteArray())
+             // Pass the raw bytes directly to the factory
+             val factory = net.zetetic.database.sqlcipher.SupportOpenHelperFactory(keyBytes)
              
              synchronized(this) {
                 if (INSTANCE == null) {
@@ -23,9 +24,28 @@ class NoteRepository(context: Context) {
                         "open-keep-db"
                     )
                     .openHelperFactory(factory)
-                    .fallbackToDestructiveMigration() // For now, if schema changes or key is wrong and we can't migrate
+//                    .fallbackToDestructiveMigration() // Should likely remove this for prod
                     .build()
                     INSTANCE = instance
+                }
+            }
+        }
+
+        fun changePassword(context: Context, newKey: CharArray) {
+            synchronized(this) {
+                val db = INSTANCE?.openHelper?.writableDatabase
+                if (db != null && db.isOpen) {
+                    val newKeyString = String(newKey)
+                    db.execSQL("PRAGMA rekey = '$newKeyString'")
+                    
+                    // Close the old instance
+                    INSTANCE?.close()
+                    INSTANCE = null
+                    
+                    // Re-initialize with new key
+                    initialize(context, newKey)
+                } else {
+                     throw IllegalStateException("Database is not open, cannot change password.")
                 }
             }
         }

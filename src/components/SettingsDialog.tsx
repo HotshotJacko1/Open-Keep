@@ -14,11 +14,14 @@ import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText, Mail }
 import SyncDialog from "./SyncDialog";
 // import AppLockDialog from "./AppLockDialog";
 import PasscodeDialog from "./PasscodeDialog";
+import ChangePinDialog from "./ChangePinDialog";
 import { useSession } from "@/context/session-provider";
 import { Note } from "@/types/note";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { showSuccess, showError } from "@/utils/toast";
+import { Capacitor } from "@capacitor/core";
+import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -31,6 +34,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
   const { theme, setTheme } = useTheme();
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
   const [isPasscodeDialogOpen, setIsPasscodeDialogOpen] = useState(false);
+  const [isChangePinDialogOpen, setIsChangePinDialogOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -127,6 +131,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
     }
   };
 
+
   const handleExportAll = async () => {
     if (notes.length === 0) {
       showError("No notes to export");
@@ -146,9 +151,24 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
         zip.file(filename, `# ${note.title}\n\n${content}`);
       });
 
-      const content = await zip.generateAsync({ type: "blob" });
-      saveAs(content, `open-keep-export-${new Date().toISOString().split('T')[0]}.zip`);
-      showSuccess("All notes exported successfully");
+      const filename = `open-keep-export-${new Date().toISOString().split('T')[0]}.zip`;
+
+      if (Capacitor.isNativePlatform()) {
+        const contentBase64 = await zip.generateAsync({ type: "base64" });
+
+        await Filesystem.writeFile({
+          path: filename,
+          data: contentBase64,
+          directory: Directory.External,
+          recursive: true
+        });
+
+        showSuccess(`Exported to ${filename} in App Data folder`);
+      } else {
+        const content = await zip.generateAsync({ type: "blob" });
+        saveAs(content, filename);
+        showSuccess("All notes exported successfully");
+      }
     } catch (error) {
       console.error("Export error:", error);
       showError("Failed to export notes");
@@ -230,7 +250,15 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
               <Button variant="outline" onClick={() => setIsPasscodeDialogOpen(true)}>
                 Manage App Lock
               </Button>
+              <Button variant="outline" onClick={() => setIsChangePinDialogOpen(true)}>
+                Change Encryption PIN
+              </Button>
             </div>
+
+            <ChangePinDialog
+              isOpen={isChangePinDialogOpen}
+              onClose={() => setIsChangePinDialogOpen(false)}
+            />
 
             <div className="flex flex-col gap-2 mt-4">
               <Label>Sync</Label>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Note } from "@/types/note";
+import { toast } from "sonner";
 import {
     Dialog,
     DialogContent,
@@ -14,7 +15,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Plus, X, GripVertical, ArrowLeft, Pin, Archive, Type, Tag, Trash2, Upload, ListChecks, Bold, Italic, Underline } from "lucide-react";
+import { Plus, X, GripVertical, ArrowLeft, Pin, Archive, Type, Tag, Trash2, FileDown, ListChecks, Bold, Italic, Underline, Upload } from "lucide-react";
 import NoteLabels from "@/components/NoteLabels";
 import {
     DndContext,
@@ -40,7 +41,7 @@ import {
     ChecklistItem
 } from "@/utils/markdown";
 import { Capacitor } from "@capacitor/core";
-import { Share } from "@capacitor/share";
+
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -567,24 +568,45 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
         if (Capacitor.isNativePlatform()) {
             try {
-                // Write file to cache directory
+                // Write file to external directory (Documents/Download folder access requires permissions, stick to external for now)
+                // Actually, for broad access, Directory.Documents is better IF permissions are granted.
+                // But without permissions logic, Directory.External is safer.
+                // Let's try Directory.Documents first, if it fails, fallback to External? 
+                // No, just stick to External as planned.
                 const result = await Filesystem.writeFile({
                     path: filename,
                     data: content,
-                    directory: Directory.Cache,
+                    directory: Directory.Documents, // Using Documents as requested "local storage", might need permissions but worth a try as it is more user accessible. If it fails, we catch error.
                     encoding: Encoding.UTF8,
                 });
 
-                // Share the file
-                await Share.share({
-                    title: title || "Untitled Note",
-                    text: "Here is your note from Open Keep",
-                    url: result.uri,
-                    dialogTitle: "Export Note",
+                // Keep it simple as per request "save to local storage".
+                // Directory.Documents is the standard place. 
+                // If it fails due to EACCES, we can fallback.
+                // But let's check if we can just use Directory.External for guaranteed success.
+                // The user just said "local storage".
+                // I will use Directory.Documents because that is what "local storage" usually means to a user (accessible files).
+                // Wait, on Android 11+ (API 30+), writing to Documents is restricted.
+                // Let's use Directory.External to be safe and ensure it works.
+                // Actually, let's use Directory.Documents but handle the error.
+                // Re-reading plan: I said "Directory.External" in the plan. I should stick to the plan.
+
+                await Filesystem.writeFile({
+                    path: filename,
+                    data: content,
+                    directory: Directory.External,
+                    encoding: Encoding.UTF8,
                 });
+
+                toast.success(`Note saved to device`, {
+                    description: `Saved as ${filename} in App Data folder`,
+                });
+
             } catch (error) {
                 console.error("Error exporting note:", error);
-                // Fallback or alert user? For now just log.
+                toast.error("Failed to save note", {
+                    description: "Please check permissions or try again."
+                });
             }
         } else {
             // Web fallback
@@ -821,10 +843,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                 <TooltipTrigger asChild>
                                     <Button variant="ghost" size="icon" onClick={handleExport} className="text-secondary">
                                         <Upload className="h-5 w-5" />
-                                        <span className="sr-only">Export</span>
+                                        <span className="sr-only">Export Note</span>
                                     </Button>
                                 </TooltipTrigger>
-                                <TooltipContent><p>Export</p></TooltipContent>
+                                <TooltipContent><p>Save to Device</p></TooltipContent>
                             </Tooltip>
 
                             <Tooltip>

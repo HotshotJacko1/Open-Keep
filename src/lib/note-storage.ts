@@ -7,7 +7,8 @@ export interface NoteStoragePlugin {
   deleteNote(options: { id: string }): Promise<void>;
   migrateFromWeb(options: { notes: any[] }): Promise<void>;
   initialize(options: { key: string }): Promise<void>;
-  checkStatus(): Promise<{ isConfigured: boolean }>;
+  checkStatus(): Promise<{ isConfigured: boolean; isLocked?: boolean }>;
+  changeEncryptionKey(options: { key: string }): Promise<void>;
 }
 
 const NoteStorage = registerPlugin<NoteStoragePlugin>("NoteStorage");
@@ -147,6 +148,15 @@ export const checkDatabaseStatus = async (): Promise<{ isConfigured: boolean }> 
   } catch (error) {
     console.error("Error checking database status:", error);
     return { isConfigured: false };
+  }
+};
+
+export const changeEncryptionKey = async (key: string): Promise<void> => {
+  try {
+    await NoteStorage.changeEncryptionKey({ key });
+  } catch (error) {
+    console.error("Error changing encryption key:", error);
+    throw error;
   }
 };
 

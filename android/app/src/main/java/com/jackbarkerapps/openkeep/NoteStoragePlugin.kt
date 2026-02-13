@@ -115,25 +115,33 @@ class NoteStoragePlugin : Plugin() {
 
     @PluginMethod
     fun initialize(call: PluginCall) {
-        val key = call.getString("key")
-        if (key == null) {
-            call.reject("Key is missing")
+        val pin = call.getString("key")
+        if (pin == null) {
+            call.reject("PIN is missing")
             return
         }
-        
+
         try {
-            NoteRepository.initialize(context, key.toCharArray())
+            // Derive key from PIN
+            val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
+            val derivedKey = keyManager.deriveKey(pin)
+
+            // Reset any previous instance
+            NoteRepository.reset()
+            NoteRepository.initialize(context, derivedKey)
+
             // Trigger a dummy query to verify the key works
             scope.launch {
                 try {
                     repository = NoteRepository(context)
                     repository.getAllNotes().first()
+                    
+                    // If successful, store the key for auto-unlock
+                    keyManager.storeMasterKey(derivedKey)
+                    
                     call.resolve()
                 } catch (e: Exception) {
-                    // Reset instance if failed
-                     // Note: We can't easily reset a static singleton in Kotlin without adding a reset method.
-                     // For now, let's assume if it fails, the app must restart or we handle it in Repository.
-                     // But actually, SupportFactory will throw on open if key is wrong.
+                    NoteRepository.reset()
                     call.reject("Failed to open database. Incorrect PIN?")
                 }
             }
@@ -149,6 +157,40 @@ class NoteStoragePlugin : Plugin() {
         
         val ret = JSObject()
         ret.put("isConfigured", isConfigured)
+        ret.put("isLocked", true) // Default to locked
+
+        if (isConfigured) {
+            // Try auto-unlock
+            try {
+                val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
+                val storedKey = keyManager.getMasterKey()
+
+                if (storedKey != null) {
+                    NoteRepository.reset()
+                    NoteRepository.initialize(context, storedKey)
+
+                    // Verify
+                    scope.launch {
+                        try {
+                            repository = NoteRepository(context)
+                            repository.getAllNotes().first()
+                            // Success!
+                            ret.put("isLocked", false)
+                            call.resolve(ret)
+                        } catch (e: Exception) {
+                            // Key might be wrong or DB corrupted?
+                            NoteRepository.reset()
+                            // call.resolve(ret) // ret already says locked=true
+                             call.resolve(ret)
+                        }
+                    }
+                    return // Async resolve in launch
+                }
+            } catch (e: Exception) {
+                // Failed to check key or whatever, treat as locked
+            }
+        }
+        
         call.resolve(ret)
     }
 
@@ -185,6 +227,23 @@ class NoteStoragePlugin : Plugin() {
                 call.resolve()
             } catch (e: Exception) {
                 call.reject("Migration failed: ${e.message}")
+            }
+        }
+    }
+    @PluginMethod
+    fun changeEncryptionKey(call: PluginCall) {
+        val key = call.getString("key")
+        if (key == null) {
+            call.reject("Key is missing")
+            return
+        }
+
+        scope.launch {
+            try {
+                NoteRepository.changePassword(context, key.toCharArray())
+                call.resolve()
+            } catch (e: Exception) {
+                call.reject("Failed to change encryption key: ${e.message}")
             }
         }
     }

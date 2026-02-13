@@ -31,7 +31,11 @@ const App = () => {
       try {
         const status = await checkDatabaseStatus();
         if (status.isConfigured) {
-          setAppState('locked');
+          if (status.isLocked === false) {
+            setAppState('ready');
+          } else {
+            setAppState('locked');
+          }
         } else {
           setAppState('setup');
         }

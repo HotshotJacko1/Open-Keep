@@ -111,12 +111,12 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption })
                 </div>
 
                 <div className="text-center space-y-2">
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground">App Locked</h1>
+                    <h1 className="text-2xl font-bold tracking-tight text-foreground text-black dark:text-white">App Locked</h1>
                     <p className="text-muted-foreground">Enter your 4-6 digit PIN to unlock</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className={`w-full max-w-[240px] space-y-4 ${errorPing ? "animate-shake" : ""}`}>
-                    <div className="flex gap-2 justify-center">
+                    <div className="flex gap-2 justify-center text-black dark:text-white">
                         <Input
                             type="password"
                             inputMode="numeric"
