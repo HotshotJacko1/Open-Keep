@@ -31,12 +31,19 @@ class NoteRepository(context: Context) {
             }
         }
 
-        fun changePassword(context: Context, newKey: CharArray) {
+        fun reset() {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+            }
+        }
+
+        fun changePassword(context: Context, newKey: ByteArray) {
             synchronized(this) {
                 val db = INSTANCE?.openHelper?.writableDatabase
                 if (db != null && db.isOpen) {
-                    val newKeyString = String(newKey)
-                    db.execSQL("PRAGMA rekey = '$newKeyString'")
+                    val hexKey = newKey.joinToString("") { "%02x".format(it) }
+                    db.execSQL("PRAGMA rekey = \"x'$hexKey'\"")
                     
                     // Close the old instance
                     INSTANCE?.close()

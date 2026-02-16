@@ -9,8 +9,8 @@ android {
         applicationId "com.jackbarkerapps.openkeep"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 8
-        versionName "0.0.8"
+        versionCode 11
+        versionName "0.0.11"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -63,7 +63,7 @@ dependencies {
     ksp "androidx.room:room-compiler:$roomVersion"
 
     // SQLCipher
-    implementation "net.zetetic:sqlcipher-android:4.5.4"
+    implementation "net.zetetic:sqlcipher-android:4.6.1"
     implementation "androidx.sqlite:sqlite:2.4.0"
     implementation "androidx.security:security-crypto:1.1.0-alpha06"
 }

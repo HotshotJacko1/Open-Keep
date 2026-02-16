@@ -191,7 +191,60 @@ class NoteStoragePlugin : Plugin() {
             }
         }
         
+            }
+        }
+        
         call.resolve(ret)
+    }
+
+    @PluginMethod
+    fun encrypt(call: PluginCall) {
+        val data = call.getString("data")
+        if (data == null) {
+            call.reject("Data is missing")
+            return
+        }
+        
+        try {
+            val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
+            val encrypted = keyManager.encrypt(data)
+            val ret = JSObject()
+            ret.put("data", encrypted)
+            call.resolve(ret)
+        } catch (e: Exception) {
+            call.reject("Encryption failed: ${e.message}")
+        }
+    }
+
+    @PluginMethod
+    fun decrypt(call: PluginCall) {
+        val data = call.getString("data")
+        if (data == null) {
+            call.reject("Data is missing")
+            return
+        }
+
+        try {
+            val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
+            val decrypted = keyManager.decrypt(data)
+            val ret = JSObject()
+            ret.put("data", decrypted)
+            call.resolve(ret)
+        } catch (e: Exception) {
+            call.reject("Decryption failed: ${e.message}")
+        }
+    }
+
+    @PluginMethod
+    fun lock(call: PluginCall) {
+         try {
+            val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
+            keyManager.clear()
+            NoteRepository.reset()
+            call.resolve()
+        } catch (e: Exception) {
+            call.reject("Lock failed: ${e.message}")
+        }
     }
 
     @PluginMethod
@@ -240,7 +293,15 @@ class NoteStoragePlugin : Plugin() {
 
         scope.launch {
             try {
-                NoteRepository.changePassword(context, key.toCharArray())
+                // Derive key from PIN
+                val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
+                val derivedKey = keyManager.deriveKey(key)
+
+                NoteRepository.changePassword(context, derivedKey)
+                
+                // Update stored key for future auto-unlocks
+                keyManager.storeMasterKey(derivedKey)
+
                 call.resolve()
             } catch (e: Exception) {
                 call.reject("Failed to change encryption key: ${e.message}")

@@ -664,9 +664,9 @@ const Index = () => {
         <div
           className="grid gap-4 pt-4"
           style={{
-            columnCount: "auto",
-            columnGap: "1rem",
-            columnWidth: "min(100%, 280px)",
+            columnCount: isMobile ? 2 : "auto",
+            columnGap: isMobile ? "0.5rem" : "1rem",
+            columnWidth: isMobile ? "auto" : "min(100%, 280px)",
           }}
         >
           {filteredNotes.map((note) => (

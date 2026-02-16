@@ -1,5 +1,7 @@
 import { Note } from "@/types/note";
 import { gapi } from "gapi-script";
+import { Capacitor } from "@capacitor/core";
+import { encryptData, decryptData } from "@/lib/note-storage";
 
 const FOLDER_NAME = "Open Keep Notes";
 const NOTES_FILE_NAME = "notes.json";
@@ -85,6 +87,28 @@ const downloadNotes = async (fileId: string): Promise<Note[]> => {
             fileId: fileId,
             alt: "media",
         });
+
+        if (Capacitor.isNativePlatform()) {
+            try {
+                const result = response.result;
+                if (Array.isArray(result)) {
+                    // Plaintext (legacy or from web)
+                    return result as unknown as Note[];
+                } else if (typeof result === 'string') {
+                    // Attempt decrypt
+                    const decryptedText = await decryptData(result);
+                    return JSON.parse(decryptedText);
+                }
+                // If it is an object but NOT array, it might be weird.
+                return response.result as unknown as Note[];
+
+            } catch (e) {
+                console.error("Decryption failed or content was not encrypted", e);
+                // If decryption fails, maybe it IS plaintext but parsed as string? unlikely.
+                return [];
+            }
+        }
+
         return response.result as unknown as Note[];
     } catch (error) {
         console.error("Error downloading notes:", error);
@@ -97,7 +121,21 @@ const uploadNotes = async (
     notes: Note[],
     fileId: string | null
 ): Promise<void> => {
-    const fileContent = JSON.stringify(notes);
+    let fileContent = JSON.stringify(notes);
+
+    if (Capacitor.isNativePlatform()) {
+        try {
+            const encrypted = await encryptData(fileContent);
+            if (encrypted) {
+                // Wrap in JSON string to ensure valid JSON file format
+                fileContent = JSON.stringify(encrypted);
+            }
+        } catch (e) {
+            console.error("Encryption failed, aborting upload", e);
+            throw e;
+        }
+    }
+
     const file = new Blob([fileContent], { type: "application/json" });
     const metadata = {
         name: NOTES_FILE_NAME,
@@ -105,68 +143,41 @@ const uploadNotes = async (
         parents: fileId ? [] : [folderId],
     };
 
-    const accessToken = gapi.auth.getToken().access_token;
-    const form = new FormData();
-    form.append(
-        "metadata",
-        new Blob([JSON.stringify(metadata)], { type: "application/json" })
-    );
-    form.append("file", file);
+}
 
-    const url = fileId
-        ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
-        : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
+const fileId = await findNotesFile(folderId);
+let remoteNotes: Note[] = [];
 
-    const method = fileId ? "PATCH" : "POST";
+if (fileId) {
+    remoteNotes = await downloadNotes(fileId);
+}
 
-    await fetch(url, {
-        method,
-        headers: {
-            Authorization: `Bearer ${accessToken}`,
-        },
-        body: form,
-    });
-};
+// Merge Logic
+const mergedNotesMap = new Map<string, Note>();
 
-export const syncNotesWithDrive = async (localNotes: Note[]): Promise<Note[]> => {
-    let folderId = await findFolder();
-    if (!folderId) {
-        folderId = await createFolder();
-    }
+// Add all local notes initially
+localNotes.forEach((note) => mergedNotesMap.set(note.id, note));
 
-    const fileId = await findNotesFile(folderId);
-    let remoteNotes: Note[] = [];
-
-    if (fileId) {
-        remoteNotes = await downloadNotes(fileId);
-    }
-
-    // Merge Logic
-    const mergedNotesMap = new Map<string, Note>();
-
-    // Add all local notes initially
-    localNotes.forEach((note) => mergedNotesMap.set(note.id, note));
-
-    // Merge remote notes
-    remoteNotes.forEach((remoteNote) => {
-        const localNote = mergedNotesMap.get(remoteNote.id);
-        if (!localNote) {
-            // Note exists remotely but not locally (new from other device)
+// Merge remote notes
+remoteNotes.forEach((remoteNote) => {
+    const localNote = mergedNotesMap.get(remoteNote.id);
+    if (!localNote) {
+        // Note exists remotely but not locally (new from other device)
+        mergedNotesMap.set(remoteNote.id, remoteNote);
+    } else {
+        // Note exists on both
+        if (remoteNote.updatedAt > localNote.updatedAt) {
+            // Remote is newer
             mergedNotesMap.set(remoteNote.id, remoteNote);
-        } else {
-            // Note exists on both
-            if (remoteNote.updatedAt > localNote.updatedAt) {
-                // Remote is newer
-                mergedNotesMap.set(remoteNote.id, remoteNote);
-            }
-            // Else keep local (it's newer or same)
         }
-    });
+        // Else keep local (it's newer or same)
+    }
+});
 
-    const mergedNotes = Array.from(mergedNotesMap.values());
+const mergedNotes = Array.from(mergedNotesMap.values());
 
-    // Upload merged notes
-    await uploadNotes(folderId, mergedNotes, fileId);
+// Upload merged notes
+await uploadNotes(folderId, mergedNotes, fileId);
 
-    return mergedNotes;
-};
+return mergedNotes;
+    };

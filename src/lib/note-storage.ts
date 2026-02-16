@@ -9,6 +9,9 @@ export interface NoteStoragePlugin {
   initialize(options: { key: string }): Promise<void>;
   checkStatus(): Promise<{ isConfigured: boolean; isLocked?: boolean }>;
   changeEncryptionKey(options: { key: string }): Promise<void>;
+  encrypt(options: { data: string }): Promise<{ data: string }>;
+  decrypt(options: { data: string }): Promise<{ data: string }>;
+  lock(): Promise<void>;
 }
 
 const NoteStorage = registerPlugin<NoteStoragePlugin>("NoteStorage");
@@ -148,6 +151,34 @@ export const checkDatabaseStatus = async (): Promise<{ isConfigured: boolean }> 
   } catch (error) {
     console.error("Error checking database status:", error);
     return { isConfigured: false };
+  }
+};
+
+export const encryptData = async (data: string): Promise<string> => {
+  try {
+    const result = await NoteStorage.encrypt({ data });
+    return result.data;
+  } catch (error) {
+    console.error("Error encrypting data:", error);
+    throw error;
+  }
+};
+
+export const decryptData = async (data: string): Promise<string> => {
+  try {
+    const result = await NoteStorage.decrypt({ data });
+    return result.data;
+  } catch (error) {
+    console.error("Error decrypting data:", error);
+    throw error;
+  }
+};
+
+export const lockDatabase = async (): Promise<void> => {
+  try {
+    await NoteStorage.lock();
+  } catch (error) {
+    console.error("Error locking database:", error);
   }
 };
 
