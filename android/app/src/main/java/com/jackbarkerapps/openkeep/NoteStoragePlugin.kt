@@ -187,10 +187,6 @@ class NoteStoragePlugin : Plugin() {
                     return // Async resolve in launch
                 }
             } catch (e: Exception) {
-                // Failed to check key or whatever, treat as locked
-            }
-        }
-        
             }
         }
         
@@ -244,6 +240,19 @@ class NoteStoragePlugin : Plugin() {
             call.resolve()
         } catch (e: Exception) {
             call.reject("Lock failed: ${e.message}")
+        }
+    }
+
+    @PluginMethod
+    fun clearAllData(call: PluginCall) {
+        try {
+            val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
+            keyManager.clear()
+            NoteRepository.reset()
+            context.deleteDatabase("open-keep-db")
+            call.resolve()
+        } catch (e: Exception) {
+            call.reject("Clear data failed: ${e.message}")
         }
     }
 

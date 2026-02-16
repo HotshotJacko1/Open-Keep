@@ -12,6 +12,7 @@ export interface NoteStoragePlugin {
   encrypt(options: { data: string }): Promise<{ data: string }>;
   decrypt(options: { data: string }): Promise<{ data: string }>;
   lock(): Promise<void>;
+  clearAllData(): Promise<void>;
 }
 
 const NoteStorage = registerPlugin<NoteStoragePlugin>("NoteStorage");
@@ -179,6 +180,15 @@ export const lockDatabase = async (): Promise<void> => {
     await NoteStorage.lock();
   } catch (error) {
     console.error("Error locking database:", error);
+  }
+};
+
+export const clearAllData = async (): Promise<void> => {
+  try {
+    await NoteStorage.clearAllData();
+  } catch (error) {
+    console.error("Error clearing data:", error);
+    throw error;
   }
 };
 

@@ -2,24 +2,39 @@ import React, { useState, useEffect } from "react";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Fingerprint, Lock, ShieldCheck } from "lucide-react";
+import { Fingerprint, Lock, ShieldCheck, AlertTriangle } from "lucide-react";
 import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 import { showSuccess, showError } from "@/utils/toast";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { clearAllData } from "@/lib/note-storage";
+import { deleteRemoteData } from "@/lib/google-drive";
 
 interface LockScreenProps {
     onUnlock: (pin?: string) => void | Promise<boolean>;
     isNativeEncryption?: boolean;
+    onReset?: () => void;
 }
 
 const LOCAL_STORAGE_PASSCODE_KEY = "app-passcode";
 
-const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption }) => {
+const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, onReset }) => {
     const [passcode, setPasscode] = useState("");
     const [savedPasscode, setSavedPasscode] = useState<string | null>(null);
     const [isBiometricsAvailable, setIsBiometricsAvailable] = useState(false);
     const [isBiometricsEnabled, setIsBiometricsEnabled] = useState(false);
     const [errorPing, setErrorPing] = useState(false); // To shake/animate error
     const [isLoading, setIsLoading] = useState(false);
+    const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+    const [isResetting, setIsResetting] = useState(false);
 
     useEffect(() => {
         // Load saved passcode
@@ -35,13 +50,13 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption })
         setIsBiometricsEnabled(biometricsEnabled);
 
         // Auto-trigger biometric if enabled
-        if (biometricsEnabled) {
+        if (biometricsEnabled && !isNativeEncryption) {
             // Small delay to ensure UI is ready and not conflicting with app resume
             setTimeout(() => {
                 handleBiometricUnlock();
             }, 300);
         }
-    }, []);
+    }, [isNativeEncryption]);
 
     const handleBiometricUnlock = async () => {
         try {
@@ -52,14 +67,6 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption })
                 description: "",
             });
 
-            // If native encryption, we might need the PIN to unlock the DB.
-            // Biometrics can't retrieve the PIN unless we stored it in Keystore wrapped with biometric auth.
-            // For now, if Native Encryption is ON, Biometrics might not be enough to unlock the DB 
-            // UNLESS we implement the Keystore retrieval. 
-            // The current plan didn't explicitly cover "Biometric + SQLCipher".
-            // So if isNativeEncryption, we might have to disable Biometrics OR simply skip it for now.
-            // Let's assume for this iteration: Biometrics is for the legacy "Lock Screen" only.
-            // If isNativeEncryption, we mandate PIN.
             if (!isNativeEncryption) {
                 onUnlock();
             } else {
@@ -101,6 +108,47 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption })
             }
         }
         setIsLoading(false);
+    };
+
+    const handleForgotPin = async () => {
+        setIsResetDialogOpen(true);
+    };
+
+    const confirmReset = async () => {
+        setIsResetting(true);
+        try {
+            // 1. Delete local DB
+            await clearAllData();
+
+            // 2. Delete cloud data (attempt)
+            try {
+                // We need to attempt to delete remote data, but we might not be authenticated if 'gapi' session is fresh?
+                // Actually, if we are fresh launch, gapi might not be initialized with user session unless we do that?
+                // But `initGoogleDrive` does `gapi.client.init`.
+                // Access token? If we haven't signed in, we can't delete.
+                // But if we haven't signed in, we don't have access to their drive anyway.
+                // If they are signed in (token persisted?), we use it.
+                // If not, we just skip.
+                await deleteRemoteData();
+            } catch (e) {
+                console.error("Failed to delete remote data or not authenticated", e);
+                // We proceed anyway
+            }
+
+            // 3. Clear local storage flags
+            localStorage.removeItem('auto-lock-timeout');
+            localStorage.removeItem('app-last-active');
+
+            if (onReset) onReset();
+
+            showSuccess("App reset successfully");
+        } catch (e) {
+            console.error(e);
+            showError("Failed to reset app");
+        } finally {
+            setIsResetting(false);
+            setIsResetDialogOpen(false);
+        }
     };
 
     return (
@@ -145,9 +193,30 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption })
                         Unlock with biometrics
                     </Button>
                 )}
+
+                <Button variant="link" className="mt-2 text-muted-foreground text-sm" onClick={handleForgotPin}>
+                    Forgot PIN?
+                </Button>
             </div>
+
+            <AlertDialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Reset App & Delete Data?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-destructive">
+                            Your encryption PIN cannot be recovered.
+                            If you reset it, all encrypted notes will be permanently deleted from this device and from the cloud.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmReset} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            {isResetting ? "Resetting..." : "Reset & Start Over"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };
-
 export default LockScreen;
