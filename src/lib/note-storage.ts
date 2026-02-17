@@ -145,7 +145,7 @@ export const initializeDatabase = async (key: string): Promise<void> => {
   }
 };
 
-export const checkDatabaseStatus = async (): Promise<{ isConfigured: boolean }> => {
+export const checkDatabaseStatus = async (): Promise<{ isConfigured: boolean; isLocked?: boolean }> => {
   try {
     const status = await NoteStorage.checkStatus();
     return status;

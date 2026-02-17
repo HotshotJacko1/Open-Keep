@@ -136,48 +136,91 @@ const uploadNotes = async (
         }
     }
 
-    const file = new Blob([fileContent], { type: "application/json" });
     const metadata = {
         name: NOTES_FILE_NAME,
         mimeType: "application/json",
-        parents: fileId ? [] : [folderId],
+        parents: fileId ? undefined : [folderId],
     };
 
-}
+    const accessToken = gapi.client.getToken()?.access_token;
+    if (!accessToken) throw new Error("No access token found");
 
-const fileId = await findNotesFile(folderId);
-let remoteNotes: Note[] = [];
+    const form = new FormData();
+    form.append(
+        "metadata",
+        new Blob([JSON.stringify(metadata)], { type: "application/json" })
+    );
+    form.append(
+        "file",
+        new Blob([fileContent], { type: "application/json" })
+    );
 
-if (fileId) {
-    remoteNotes = await downloadNotes(fileId);
-}
+    const url = fileId
+        ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
+        : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
 
-// Merge Logic
-const mergedNotesMap = new Map<string, Note>();
+    const method = fileId ? "PATCH" : "POST";
 
-// Add all local notes initially
-localNotes.forEach((note) => mergedNotesMap.set(note.id, note));
+    const response = await fetch(url, {
+        method,
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: form,
+    });
 
-// Merge remote notes
-remoteNotes.forEach((remoteNote) => {
-    const localNote = mergedNotesMap.get(remoteNote.id);
-    if (!localNote) {
-        // Note exists remotely but not locally (new from other device)
-        mergedNotesMap.set(remoteNote.id, remoteNote);
-    } else {
-        // Note exists on both
-        if (remoteNote.updatedAt > localNote.updatedAt) {
-            // Remote is newer
-            mergedNotesMap.set(remoteNote.id, remoteNote);
-        }
-        // Else keep local (it's newer or same)
+    if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
     }
-});
+};
 
-const mergedNotes = Array.from(mergedNotesMap.values());
+export const syncNotesWithDrive = async (localNotes: Note[]): Promise<Note[]> => {
+    if (!isInitialized) await initGoogleDrive();
 
-// Upload merged notes
-await uploadNotes(folderId, mergedNotes, fileId);
+    let folderId = await findFolder();
+    if (!folderId) {
+        folderId = await createFolder();
+    }
 
-return mergedNotes;
-    };
+    const fileId = await findNotesFile(folderId);
+    let remoteNotes: Note[] = [];
+
+    if (fileId) {
+        remoteNotes = await downloadNotes(fileId);
+    }
+
+    // Merge Logic
+    const mergedNotesMap = new Map<string, Note>();
+
+    // Add all local notes initially
+    localNotes.forEach((note) => mergedNotesMap.set(note.id, note));
+
+    // Merge remote notes
+    remoteNotes.forEach((remoteNote) => {
+        const localNote = mergedNotesMap.get(remoteNote.id);
+        if (!localNote) {
+            // Note exists remotely but not locally (new from other device)
+            mergedNotesMap.set(remoteNote.id, remoteNote);
+        } else {
+            // Note exists on both
+            if (remoteNote.updatedAt > localNote.updatedAt) {
+                // Remote is newer
+                mergedNotesMap.set(remoteNote.id, remoteNote);
+            }
+            // Else keep local (it's newer or same)
+        }
+    });
+
+    const mergedNotes = Array.from(mergedNotesMap.values());
+
+    // Upload merged notes
+    await uploadNotes(folderId, mergedNotes, fileId);
+
+    return mergedNotes;
+};
+
+export const deleteRemoteData = async (): Promise<void> => {
+    if (!isInitialized) await initGoogleDrive();
+    const folderId = await findFolder();
+    if (folderId) {
+        await gapi.client.drive.files.delete({ fileId: folderId });
+    }
+};
