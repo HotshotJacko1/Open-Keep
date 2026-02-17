@@ -43,6 +43,7 @@ import {
 import { Capacitor } from "@capacitor/core";
 
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -568,45 +569,25 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
         if (Capacitor.isNativePlatform()) {
             try {
-                // Write file to external directory (Documents/Download folder access requires permissions, stick to external for now)
-                // Actually, for broad access, Directory.Documents is better IF permissions are granted.
-                // But without permissions logic, Directory.External is safer.
-                // Let's try Directory.Documents first, if it fails, fallback to External? 
-                // No, just stick to External as planned.
                 const result = await Filesystem.writeFile({
                     path: filename,
                     data: content,
-                    directory: Directory.Documents, // Using Documents as requested "local storage", might need permissions but worth a try as it is more user accessible. If it fails, we catch error.
+                    directory: Directory.Cache,
                     encoding: Encoding.UTF8,
                 });
 
-                // Keep it simple as per request "save to local storage".
-                // Directory.Documents is the standard place. 
-                // If it fails due to EACCES, we can fallback.
-                // But let's check if we can just use Directory.External for guaranteed success.
-                // The user just said "local storage".
-                // I will use Directory.Documents because that is what "local storage" usually means to a user (accessible files).
-                // Wait, on Android 11+ (API 30+), writing to Documents is restricted.
-                // Let's use Directory.External to be safe and ensure it works.
-                // Actually, let's use Directory.Documents but handle the error.
-                // Re-reading plan: I said "Directory.External" in the plan. I should stick to the plan.
-
-                await Filesystem.writeFile({
-                    path: filename,
-                    data: content,
-                    directory: Directory.External,
-                    encoding: Encoding.UTF8,
+                await Share.share({
+                    title: 'Export Note',
+                    text: 'Exporting note',
+                    url: result.uri,
+                    dialogTitle: 'Export Note'
                 });
 
-                toast.success(`Note saved to device`, {
-                    description: `Saved as ${filename} in App Data folder`,
-                });
+                toast.success(`Note exported`);
 
             } catch (error) {
                 console.error("Error exporting note:", error);
-                toast.error("Failed to save note", {
-                    description: "Please check permissions or try again."
-                });
+                toast.error("Failed to export note");
             }
         } else {
             // Web fallback

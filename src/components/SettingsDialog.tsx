@@ -20,6 +20,7 @@ import { saveAs } from "file-saver";
 import { showSuccess, showError } from "@/utils/toast";
 import { Capacitor } from "@capacitor/core";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
 import { lockDatabase } from "@/lib/note-storage";
 
 interface SettingsDialogProps {
@@ -155,14 +156,21 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
       if (Capacitor.isNativePlatform()) {
         const contentBase64 = await zip.generateAsync({ type: "base64" });
 
-        await Filesystem.writeFile({
+        const result = await Filesystem.writeFile({
           path: filename,
           data: contentBase64,
-          directory: Directory.External,
+          directory: Directory.Cache,
           recursive: true
         });
 
-        showSuccess(`Exported to ${filename} in App Data folder`);
+        await Share.share({
+          title: 'Export All Notes',
+          text: 'Exporting all notes',
+          url: result.uri,
+          dialogTitle: 'Export All Notes'
+        });
+
+        showSuccess(`Export ready`);
       } else {
         const content = await zip.generateAsync({ type: "blob" });
         saveAs(content, filename);
