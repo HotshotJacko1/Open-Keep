@@ -38,6 +38,9 @@ importers:
       '@capgo/capacitor-native-biometric':
         specifier: ^8.3.7
         version: 8.3.7(@capacitor/core@8.0.0)
+      '@codetrix-studio/capacitor-google-auth':
+        specifier: ^3.4.0-rc.4
+        version: 3.4.0-rc.4(@capacitor/core@8.0.0)
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -371,6 +374,11 @@ packages:
     resolution: {integrity: sha512-EbQQngAF9cFaqDV5peQ8w2381Ct1jxXtYSv1iakwyiaLW87yApAAxEUbLya+KFmiD6gTd5bWZ0PjzqA4yQUWcw==}
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
+
+  '@codetrix-studio/capacitor-google-auth@3.4.0-rc.4':
+    resolution: {integrity: sha512-d548/xKrbMHHbzMYSWnlgZCLZYo2zzY7Onrh3x8ujojrb7atkNK68I6su5WgmaBt4E+R4gxBsWams4554aOFjA==}
+    peerDependencies:
+      '@capacitor/core': ^6.0.0
 
   '@dnd-kit/accessibility@3.1.1':
     resolution: {integrity: sha512-2P+YgaXF+gRsIihwwY1gCsQSYnu9Zyj2py8kY5fFvUM1qm2WA2u639R6YNVfU4GWr+ZM5mqEsfHZZLoRONbemw==}
@@ -3444,6 +3452,10 @@ snapshots:
   '@capacitor/synapse@1.0.4': {}
 
   '@capgo/capacitor-native-biometric@8.3.7(@capacitor/core@8.0.0)':
+    dependencies:
+      '@capacitor/core': 8.0.0
+
+  '@codetrix-studio/capacitor-google-auth@3.4.0-rc.4(@capacitor/core@8.0.0)':
     dependencies:
       '@capacitor/core': 8.0.0
 

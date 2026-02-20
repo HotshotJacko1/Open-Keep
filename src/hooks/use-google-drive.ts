@@ -1,5 +1,7 @@
 import { useState, useCallback } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
+import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
+import { Capacitor } from "@capacitor/core";
 import { initGoogleDrive, setAccessToken, syncNotesWithDrive } from "@/lib/google-drive";
 import { loadNotes, saveNote } from "@/lib/note-storage";
 import { showSuccess, showError } from "@/utils/toast";
@@ -9,7 +11,7 @@ export const useGoogleDrive = () => {
     const [lastSynced, setLastSynced] = useState<string | null>(localStorage.getItem("last-synced-time"));
     const [userEmail, setUserEmail] = useState<string | null>(localStorage.getItem("google-user-email"));
 
-    const login = useGoogleLogin({
+    const webLogin = useGoogleLogin({
         onSuccess: async (tokenResponse) => {
             try {
                 // Initialize GAPI
@@ -43,6 +45,28 @@ export const useGoogleDrive = () => {
         flow: 'implicit',
         prompt: 'select_account',
     });
+
+    const login = async () => {
+        if (Capacitor.isNativePlatform()) {
+            try {
+                const user = await GoogleAuth.signIn();
+
+                // Initialize GAPI
+                await initGoogleDrive();
+                setAccessToken(user.authentication.accessToken);
+
+                setUserEmail(user.email);
+                localStorage.setItem("google-user-email", user.email);
+
+                showSuccess(`Connected to Google Drive as ${user.email}`);
+            } catch (error) {
+                console.error("Native Login Failed:", error);
+                showError("Google Sign-In Failed");
+            }
+        } else {
+            webLogin();
+        }
+    };
 
     const sync = useCallback(async () => {
         setIsSyncing(true);
@@ -78,7 +102,14 @@ export const useGoogleDrive = () => {
         }
     }, []);
 
-    const disconnect = () => {
+    const disconnect = async () => {
+        if (Capacitor.isNativePlatform()) {
+            try {
+                await GoogleAuth.signOut();
+            } catch (e) {
+                console.error("Native signout failed", e);
+            }
+        }
         setUserEmail(null);
         localStorage.removeItem("google-user-email");
         localStorage.removeItem("last-synced-time");
