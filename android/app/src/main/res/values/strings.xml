@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">Open Keep</string>
     <string name="title_activity_main">Open Keep</string>
-    <string name="package_name">com.example.openkeep</string>
-    <string name="custom_url_scheme">com.example.openkeep</string>
+    <string name="package_name">com.jackbarkerapps.openkeep</string>
+    <string name="custom_url_scheme">com.jackbarkerapps.openkeep</string>
     <string name="server_client_id">889284625804-5prnhudcoalopvn0ad0au449lo1bn8f8.apps.googleusercontent.com</string>
 </resources>
