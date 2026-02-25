@@ -5,18 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Fingerprint, Lock, ShieldCheck, AlertTriangle } from "lucide-react";
 import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 import { showSuccess, showError } from "@/utils/toast";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { clearAllData } from "@/lib/note-storage";
 import { deleteRemoteData } from "@/lib/google-drive";
+import ResetDialog from "./ResetDialog";
 
 interface LockScreenProps {
     onUnlock: (pin?: string) => void | Promise<boolean>;
@@ -152,7 +143,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
     };
 
     return (
-        <div className="fixed inset-0 z-[100] bg-background flex flex-col items-center justify-center p-4">
+        <div className="fixed inset-0 z-[40] bg-background flex flex-col items-center justify-center p-4">
             <div className="flex flex-col items-center gap-6 max-w-sm w-full animate-in fade-in zoom-in duration-300">
                 <div className="bg-primary/10 p-4 rounded-full mb-4">
                     <ShieldCheck className="w-12 h-12 text-primary" />
@@ -199,23 +190,12 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
                 </Button>
             </div>
 
-            <AlertDialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Reset App & Delete Data?</AlertDialogTitle>
-                        <AlertDialogDescription className="text-destructive">
-                            Your encryption PIN cannot be recovered.
-                            If you reset it, all encrypted notes will be permanently deleted from this device and from the cloud.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={confirmReset} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                            {isResetting ? "Resetting..." : "Reset & Start Over"}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <ResetDialog
+                isOpen={isResetDialogOpen}
+                onOpenChange={setIsResetDialogOpen}
+                onConfirm={confirmReset}
+                isResetting={isResetting}
+            />
         </div>
     );
 };

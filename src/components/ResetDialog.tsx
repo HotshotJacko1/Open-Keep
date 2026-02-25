@@ -9,7 +9,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
 
 interface ResetDialogProps {
     isOpen: boolean;
@@ -30,9 +29,9 @@ const ResetDialog: React.FC<ResetDialogProps> = ({ isOpen, onOpenChange, onConfi
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel disabled={isResetting}>Cancel</AlertDialogCancel>
-                    <Button
-                        variant="destructive"
+                    <AlertDialogCancel disabled={isResetting} className="text-black dark:text-white">Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         onClick={(e) => {
                             e.preventDefault();
                             onConfirm();
@@ -40,7 +39,7 @@ const ResetDialog: React.FC<ResetDialogProps> = ({ isOpen, onOpenChange, onConfi
                         disabled={isResetting}
                     >
                         {isResetting ? "Resetting..." : "Reset & Start Over"}
-                    </Button>
+                    </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>

@@ -49,6 +49,8 @@ export const useGoogleDrive = () => {
     const login = async () => {
         if (Capacitor.isNativePlatform()) {
             try {
+                // Initialize plugin before sign in (required for capacitor-google-auth v3.2.0+)
+                await GoogleAuth.initialize();
                 const user = await GoogleAuth.signIn();
 
                 // Initialize GAPI
@@ -71,9 +73,26 @@ export const useGoogleDrive = () => {
     const sync = useCallback(async () => {
         setIsSyncing(true);
         try {
+            // First ensure we have a valid token before initializing GAPI sync
+            if (Capacitor.isNativePlatform()) {
+                await GoogleAuth.initialize();
+                try {
+                    const auth = await GoogleAuth.refresh();
+                    setAccessToken(auth.accessToken);
+                } catch (e) {
+                    console.log("Silent refresh failed, attempting sign in", e);
+                    const user = await GoogleAuth.signIn();
+                    setAccessToken(user.authentication.accessToken);
+                    setUserEmail(user.email);
+                    localStorage.setItem("google-user-email", user.email);
+                }
+            } else {
+                // For web, if we don't have a token, we might need a mechanism to login again
+                // For now, we rely on the implicit flow to still have the token or prompt login if failed.
+                // Ideally, web should check if token exists. If not, trigger webLogin().
+            }
+
             await initGoogleDrive();
-            // In a real app we'd check for token expiry here. 
-            // If this fails with 401, it usually means token is missing/expired.
 
             const localNotes = await loadNotes();
             const mergedNotes = await syncNotesWithDrive(localNotes);

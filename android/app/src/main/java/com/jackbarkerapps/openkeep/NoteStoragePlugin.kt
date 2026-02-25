@@ -137,16 +137,23 @@ class NoteStoragePlugin : Plugin() {
                     repository.getAllNotes().first()
                     
                     // If successful, store the key for auto-unlock
-                    keyManager.storeMasterKey(derivedKey)
-                    
-                    call.resolve()
+                    try {
+                        keyManager.storeMasterKey(derivedKey)
+                        call.resolve()
+                    } catch (e: Exception) {
+                        android.util.Log.e("NoteStorage", "Failed to store master key for auto-unlock", e)
+                        call.reject("Database verified but failed to store encryption key: ${e.message}")
+                    }
                 } catch (e: Exception) {
+                    android.util.Log.e("NoteStorage", "Database verification failed", e)
                     NoteRepository.reset()
                     call.reject("Failed to open database. Incorrect PIN?")
                 }
             }
-        } catch (e: Exception) {
-             call.reject("Initialization failed: ${e.message}")
+        } catch (e: Throwable) {
+            android.util.Log.e("NoteStorage", "Database initialization failed", e)
+            val errorMsg = "Initialization failed: ${e.javaClass.simpleName} - ${e.message ?: "no message"}"
+            call.reject(errorMsg)
         }
     }
 
@@ -245,14 +252,45 @@ class NoteStoragePlugin : Plugin() {
 
     @PluginMethod
     fun clearAllData(call: PluginCall) {
-        try {
-            val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
-            keyManager.clear()
-            NoteRepository.reset()
-            context.deleteDatabase("open-keep-db")
-            call.resolve()
-        } catch (e: Exception) {
-            call.reject("Clear data failed: ${e.message}")
+        scope.launch {
+            try {
+                android.util.Log.d("NoteStorage", "Starting clearAllData process")
+                
+                // 1. Clear KeyManager
+                try {
+                    android.util.Log.d("NoteStorage", "Clearing KeyManager")
+                    val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
+                    keyManager.clear()
+                    android.util.Log.d("NoteStorage", "KeyManager cleared")
+                } catch (e: Exception) {
+                    android.util.Log.e("NoteStorage", "Error clearing KeyManager: ${e.message}", e)
+                }
+
+                // 2. Reset Repository
+                try {
+                    android.util.Log.d("NoteStorage", "Resetting NoteRepository")
+                    NoteRepository.reset()
+                    android.util.Log.d("NoteStorage", "NoteRepository reset")
+                } catch (e: Exception) {
+                    android.util.Log.e("NoteStorage", "Error resetting NoteRepository: ${e.message}", e)
+                }
+
+                // 3. Delete Database file
+                try {
+                    android.util.Log.d("NoteStorage", "Deleting database file")
+                    val deleted = context.deleteDatabase("open-keep-db")
+                    android.util.Log.d("NoteStorage", "Database file deletion result: $deleted")
+                } catch (e: Exception) {
+                    android.util.Log.e("NoteStorage", "Error deleting database file: ${e.message}", e)
+                }
+
+                android.util.Log.d("NoteStorage", "clearAllData process completed")
+                call.resolve()
+            } catch (e: Exception) {
+                val errorMsg = "Clear data failed: ${e.javaClass.simpleName} - ${e.message ?: "null"}"
+                android.util.Log.e("NoteStorage", errorMsg, e)
+                call.reject(errorMsg)
+            }
         }
     }
 

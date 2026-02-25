@@ -20,19 +20,71 @@ class KeyManager(private val context: Context) {
         private const val KEY_LENGTH = 256
     }
 
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
+    private val masterKey by lazy {
+        MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+    }
 
-    private val securePrefs: SharedPreferences = EncryptedSharedPreferences.create(
-        context,
-        SHARED_PREFS_FILENAME,
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+    private val securePrefs: SharedPreferences by lazy {
+        try {
+            createSecurePrefs()
+        } catch (e: Exception) {
+            android.util.Log.e("KeyManager", "Failed to create EncryptedSharedPreferences, retrying after delete", e)
+            try {
+                // Delete the file and try again - this handles cases where the key is lost/corrupted
+                deletePrefs()
+                createSecurePrefs()
+            } catch (e2: Exception) {
+                android.util.Log.e("KeyManager", "Secondary failure creating EncryptedSharedPreferences, attempting Keystore clear", e2)
+                try {
+                    // Last ditch effort: clear the Keystore entry itself
+                    clearKeyStore()
+                    deletePrefs()
+                    createSecurePrefs()
+                } catch (e3: Exception) {
+                    android.util.Log.e("KeyManager", "Fatal error creating EncryptedSharedPreferences after Keystore clear", e3)
+                    throw e3
+                }
+            }
+        }
+    }
 
-    private val standardPrefs: SharedPreferences = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+    private fun deletePrefs() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            context.deleteSharedPreferences(SHARED_PREFS_FILENAME)
+        } else {
+            val file = java.io.File(context.filesDir.parent, "shared_prefs/$SHARED_PREFS_FILENAME.xml")
+            if (file.exists()) {
+                file.delete()
+            }
+        }
+    }
+
+    private fun clearKeyStore() {
+        try {
+            val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore")
+            keyStore.load(null)
+            keyStore.deleteEntry(MasterKey.DEFAULT_MASTER_KEY_ALIAS)
+            android.util.Log.d("KeyManager", "Cleared MasterKey from KeyStore")
+        } catch (e: Exception) {
+            android.util.Log.e("KeyManager", "Failed to clear KeyStore entry", e)
+        }
+    }
+
+    private fun createSecurePrefs(): SharedPreferences {
+        return EncryptedSharedPreferences.create(
+            context,
+            SHARED_PREFS_FILENAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
+
+    private val standardPrefs: SharedPreferences by lazy { 
+        context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+    }
 
     fun getOrGenerateSalt(): ByteArray {
         val saltString = standardPrefs.getString(SALT_KEY, null)

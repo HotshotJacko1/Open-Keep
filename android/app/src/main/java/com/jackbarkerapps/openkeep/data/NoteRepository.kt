@@ -11,13 +11,21 @@ class NoteRepository(context: Context) {
         private var INSTANCE: AppDatabase? = null
 
         fun initialize(context: Context, keyBytes: ByteArray) {
-             System.loadLibrary("sqlcipher")
+             android.util.Log.d("NoteRepository", "Initializing database...")
+             try {
+                System.loadLibrary("sqlcipher")
+                android.util.Log.d("NoteRepository", "sqlcipher library loaded")
+             } catch (e: Throwable) {
+                android.util.Log.e("NoteRepository", "Failed to load sqlcipher library", e)
+                throw e
+             }
              
              // Pass the raw bytes directly to the factory
              val factory = net.zetetic.database.sqlcipher.SupportOpenHelperFactory(keyBytes)
              
              synchronized(this) {
                 if (INSTANCE == null) {
+                    android.util.Log.d("NoteRepository", "Building Room database instance")
                     val instance = Room.databaseBuilder(
                         context.applicationContext,
                         AppDatabase::class.java,
