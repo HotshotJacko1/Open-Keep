@@ -50,7 +50,9 @@ export const useGoogleDrive = () => {
         if (Capacitor.isNativePlatform()) {
             try {
                 // Initialize plugin before sign in (required for capacitor-google-auth v3.2.0+)
-                await GoogleAuth.initialize();
+                await GoogleAuth.initialize({
+                    scopes: ["profile", "email", "https://www.googleapis.com/auth/drive.file"]
+                });
                 const user = await GoogleAuth.signIn();
 
                 // Initialize GAPI
@@ -73,9 +75,14 @@ export const useGoogleDrive = () => {
     const sync = useCallback(async () => {
         setIsSyncing(true);
         try {
-            // First ensure we have a valid token before initializing GAPI sync
+            // Initialize GAPI early so `gapi.client` is available for `setAccessToken`
+            await initGoogleDrive();
+
+            // Then ensure we have a valid token before proceeding with sync
             if (Capacitor.isNativePlatform()) {
-                await GoogleAuth.initialize();
+                await GoogleAuth.initialize({
+                    scopes: ["profile", "email", "https://www.googleapis.com/auth/drive.file"]
+                });
                 try {
                     const auth = await GoogleAuth.refresh();
                     setAccessToken(auth.accessToken);
@@ -91,8 +98,6 @@ export const useGoogleDrive = () => {
                 // For now, we rely on the implicit flow to still have the token or prompt login if failed.
                 // Ideally, web should check if token exists. If not, trigger webLogin().
             }
-
-            await initGoogleDrive();
 
             const localNotes = await loadNotes();
             const mergedNotes = await syncNotesWithDrive(localNotes);
@@ -124,6 +129,9 @@ export const useGoogleDrive = () => {
     const disconnect = async () => {
         if (Capacitor.isNativePlatform()) {
             try {
+                await GoogleAuth.initialize({
+                    scopes: ["profile", "email", "https://www.googleapis.com/auth/drive.file"]
+                });
                 await GoogleAuth.signOut();
             } catch (e) {
                 console.error("Native signout failed", e);
