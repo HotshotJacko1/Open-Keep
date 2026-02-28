@@ -1,7 +1,7 @@
 
 import { Note } from "@/types/note";
 import { PublicClientApplication, Configuration, PopupRequest, NavigationClient, NavigationOptions } from "@azure/msal-browser";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 
 export const CLIENT_ID = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
@@ -10,8 +10,45 @@ const NOTES_FILE_NAME = "notes.json";
 
 // MSAL Configuration
 export const REDIRECT_URI = Capacitor.isNativePlatform()
-    ? "https://app.openkeep.com/auth"
+    ? "openkeep://auth"
     : (import.meta.env.VITE_ONEDRIVE_REDIRECT_URI || window.location.origin);
+
+class NativeNetworkClient {
+    async sendGetRequestAsync(url: string, options?: any): Promise<any> {
+        const response = await CapacitorHttp.get({
+            url: url,
+            headers: options?.headers,
+        });
+        return {
+            body: typeof response.data === 'string' && response.data ? JSON.parse(response.data) : response.data,
+            headers: response.headers || {},
+            status: response.status,
+        };
+    }
+
+    async sendPostRequestAsync(url: string, options?: any): Promise<any> {
+        const headers = { ...(options?.headers || {}) };
+        delete headers["Origin"];
+        delete headers["origin"];
+
+        const response = await CapacitorHttp.post({
+            url: url,
+            headers: headers,
+            data: options?.body,
+        });
+
+        let body = response.data;
+        try {
+            if (typeof body === 'string' && body) body = JSON.parse(body);
+        } catch (e) { }
+
+        return {
+            body: body,
+            headers: response.headers || {},
+            status: response.status,
+        };
+    }
+}
 
 const msalConfig: Configuration = {
     auth: {
@@ -23,6 +60,9 @@ const msalConfig: Configuration = {
         cacheLocation: "localStorage", // This configures where your cache will be stored
         storeAuthStateInCookie: false, // Set this to "true" if you are having issues on IE11 or Edge
     },
+    system: {
+        networkClient: Capacitor.isNativePlatform() ? new NativeNetworkClient() as any : undefined
+    }
 };
 
 export const msalInstance = new PublicClientApplication(msalConfig);
