@@ -21,7 +21,11 @@ export const useOneDrive = () => {
                 await Browser.close();
                 try {
                     await initOneDrive();
-                    const response = await msalInstance.handleRedirectPromise(event.url);
+                    // MSAL handleRedirectPromise expects the hash string, not the full URL
+                    const hashIndex = event.url.indexOf("#");
+                    const hash = hashIndex !== -1 ? event.url.substring(hashIndex) : "";
+
+                    const response = await msalInstance.handleRedirectPromise(hash);
                     if (response && response.account) {
                         msalInstance.setActiveAccount(response.account);
                         setUserEmail(response.account.username);
