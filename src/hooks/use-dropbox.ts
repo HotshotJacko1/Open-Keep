@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { initDropbox, getAuthenticationUrl, handleAuthRedirect, syncNotesWithDropbox } from "@/lib/dropbox";
 import { loadNotes, saveNote } from "@/lib/note-storage";
 import { showSuccess, showError } from "@/utils/toast";
@@ -11,6 +11,9 @@ export const useDropbox = () => {
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSynced, setLastSynced] = useState<string | null>(localStorage.getItem("dropbox-last-synced"));
     const [accessToken, setAccessToken] = useState<string | null>(localStorage.getItem("dropbox-access-token"));
+
+    // Prevent duplicate processing during React Strict Mode
+    const isAuthenticating = useRef(false);
 
     // Initialize on mount if token exists
     useEffect(() => {
@@ -29,8 +32,10 @@ export const useDropbox = () => {
                 const url = new URL(event.url.replace("openkeep://auth", "https://localhost"));
                 const code = url.searchParams.get("code");
 
-                if (code) {
+                if (code && !isAuthenticating.current) {
+                    isAuthenticating.current = true;
                     try {
+                        console.log("Processing Dropbox Auth Code from Deep Link...");
                         const token = await handleAuthRedirect(code);
                         setAccessToken(token);
                         localStorage.setItem("dropbox-access-token", token);
@@ -39,6 +44,8 @@ export const useDropbox = () => {
                     } catch (error) {
                         console.error("Dropbox auth error from deep link:", error);
                         showError("Failed to finalize Dropbox login.");
+                    } finally {
+                        isAuthenticating.current = false;
                     }
                 }
             }
