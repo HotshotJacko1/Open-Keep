@@ -5,6 +5,8 @@ const config: CapacitorConfig = {
   appName: 'Open Keep',
   webDir: 'dist',
   server: {
+    androidScheme: 'https',
+    hostname: 'example.com',
     allowNavigation: [
       'login.microsoftonline.com',
       'login.live.com',
