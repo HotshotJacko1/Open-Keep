@@ -31,7 +31,7 @@ export const getAuthenticationUrl = async () => {
         undefined, // state
         'code', // response_type
         'offline', // tokenAccessType (offline for refresh tokens if needed, but implicit/code flow usually gives us what we need for session)
-        undefined, // scope
+        ['account_info.read', 'files.metadata.read', 'files.metadata.write', 'files.content.read', 'files.content.write'], // scope
         undefined, // includeGrantedScopes
         true // usePKCE
     );
