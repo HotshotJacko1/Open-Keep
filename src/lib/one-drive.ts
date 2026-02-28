@@ -1,14 +1,17 @@
 
 import { Note } from "@/types/note";
-import { PublicClientApplication, Configuration, PopupRequest } from "@azure/msal-browser";
+import { PublicClientApplication, Configuration, PopupRequest, NavigationClient, NavigationOptions } from "@azure/msal-browser";
+import { Capacitor } from "@capacitor/core";
+import { Browser } from "@capacitor/browser";
 
 export const CLIENT_ID = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
 const FOLDER_NAME = "Open Keep Notes";
 const NOTES_FILE_NAME = "notes.json";
 
 // MSAL Configuration
-// MSAL Configuration
-export const REDIRECT_URI = import.meta.env.VITE_ONEDRIVE_REDIRECT_URI || window.location.origin;
+export const REDIRECT_URI = Capacitor.isNativePlatform()
+    ? "openkeep://auth"
+    : (import.meta.env.VITE_ONEDRIVE_REDIRECT_URI || window.location.origin);
 
 const msalConfig: Configuration = {
     auth: {
@@ -26,12 +29,24 @@ export const msalInstance = new PublicClientApplication(msalConfig);
 
 // Initialize MSAL (should be called on app start or component mount)
 // For MSAL Browser v2/v3, initialize needs to be called.
+class CustomNavigationClient extends NavigationClient {
+    async navigateExternal(url: string, options: NavigationOptions) {
+        if (Capacitor.isNativePlatform()) {
+            await Browser.open({ url });
+            return true;
+        } else {
+            return super.navigateExternal(url, options);
+        }
+    }
+}
+
 let isInitialized = false;
 
 export const initOneDrive = async () => {
     if (isInitialized) return;
     try {
         await msalInstance.initialize();
+        msalInstance.setNavigationClient(new CustomNavigationClient());
     } catch (e) {
         console.warn("MSAL Initialize warn:", e);
     }

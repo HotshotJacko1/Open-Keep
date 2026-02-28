@@ -3,15 +3,39 @@ import { useState, useCallback, useEffect } from "react";
 import { initOneDrive, loginToOneDrive, syncNotesWithOneDrive, logoutFromOneDrive, msalInstance } from "@/lib/one-drive";
 import { loadNotes, saveNote } from "@/lib/note-storage";
 import { showSuccess, showError } from "@/utils/toast";
+import { App as CapacitorApp } from "@capacitor/app";
+import { Browser } from "@capacitor/browser";
+import { Capacitor } from "@capacitor/core";
 
 export const useOneDrive = () => {
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSynced, setLastSynced] = useState<string | null>(localStorage.getItem("onedrive-last-synced"));
     const [userEmail, setUserEmail] = useState<string | null>(localStorage.getItem("onedrive-user-email"));
 
-    // Check for active account on load
+    // Check for active account on load and setup Deep Link Listener
     useEffect(() => {
-        const checkAccount = async () => {
+        let listenerHandle: any = null;
+
+        const handleAppUrlOpen = async (event: { url: string }) => {
+            if (event.url.includes("openkeep://auth")) {
+                await Browser.close();
+                try {
+                    await initOneDrive();
+                    const response = await msalInstance.handleRedirectPromise(event.url);
+                    if (response && response.account) {
+                        msalInstance.setActiveAccount(response.account);
+                        setUserEmail(response.account.username);
+                        localStorage.setItem("onedrive-user-email", response.account.username);
+                        showSuccess(`Connected to OneDrive as ${response.account.username}`);
+                    }
+                } catch (e) {
+                    console.error("handleRedirectPromise deep link error:", e);
+                    showError("Failed to finalize OneDrive login.");
+                }
+            }
+        };
+
+        const checkAccountAndListen = async () => {
             await initOneDrive();
             const account = msalInstance.getActiveAccount();
             if (account && account.username) {
@@ -24,8 +48,19 @@ export const useOneDrive = () => {
                     showSuccess(`Connected to OneDrive as ${account.username}`);
                 }
             }
+
+            if (Capacitor.isNativePlatform()) {
+                listenerHandle = await CapacitorApp.addListener('appUrlOpen', handleAppUrlOpen);
+            }
         };
-        checkAccount();
+
+        checkAccountAndListen();
+
+        return () => {
+            if (listenerHandle) {
+                listenerHandle.remove();
+            }
+        };
     }, []);
 
     const login = useCallback(async () => {
