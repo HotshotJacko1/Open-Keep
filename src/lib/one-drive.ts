@@ -26,17 +26,30 @@ export const msalInstance = new PublicClientApplication(msalConfig);
 
 // Initialize MSAL (should be called on app start or component mount)
 // For MSAL Browser v2/v3, initialize needs to be called.
+let isInitialized = false;
+
 export const initOneDrive = async () => {
-    if (!msalInstance.getActiveAccount()) {
+    if (isInitialized) return;
+    try {
         await msalInstance.initialize();
-        // Attempt to handle redirect promise if we were to use redirects, but we use popup.
-        // However, handleRedirectPromise should be called to process the response from redirect flows.
-        try {
-            await msalInstance.handleRedirectPromise();
-        } catch (e) {
-            console.error(e);
-        }
+    } catch (e) {
+        console.warn("MSAL Initialize warn:", e);
     }
+
+    try {
+        const response = await msalInstance.handleRedirectPromise();
+        if (response && response.account) {
+            msalInstance.setActiveAccount(response.account);
+        } else if (!msalInstance.getActiveAccount()) {
+            const accounts = msalInstance.getAllAccounts();
+            if (accounts.length > 0) {
+                msalInstance.setActiveAccount(accounts[0]);
+            }
+        }
+    } catch (e) {
+        console.error("handleRedirectPromise error:", e);
+    }
+    isInitialized = true;
 };
 
 const loginRequest: PopupRequest = {
@@ -50,9 +63,7 @@ const loginRequest: PopupRequest = {
 export const loginToOneDrive = async () => {
     await initOneDrive();
     try {
-        const loginResponse = await msalInstance.loginPopup(loginRequest);
-        msalInstance.setActiveAccount(loginResponse.account);
-        return loginResponse.account;
+        await msalInstance.loginRedirect(loginRequest);
     } catch (err) {
         console.error("OneDrive Login failed", err);
         throw err;
@@ -70,13 +81,13 @@ export const getGraphAccessToken = async () => {
         });
         return response.accessToken;
     } catch (error) {
-        console.warn("Silent token acquisition failed. Acquiring token using popup", error);
+        console.warn("Silent token acquisition failed. Acquiring token using redirect", error);
         // Fallback to interaction when silent call fails
-        const response = await msalInstance.acquireTokenPopup({
+        await msalInstance.acquireTokenRedirect({
             ...loginRequest,
             account: account,
         });
-        return response.accessToken;
+        throw new Error("Redirecting to acquire token...");
     }
 };
 

@@ -15,8 +15,14 @@ export const useOneDrive = () => {
             await initOneDrive();
             const account = msalInstance.getActiveAccount();
             if (account && account.username) {
+                const isNewLogin = localStorage.getItem("onedrive-user-email") !== account.username;
+
                 setUserEmail(account.username);
                 localStorage.setItem("onedrive-user-email", account.username);
+
+                if (isNewLogin) {
+                    showSuccess(`Connected to OneDrive as ${account.username}`);
+                }
             }
         };
         checkAccount();
@@ -24,12 +30,8 @@ export const useOneDrive = () => {
 
     const login = useCallback(async () => {
         try {
-            const account = await loginToOneDrive();
-            if (account && account.username) {
-                setUserEmail(account.username);
-                localStorage.setItem("onedrive-user-email", account.username);
-                showSuccess(`Connected to OneDrive as ${account.username}`);
-            }
+            await loginToOneDrive();
+            // In a redirect flow, this will navigate away and reload the application natively
         } catch (error) {
             console.error("OneDrive Login failed:", error);
             showError("Failed to connect to OneDrive.");

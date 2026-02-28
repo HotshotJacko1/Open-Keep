@@ -4,6 +4,13 @@ const config: CapacitorConfig = {
   appId: 'com.jackbarkerapps.openkeep',
   appName: 'Open Keep',
   webDir: 'dist',
+  server: {
+    allowNavigation: [
+      'login.microsoftonline.com',
+      'login.live.com',
+      'login.microsoft.com'
+    ]
+  },
   plugins: {
     GoogleAuth: {
       scopes: ['profile', 'email', 'https://www.googleapis.com/auth/drive.file'],

@@ -44,8 +44,8 @@ const findFolder = async (): Promise<string | null> => {
         });
         const files = response.result.files;
         return files && files.length > 0 ? files[0].id : null;
-    } catch (error) {
-        console.error("Error finding folder:", error);
+    } catch (error: any) {
+        console.error("Error finding folder:", error?.result?.error?.message || JSON.stringify(error));
         return null;
     }
 };
@@ -61,8 +61,8 @@ const createFolder = async (): Promise<string> => {
             fields: "id",
         });
         return response.result.id;
-    } catch (error) {
-        console.error("Error creating folder:", error);
+    } catch (error: any) {
+        console.error("Error creating folder:", error?.result?.error?.message || JSON.stringify(error));
         throw error;
     }
 };
@@ -75,8 +75,8 @@ const findNotesFile = async (folderId: string): Promise<string | null> => {
         });
         const files = response.result.files;
         return files && files.length > 0 ? files[0].id : null;
-    } catch (error) {
-        console.error("Error finding notes file:", error);
+    } catch (error: any) {
+        console.error("Error finding notes file:", error?.result?.error?.message || JSON.stringify(error));
         return null;
     }
 };
@@ -110,8 +110,8 @@ const downloadNotes = async (fileId: string): Promise<Note[]> => {
         }
 
         return response.result as unknown as Note[];
-    } catch (error) {
-        console.error("Error downloading notes:", error);
+    } catch (error: any) {
+        console.error("Error downloading notes:", error?.result?.error?.message || JSON.stringify(error));
         return [];
     }
 };
