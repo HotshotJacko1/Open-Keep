@@ -182,28 +182,22 @@ const callGraphApi = async (endpoint: string, method: string = "GET", body?: any
 };
 
 const findFolder = async (): Promise<string | null> => {
-    // Search for folder by name in root
-    // using OData filter
-    const response = await callGraphApi(`/me/drive/root/children?$filter=name eq '${FOLDER_NAME}' and folder ne null`);
-    if (response && response.value && response.value.length > 0) {
-        return response.value[0].id;
-    }
-    return null;
+    // AppFolder scope uses special/approot implicitly
+    return "special/approot";
 };
 
 const createFolder = async (): Promise<string> => {
-    const response = await callGraphApi(`/me/drive/root/children`, "POST", {
-        name: FOLDER_NAME,
-        folder: {},
-        "@microsoft.graph.conflictBehavior": "rename"
-    });
-    return response.id;
+    return "special/approot";
 };
 
 const findNotesFile = async (folderId: string): Promise<string | null> => {
-    const response = await callGraphApi(`/me/drive/items/${folderId}/children?$filter=name eq '${NOTES_FILE_NAME}'`);
-    if (response && response.value && response.value.length > 0) {
-        return response.value[0].id;
+    try {
+        const response = await callGraphApi(`/me/drive/special/approot/children?$filter=name eq '${NOTES_FILE_NAME}'`);
+        if (response && response.value && response.value.length > 0) {
+            return response.value[0].id;
+        }
+    } catch (error) {
+        console.warn("special/approot may not exist yet.", error);
     }
     return null;
 };
@@ -234,7 +228,7 @@ const uploadNotes = async (folderId: string, notes: Note[], fileId: string | nul
 
     const url = fileId
         ? `${GRAPH_ENDPOINT}/me/drive/items/${fileId}/content`
-        : `${GRAPH_ENDPOINT}/me/drive/items/${folderId}:/${NOTES_FILE_NAME}:/content`;
+        : `${GRAPH_ENDPOINT}/me/drive/special/approot:/${NOTES_FILE_NAME}:/content`;
 
     const response = await fetch(url, {
         method: "PUT", // PUT creates or updates
