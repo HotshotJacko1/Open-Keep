@@ -24,10 +24,6 @@ export const initDropbox = (accessToken?: string) => {
 export const getAuthenticationUrl = async () => {
     const dbxAuth = new DropboxAuth({ clientId: CLIENT_ID });
 
-    // Generate a code verifier and challenge
-    // The SDK might handle this if we use getAuthenticationUrl
-    // ensure using PKCE
-
     console.log("Dropbox Redirect URI:", REDIRECT_URI);
 
     const authUrl = await dbxAuth.getAuthenticationUrl(
@@ -40,9 +36,14 @@ export const getAuthenticationUrl = async () => {
         true // usePKCE
     );
 
-    // We need to store the code verifier to exchange code later
-    // The SDK stores it in sessionStorage/localStorage automatically when using getAuthenticationUrl with PKCE?
-    // Actually, looking at Dropbox SDK docs, it stores it in sessionStorage 'code_verifier'.
+    // The SDK stores it in sessionStorage 'code_verifier' by default.
+    // On Android, sessionStorage is often cleared when the app activity is destroyed/restarted
+    // during the external browser redirect. We MUST persist it in localStorage.
+    const verifier = dbxAuth.getCodeVerifier();
+    if (verifier) {
+        console.log("Persisting Dropbox Code Verifier to localStorage");
+        localStorage.setItem("dropbox_code_verifier", verifier);
+    }
 
     return authUrl;
 };
@@ -55,7 +56,16 @@ interface DropboxAccessTokenResponse {
 export const handleAuthRedirect = async (code: string) => {
     const dbxAuth = new DropboxAuth({ clientId: CLIENT_ID });
 
-    // This will read the code_verifier from storage and exchange code
+    // Retrieve the persisted code verifier
+    const persistedVerifier = localStorage.getItem("dropbox_code_verifier");
+    if (persistedVerifier) {
+        console.log("Restoring Dropbox Code Verifier from localStorage");
+        dbxAuth.setCodeVerifier(persistedVerifier);
+        // Clear it after use
+        localStorage.removeItem("dropbox_code_verifier");
+    }
+
+    // This will read the code_verifier from the auth object and exchange code
     console.log("Dropbox Redirect URI (Token Exchange):", REDIRECT_URI);
     const response = await dbxAuth.getAccessTokenFromCode(REDIRECT_URI, code);
     const accessToken = (response.result as DropboxAccessTokenResponse).access_token;
