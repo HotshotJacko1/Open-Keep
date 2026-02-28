@@ -3,7 +3,7 @@ import { Dropbox, DropboxAuth } from "dropbox";
 import { Capacitor } from "@capacitor/core";
 
 const CLIENT_ID = import.meta.env.VITE_DROPBOX_CLIENT_ID;
-const FILE_PATH = "/Open Keep Notes/notes.json";
+const FILE_PATH = "/notes.json";
 
 // We need to persist the access token
 let dbx: Dropbox | null = null;
@@ -88,10 +88,11 @@ const downloadNotes = async (): Promise<Note[]> => {
         return JSON.parse(text) as Note[];
     } catch (error: any) {
         // If file not found
-        if (error.error && error.error.path && error.error.path['.tag'] === 'not_found') {
+        if (error.status === 409 || (error.error && error.error.path && error.error.path['.tag'] === 'not_found')) {
             return [];
         }
         console.error("Error downloading notes from Dropbox:", error);
+        if (error.error) console.error("Dropbox Error Detail:", JSON.stringify(error.error, null, 2));
         return [];
     }
 };
