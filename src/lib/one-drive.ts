@@ -10,7 +10,7 @@ const NOTES_FILE_NAME = "notes.json";
 
 // MSAL Configuration
 export const REDIRECT_URI = Capacitor.isNativePlatform()
-    ? "openkeep://auth"
+    ? "https://app.openkeep.com/auth"
     : (import.meta.env.VITE_ONEDRIVE_REDIRECT_URI || window.location.origin);
 
 const msalConfig: Configuration = {

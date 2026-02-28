@@ -17,7 +17,7 @@ export const useOneDrive = () => {
         let listenerHandle: any = null;
 
         const handleAppUrlOpen = async (event: { url: string }) => {
-            if (event.url.includes("openkeep://auth")) {
+            if (event.url.includes("https://app.openkeep.com/auth")) {
                 await Browser.close();
                 try {
                     await initOneDrive();
