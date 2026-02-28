@@ -85,10 +85,10 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                   <FolderSync className="mr-2 h-4 w-4" /> Sync with Google Drive
                 </Button>
                 <Button onClick={() => oneDrive.login()} className="w-full justify-start" variant="outline" type="button">
-                  <FolderSync className="mr-2 h-4 w-4" /> Sync with OneDrive (Coming Soon)
+                  <FolderSync className="mr-2 h-4 w-4" /> Sync with OneDrive
                 </Button>
                 <Button onClick={() => dropbox.login()} className="w-full justify-start" variant="outline" type="button">
-                  <FolderSync className="mr-2 h-4 w-4" /> Sync with Dropbox (Coming Soon)
+                  <FolderSync className="mr-2 h-4 w-4" /> Sync with Dropbox
                 </Button>
               </div>
             ) : (

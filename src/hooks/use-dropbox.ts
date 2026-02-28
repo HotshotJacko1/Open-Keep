@@ -3,6 +3,9 @@ import { useState, useCallback, useEffect } from "react";
 import { initDropbox, getAuthenticationUrl, handleAuthRedirect, syncNotesWithDropbox } from "@/lib/dropbox";
 import { loadNotes, saveNote } from "@/lib/note-storage";
 import { showSuccess, showError } from "@/utils/toast";
+import { Browser } from "@capacitor/browser";
+import { App as CapacitorApp } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 
 export const useDropbox = () => {
     const [isSyncing, setIsSyncing] = useState(false);
@@ -18,21 +21,34 @@ export const useDropbox = () => {
 
     // Handle Redirect Return
     useEffect(() => {
-        const checkCode = async () => {
+        let listenerHandle: any = null;
+
+        const handleAppUrlOpen = async (event: { url: string }) => {
+            if (event.url.includes("openkeep://auth")) {
+                await Browser.close();
+                const url = new URL(event.url.replace("openkeep://auth", "https://localhost"));
+                const code = url.searchParams.get("code");
+
+                if (code) {
+                    try {
+                        const token = await handleAuthRedirect(code);
+                        setAccessToken(token);
+                        localStorage.setItem("dropbox-access-token", token);
+                        initDropbox(token);
+                        showSuccess("Connected to Dropbox!");
+                    } catch (error) {
+                        console.error("Dropbox auth error from deep link:", error);
+                        showError("Failed to finalize Dropbox login.");
+                    }
+                }
+            }
+        };
+
+        const checkCodeAndListen = async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get("code");
 
-            // Check if we initiated a dropbox login (maybe store a flag in sessionStorage?)
-            // Or just try if we see a code and aren't connected?
-            // "code" is generic, but if we just clicked login, we expect it.
-
             if (code && !accessToken) {
-                // To avoid conflict with other auth providers (though GDrive uses implicit hash usually, or popup), 
-                // we should verify this is for us. 
-                // Currently, we assume if user is on this page with code, and we expected it...
-                // Better approach: component that handles the callback route. 
-                // BUT, since we are doing a simple app, we might intercept it here.
-
                 try {
                     // Clean URL
                     window.history.replaceState({}, document.title, window.location.pathname);
@@ -44,19 +60,31 @@ export const useDropbox = () => {
                     showSuccess("Connected to Dropbox!");
                 } catch (error) {
                     console.error("Dropbox auth error:", error);
-                    // Don't show error if it wasn't a dropbox code (e.g. might be failure)
                 }
             }
+
+            if (Capacitor.isNativePlatform()) {
+                listenerHandle = await CapacitorApp.addListener('appUrlOpen', handleAppUrlOpen);
+            }
         };
-        checkCode();
+
+        checkCodeAndListen();
+
+        return () => {
+            if (listenerHandle) {
+                listenerHandle.remove();
+            }
+        };
     }, [accessToken]);
 
     const login = useCallback(async () => {
         try {
             const url = await getAuthenticationUrl();
-            // Redirect to Dropbox
-            // We use _self because we need to return to the app to handle the code
-            window.location.href = url.toString();
+            if (Capacitor.isNativePlatform()) {
+                await Browser.open({ url: url.toString() });
+            } else {
+                window.location.href = url.toString();
+            }
         } catch (error) {
             console.error("Dropbox Login init failed:", error);
             showError("Failed to start Dropbox login.");
