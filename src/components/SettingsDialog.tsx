@@ -4,13 +4,12 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/theme-provider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText, Mail, Lock } from "lucide-react";
+import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText, Mail } from "lucide-react";
 import SyncDialog from "./SyncDialog";
 import ChangePinDialog from "./ChangePinDialog";
 import { useSession } from "@/context/session-provider";
@@ -21,7 +20,7 @@ import { showSuccess, showError } from "@/utils/toast";
 import { Capacitor } from "@capacitor/core";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
-import { lockDatabase } from "@/lib/note-storage";
+
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -184,19 +183,6 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
     }
   };
 
-  const [autoLockTimeout, setAutoLockTimeout] = useState(localStorage.getItem("auto-lock-timeout") || "never");
-
-  const handleLockNow = async () => {
-    await lockDatabase();
-    window.location.reload(); // Simple way to reset app state locally
-  };
-
-  const handleAutoLockChange = (val: string) => {
-    if (val) {
-      setAutoLockTimeout(val);
-      localStorage.setItem("auto-lock-timeout", val);
-    }
-  };
 
   return (
     <>
@@ -236,29 +222,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
             <div className="flex flex-col gap-2 mt-4">
               <Label>Encryption & Security</Label>
               <div className="flex flex-col gap-2 border rounded-md p-3">
-                <Button variant="outline" onClick={handleLockNow} className="w-full justify-start text-red-500 hover:text-red-600">
-                  <Lock className="mr-2 h-4 w-4" /> Lock App Now
-                </Button>
 
                 <Button variant="outline" onClick={() => setIsChangePinDialogOpen(true)} className="w-full justify-start">
                   Change Encryption PIN
                 </Button>
-
-                <div className="flex flex-col gap-2 mt-2">
-                  <Label className="text-xs text-muted-foreground">Auto-lock Timeout (Background)</Label>
-                  <ToggleGroup
-                    type="single"
-                    value={autoLockTimeout}
-                    onValueChange={handleAutoLockChange}
-                    className="justify-start flex-wrap"
-                  >
-                    <ToggleGroupItem value="immediate" className="text-xs data-[state=on]:bg-[#707070] data-[state=on]:text-[#f8fafc]">Immed</ToggleGroupItem>
-                    <ToggleGroupItem value="1" className="text-xs data-[state=on]:bg-[#707070] data-[state=on]:text-[#f8fafc]">1m</ToggleGroupItem>
-                    <ToggleGroupItem value="5" className="text-xs data-[state=on]:bg-[#707070] data-[state=on]:text-[#f8fafc]">5m</ToggleGroupItem>
-                    <ToggleGroupItem value="15" className="text-xs data-[state=on]:bg-[#707070] data-[state=on]:text-[#f8fafc]">15m</ToggleGroupItem>
-                    <ToggleGroupItem value="never" className="text-xs data-[state=on]:bg-[#707070] data-[state=on]:text-[#f8fafc]">Never</ToggleGroupItem>
-                  </ToggleGroup>
-                </div>
               </div>
             </div>
 
@@ -341,11 +308,6 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
               </Button>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={onClose}>
-              Close
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tag, Trash2, Pencil, Check, Plus } from "lucide-react";
@@ -159,11 +159,6 @@ const EditLabels: React.FC<EditLabelsProps> = ({
                     </div>
                 </div>
 
-                <DialogFooter>
-                    <Button variant="secondary" onClick={onClose}>
-                        Done
-                    </Button>
-                </DialogFooter>
             </DialogContent>
         </Dialog>
     );

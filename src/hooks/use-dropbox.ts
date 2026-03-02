@@ -14,11 +14,18 @@ export const useDropbox = () => {
     const [lastSynced, setLastSynced] = useState<string | null>(localStorage.getItem("dropbox-last-synced"));
     const [accessToken, setAccessToken] = useState<string | null>(localStorage.getItem("dropbox-access-token"));
 
-    // Initialize on mount if token exists
+    // Initialize on mount if token exists, and listen for cross-component token updates
     useEffect(() => {
         if (accessToken) {
             initDropbox(accessToken);
         }
+
+        const handleTokenUpdate = () => {
+            setAccessToken(localStorage.getItem("dropbox-access-token"));
+        };
+
+        window.addEventListener("dropbox-token-updated", handleTokenUpdate);
+        return () => window.removeEventListener("dropbox-token-updated", handleTokenUpdate);
     }, [accessToken]);
 
     // Handle Redirect Return
@@ -38,6 +45,7 @@ export const useDropbox = () => {
                         const token = await handleAuthRedirect(code);
                         setAccessToken(token);
                         localStorage.setItem("dropbox-access-token", token);
+                        window.dispatchEvent(new Event("dropbox-token-updated"));
                         initDropbox(token);
                         showSuccess("Connected to Dropbox!");
                     } catch (error) {
@@ -62,6 +70,7 @@ export const useDropbox = () => {
                     const token = await handleAuthRedirect(code);
                     setAccessToken(token);
                     localStorage.setItem("dropbox-access-token", token);
+                    window.dispatchEvent(new Event("dropbox-token-updated"));
                     initDropbox(token);
                     showSuccess("Connected to Dropbox!");
                 } catch (error) {
@@ -133,6 +142,7 @@ export const useDropbox = () => {
         localStorage.removeItem("dropbox-access-token");
         localStorage.removeItem("dropbox-last-synced");
         setLastSynced(null);
+        window.dispatchEvent(new Event("dropbox-token-updated"));
         // Note: We don't revoke token on server here, just forget it locally.
         showSuccess("Disconnected from Dropbox.");
     }, []);

@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-import { App as CapacitorApp } from "@capacitor/app";
+
 import LockScreen from "./components/LockScreen";
 import EncryptionSetupScreen from "./components/EncryptionSetupScreen";
 import React, { useState, useEffect, useRef } from "react";
@@ -26,24 +26,6 @@ const App = () => {
       return;
     }
 
-    const checkAutoLock = async (): Promise<boolean> => {
-      const lastActiveStr = localStorage.getItem('app-last-active');
-      const timeoutStr = localStorage.getItem('auto-lock-timeout') || 'never';
-
-      if (timeoutStr === 'never') return false;
-      if (timeoutStr === 'immediate') return true;
-
-      if (!lastActiveStr) return false;
-
-      const lastActive = parseInt(lastActiveStr, 10);
-      const timeoutMin = parseInt(timeoutStr, 10);
-
-      if (Date.now() - lastActive > timeoutMin * 60 * 1000) {
-        return true;
-      }
-      return false;
-    };
-
     const init = async () => {
       try {
         const status = await checkDatabaseStatus();
@@ -52,20 +34,10 @@ const App = () => {
           return;
         }
 
-        // isLocked might be true/false/undefined. If undefined, assume unlocked? No, assume locked for safety?
-        // Actually, if we just launched, native checkDatabaseStatus returns if KeyManager has key.
-        // If it has key, it returns unlocked/ready (isLocked=false).
-
         if (status.isLocked) {
           setAppState('locked');
         } else {
-          const shouldLock = await checkAutoLock();
-          if (shouldLock) {
-            await lockDatabase();
-            setAppState('locked');
-          } else {
-            setAppState('ready');
-          }
+          setAppState('ready');
         }
       } catch (e) {
         console.error("Failed to check DB status", e);
@@ -76,50 +48,7 @@ const App = () => {
     init();
   }, [isNative]);
 
-  useEffect(() => {
-    const listener = CapacitorApp.addListener("appStateChange", async ({ isActive }) => {
-      const timeoutStr = localStorage.getItem('auto-lock-timeout') || 'never';
 
-      if (!isActive) {
-        // Background
-        localStorage.setItem('app-last-active', Date.now().toString());
-        if (isNative && timeoutStr === 'immediate') {
-          await lockDatabase();
-          // We don't necessarily update state here if UI is hidden, 
-          // but when we come back, we might need to show lock screen.
-          setAppState('locked');
-        }
-      } else {
-        // Foreground
-        if (isNative && appState === 'ready') {
-          if (timeoutStr === 'never') return;
-
-          // If immediate, we should be locked already from background handler.
-          // If we are still 'ready', maybe check again?
-          if (timeoutStr === 'immediate') {
-            // Force lock check
-            const status = await checkDatabaseStatus();
-            if (status.isLocked) setAppState('locked');
-            return;
-          }
-
-          const lastActiveStr = localStorage.getItem('app-last-active');
-          if (lastActiveStr) {
-            const lastActive = parseInt(lastActiveStr, 10);
-            const timeoutMin = parseInt(timeoutStr, 10);
-            if (Date.now() - lastActive > timeoutMin * 60 * 1000) {
-              await lockDatabase();
-              setAppState('locked');
-            }
-          }
-        }
-      }
-    });
-
-    return () => {
-      listener.then(handle => handle.remove());
-    };
-  }, [isNative, appState]);
 
   const handleUnlock = async (pin?: string) => {
     if (!pin) return false;

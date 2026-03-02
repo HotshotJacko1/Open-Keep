@@ -4,7 +4,6 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -133,14 +132,9 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
                         />
                     </div>
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={onClose} disabled={isLoading}>
-                        Cancel
-                    </Button>
-                    <Button onClick={handleChangePin} disabled={isLoading || !currentPin || !newPin || !confirmPin}>
-                        {isLoading ? "Changing..." : "Change PIN"}
-                    </Button>
-                </DialogFooter>
+                <Button onClick={handleChangePin} disabled={isLoading || !currentPin || !newPin || !confirmPin} className="w-full mt-4">
+                    {isLoading ? "Changing..." : "Change PIN"}
+                </Button>
             </DialogContent>
         </Dialog>
     );

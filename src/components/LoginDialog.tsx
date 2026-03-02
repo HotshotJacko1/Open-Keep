@@ -4,7 +4,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -147,30 +146,25 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose }) => {
 
           <Separator className="my-4" />
 
-<Button
-  variant="outline"
-  className="w-full"
-  onClick={handleGoogleLogin}
-  disabled={loading}
->
-  {loading ? (
-    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-  ) : (
-    <img
-      src="/google-logo-search-new-svgrepo-com.svg"
-      alt="Google logo"
-      className="mr-2 h-4 w-4"
-    />
-  )}
-  Sign In with Google
-</Button>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={handleGoogleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <img
+                src="/google-logo-search-new-svgrepo-com.svg"
+                alt="Google logo"
+                className="mr-2 h-4 w-4"
+              />
+            )}
+            Sign In with Google
+          </Button>
 
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -5,7 +5,6 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { showSuccess, showError } from "@/utils/toast";
@@ -82,11 +81,6 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
                             Passcode
                         </Button>
                     </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={onClose}>
-                            Close
-                        </Button>
-                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 
