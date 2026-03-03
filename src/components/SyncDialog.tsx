@@ -14,6 +14,7 @@ import { useDropbox } from "@/hooks/use-dropbox";
 import { REDIRECT_URI, CLIENT_ID } from "@/lib/one-drive";
 import { Loader2, FolderSync } from "lucide-react";
 import { showSuccess, showError } from "@/utils/toast";
+import { App } from "@capacitor/app";
 
 interface SyncDialogProps {
   isOpen: boolean;
@@ -31,6 +32,18 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    const backButtonListener = App.addListener('backButton', () => {
+      onClose();
+    });
+
+    return () => {
+      backButtonListener.then(listener => listener.remove());
+    };
+  }, [isOpen, onClose]);
+
   // Determine which service is active
   const activeService = useMemo(() => {
     if (googleDrive.isConnected) return { ...googleDrive, name: "Google Drive" };
@@ -43,7 +56,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-full h-full max-w-full sm:max-w-[425px] sm:h-auto sm:max-h-[85vh] sm:rounded-lg !rounded-none sm:!rounded-lg overflow-y-auto bg-background text-primary-foreground border-0 sm:border pt-[max(env(safe-area-inset-top),1.5rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)] px-6">
+      <DialogContent className="w-full h-full max-w-full sm:max-w-[425px] sm:h-auto sm:max-h-[85vh] sm:rounded-lg !rounded-none sm:!rounded-lg overflow-y-auto bg-background text-primary-foreground border-0 sm:border pt-[max(env(safe-area-inset-top,3.5rem),3.5rem)] sm:pt-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] px-6">
         <DialogHeader>
           <DialogTitle>Sync Options</DialogTitle>
           <DialogDescription>

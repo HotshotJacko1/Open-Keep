@@ -187,7 +187,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="w-full h-full max-w-full sm:max-w-[425px] sm:h-auto sm:max-h-[85vh] sm:rounded-lg !rounded-none sm:!rounded-lg overflow-y-auto bg-background text-primary-foreground border-0 sm:border pt-[max(env(safe-area-inset-top),1.5rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)] px-6">
+        <DialogContent
+          aria-describedby={undefined}
+          className="w-full h-full max-w-full sm:max-w-[425px] sm:h-auto sm:max-h-[85vh] sm:rounded-lg !rounded-none sm:!rounded-lg overflow-y-auto bg-background text-primary-foreground border-0 sm:border pt-[max(env(safe-area-inset-top),1.5rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)] px-6"
+        >
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
           </DialogHeader>
@@ -218,11 +221,9 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
               </ToggleGroup>
             </div>
 
-            {/* Encryption & Security */}
             <div className="flex flex-col gap-2 mt-4">
               <Label>Encryption & Security</Label>
-              <div className="flex flex-col gap-2 border rounded-md p-3">
-
+              <div className="flex flex-col gap-2">
                 <Button variant="outline" onClick={() => setIsChangePinDialogOpen(true)} className="w-full justify-start">
                   Change Encryption PIN
                 </Button>
@@ -269,7 +270,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
 
             <div className="flex flex-col gap-2 mt-4">
               <Label>Sync</Label>
-              <Button variant="outline" onClick={() => setIsSyncDialogOpen(true)}>
+              <Button variant="outline" onClick={() => setIsSyncDialogOpen(true)} className="w-full justify-start text-left">
                 Open Sync Options
               </Button>
             </div>

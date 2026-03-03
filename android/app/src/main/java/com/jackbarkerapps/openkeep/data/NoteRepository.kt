@@ -51,7 +51,10 @@ class NoteRepository(context: Context) {
                 val db = INSTANCE?.openHelper?.writableDatabase
                 if (db != null && db.isOpen) {
                     val hexKey = newKey.joinToString("") { "%02x".format(it) }
-                    db.execSQL("PRAGMA rekey = \"x'$hexKey'\"")
+                    // Use .query() instead of .execSQL() because the Android framework 
+                    // incorrectly checks the SQL string for PRAGMAs and rejects them in execSQL 
+                    // if it thinks they might return results (even if they don't).
+                    db.query("PRAGMA rekey = \"x'$hexKey'\"").close()
                     
                     // Close the old instance
                     INSTANCE?.close()

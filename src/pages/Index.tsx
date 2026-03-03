@@ -754,7 +754,7 @@ const Index = () => {
 
   return (
     <div
-      className="h-screen flex flex-col bg-neutral-100 dark:bg-[#202124] text-foreground overflow-hidden"
+      className="h-screen flex flex-col bg-background dark:bg-background text-foreground overflow-hidden"
       onClick={handleBackgroundClick} // Handle click outside
     >
       <TopBar

@@ -82,7 +82,10 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[425px] bg-background text-primary-foreground">
+            <DialogContent
+                aria-describedby={undefined}
+                className="sm:max-w-[425px] bg-background text-primary-foreground"
+            >
                 <DialogHeader>
                     <DialogTitle>Change Encryption PIN</DialogTitle>
                 </DialogHeader>
