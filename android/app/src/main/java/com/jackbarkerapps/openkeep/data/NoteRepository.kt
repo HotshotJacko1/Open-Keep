@@ -51,17 +51,38 @@ class NoteRepository(context: Context) {
                 val db = INSTANCE?.openHelper?.writableDatabase
                 if (db != null && db.isOpen) {
                     val hexKey = newKey.joinToString("") { "%02x".format(it) }
-                    // Use .query() instead of .execSQL() because the Android framework 
-                    // incorrectly checks the SQL string for PRAGMAs and rejects them in execSQL 
-                    // if it thinks they might return results (even if they don't).
-                    db.query("PRAGMA rekey = \"x'$hexKey'\"").close()
+                    android.util.Log.d("NoteRepository", "Starting rekey operation...")
                     
-                    // Close the old instance
-                    INSTANCE?.close()
-                    INSTANCE = null
+                    try {
+                        // PRAGMA rekey changes the key on the connection. 
+                        // Because of how Android's SupportSQLiteDatabase handles verification,
+                        // this often throws an exception immediately after the key changes 
+                        // because it tries to verify the connection using the OLD key/state.
+                        db.query("PRAGMA rekey = \"x'$hexKey'\"").close()
+                        android.util.Log.d("NoteRepository", "Rekey command executed (no exception)")
+                    } catch (e: Exception) {
+                        // This exception is EXPECTED if the library tries to verify the 
+                        // connection immediately after the key change. 
+                        android.util.Log.d("NoteRepository", "Rekey command executed (caught expected transition exception: ${e.message})")
+                    }
                     
-                    // Re-initialize with new key
+                    // Crucially: Reset the current instance (which is now invalid/locked)
+                    android.util.Log.d("NoteRepository", "Resetting database instance for re-initialization")
+                    reset()
+                    
+                    // Re-initialize with the NEW key
+                    android.util.Log.d("NoteRepository", "Re-initializing with new key")
                     initialize(context, newKey)
+                    
+                    // VERIFY the new key works before returning success
+                    try {
+                         val verifiedDb = getDatabase().openHelper.writableDatabase
+                         verifiedDb.query("SELECT 1").close()
+                         android.util.Log.d("NoteRepository", "New key verified successfully")
+                    } catch (e: Exception) {
+                        android.util.Log.e("NoteRepository", "Verification of new key FAILED", e)
+                        throw IllegalStateException("Rekey seemed to work but new key failed verification: ${e.message}")
+                    }
                 } else {
                      throw IllegalStateException("Database is not open, cannot change password.")
                 }

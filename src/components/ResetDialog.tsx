@@ -22,7 +22,7 @@ const ResetDialog: React.FC<ResetDialogProps> = ({ isOpen, onOpenChange, onConfi
         <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
             <AlertDialogContent>
                 <AlertDialogHeader>
-                    <AlertDialogTitle>Reset App & Delete Data?</AlertDialogTitle>
+                    <AlertDialogTitle className="text-black dark:text-white">Reset App & Delete Data?</AlertDialogTitle>
                     <AlertDialogDescription className="text-destructive">
                         Your encryption PIN cannot be recovered.
                         If you reset it, all encrypted notes will be permanently deleted from this device and from the cloud.
