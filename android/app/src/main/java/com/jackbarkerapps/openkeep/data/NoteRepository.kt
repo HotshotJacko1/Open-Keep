@@ -47,52 +47,45 @@ class NoteRepository(context: Context) {
         }
 
         fun changePassword(context: Context, newKey: ByteArray) {
-    synchronized(this) {
-        android.util.Log.d("NoteRepository", "Starting rekey operation (ByteArray mode)...")
-
-        val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
-        val currentKey = keyManager.getMasterKey()
-            ?: throw IllegalStateException("Current encryption key not found.")
-
-        // 1️⃣ Fully close Room
-        android.util.Log.d("NoteRepository", "Closing Room instance")
-        reset()
-
-        try {
-            val dbPath = context.getDatabasePath("open-keep-db").absolutePath
-
-            android.util.Log.d("NoteRepository", "Opening SQLCipher database with current ByteArray key")
-
-            // ✅ IMPORTANT: pass ByteArray directly (NO HEX)
-            val rawDb = net.zetetic.database.sqlcipher.SQLiteDatabase.openDatabase(
-                dbPath,
-                currentKey,
-                null,
-                net.zetetic.database.sqlcipher.SQLiteDatabase.OPEN_READWRITE
-            )
-
-            android.util.Log.d("NoteRepository", "Calling changePassword()")
-            rawDb.changePassword(newKey)
-
-            rawDb.close()
-            android.util.Log.d("NoteRepository", "Rekey successful")
-
-            // 2️⃣ Reinitialize Room with new key
-            initialize(context, newKey)
-
-            // 3️⃣ Verify
-            getDatabase().openHelper.writableDatabase.query("SELECT 1").close()
-            android.util.Log.d("NoteRepository", "Rekey verified successfully")
-
-        } catch (e: Exception) {
-            android.util.Log.e("NoteRepository", "Rekey FAILED", e)
-
-            // restore old state
-            initialize(context, currentKey)
-            throw e
-        }
-    }
-}                
+            synchronized(this) {
+                android.util.Log.d("NoteRepository", "Starting low-level hex-rekey operation...")
+                
+                // 1. Get the current key from KeyManager
+                val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
+                val currentKey = keyManager.getMasterKey() ?: throw IllegalStateException("Current encryption key not found in storage.")
+                
+                // 2. Shut down Room completely
+                android.util.Log.d("NoteRepository", "Closing Room instance")
+                reset()
+                
+                // 3. Open a raw SQLCipher connection using hex string key
+                try {
+                    val dbPath = context.getDatabasePath("open-keep-db").absolutePath
+                    val hexCurrentKey = currentKey.joinToString("") { "%02x".format(it.toInt() and 0xFF) }
+                    val hexNewKey = newKey.joinToString("") { "%02x".format(it.toInt() and 0xFF) }
+                    
+                    android.util.Log.d("NoteRepository", "Opening raw SQLCipher connection at $dbPath with hex key")
+                    
+                    // Passing the key as a string with x'prefix is the most explicit way to pass raw keys to SQLCipher
+                    val rawDb = net.zetetic.database.sqlcipher.SQLiteDatabase.openDatabase(
+                        dbPath,
+                        "x'$hexCurrentKey'",
+                        null,
+                        net.zetetic.database.sqlcipher.SQLiteDatabase.OPEN_READWRITE,
+                        null
+                    )
+                    
+                    android.util.Log.d("NoteRepository", "Executing PRAGMA rekey with new hex key")
+                    rawDb.execSQL("PRAGMA rekey = x'$hexNewKey'")
+                    rawDb.close()
+                    android.util.Log.d("NoteRepository", "Raw rekey command completed successfully")
+                } catch (e: Exception) {
+                    android.util.Log.e("NoteRepository", "Raw hex-rekey FAILED", e)
+                    // Restoration attempt
+                    initialize(context, currentKey)
+                    throw e
+                }
+                
                 // 4. Re-initialize Room with the NEW key
                 android.util.Log.d("NoteRepository", "Re-initializing Room with new key")
                 initialize(context, newKey)
