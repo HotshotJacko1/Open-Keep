@@ -67,7 +67,8 @@ class NoteRepository(context: Context) {
                         dbPath,
                         currentKey,
                         null,
-                        net.zetetic.database.sqlcipher.SQLiteDatabase.OPEN_READWRITE
+                        net.zetetic.database.sqlcipher.SQLiteDatabase.OPEN_READWRITE,
+                        null
                     )
                     
                     val hexNewKey = newKey.joinToString("") { "%02x".format(it) }
