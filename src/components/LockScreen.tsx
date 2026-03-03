@@ -41,7 +41,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
         setIsBiometricsEnabled(biometricsEnabled);
 
         // Auto-trigger biometric if enabled
-        if (biometricsEnabled && !isNativeEncryption) {
+        if (biometricsEnabled) {
             // Small delay to ensure UI is ready and not conflicting with app resume
             setTimeout(() => {
                 handleBiometricUnlock();
@@ -61,7 +61,23 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
             if (!isNativeEncryption) {
                 onUnlock();
             } else {
-                showError("Biometric unlock not supported with Encryption yet. Please enter PIN.");
+                // Try to get credentials if native encryption is on
+                try {
+                    const credentials = await NativeBiometric.getCredentials({
+                        server: "open-keep"
+                    });
+                    if (credentials && credentials.password) {
+                        const success = await onUnlock(credentials.password);
+                        if (!success) {
+                            showError("Biometric unlock failed: PIN mismatch. Please enter manually.");
+                        }
+                    } else {
+                        showError("Biometrics ready, but PIN not found. Please enter manually.");
+                    }
+                } catch (e) {
+                    console.error("Failed to get credentials", e);
+                    showError("Biometric verification succeeded, but failed to retrieve PIN.");
+                }
             }
         } catch (error) {
             console.log("Biometric unlock failed or cancelled", error);

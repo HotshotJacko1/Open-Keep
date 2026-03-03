@@ -21,23 +21,33 @@ const App = () => {
   const isNative = Capacitor.isNativePlatform();
 
   useEffect(() => {
-    if (!isNative) {
-      setAppState('ready');
-      return;
-    }
-
     const init = async () => {
       try {
-        const status = await checkDatabaseStatus();
-        if (!status.isConfigured) {
-          setAppState('setup');
-          return;
-        }
+        // First check if a passcode is set in localStorage
+        const hasPasscode = !!localStorage.getItem("app-passcode");
+        const isLockEnabled = localStorage.getItem("app-lock-enabled") === "true";
 
-        if (status.isLocked) {
-          setAppState('locked');
+        if (isNative) {
+          const status = await checkDatabaseStatus();
+
+          if (!status.isConfigured) {
+            setAppState('setup');
+            return;
+          }
+
+          // Force locked if either native says so, or app-lock toggle is enabled
+          if (status.isLocked || isLockEnabled) {
+            setAppState('locked');
+          } else {
+            setAppState('ready');
+          }
         } else {
-          setAppState('ready');
+          // Web flow
+          if (isLockEnabled && hasPasscode) {
+            setAppState('locked');
+          } else {
+            setAppState('ready');
+          }
         }
       } catch (e) {
         console.error("Failed to check DB status", e);

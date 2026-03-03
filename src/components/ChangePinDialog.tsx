@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { showSuccess, showError } from "@/utils/toast";
 import { changeEncryptionKey } from "@/lib/note-storage";
+import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 
 interface ChangePinDialogProps {
     isOpen: boolean;
@@ -69,6 +70,19 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
 
             // 3. Update local storage passcode
             localStorage.setItem("app-passcode", newPin);
+
+            // 4. Update biometrics credentials if enabled
+            if (localStorage.getItem("app-biometrics-enabled") === "true") {
+                try {
+                    await NativeBiometric.setCredentials({
+                        username: "app-pin",
+                        password: newPin,
+                        server: "open-keep"
+                    });
+                } catch (e) {
+                    console.error("Failed to update biometrics credentials", e);
+                }
+            }
 
             showSuccess("Encryption PIN changed successfully");
             onClose();

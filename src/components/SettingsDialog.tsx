@@ -12,6 +12,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText, Mail } from "lucide-react";
 import SyncDialog from "./SyncDialog";
 import ChangePinDialog from "./ChangePinDialog";
+import AppLockDialog from "./AppLockDialog";
 import { useSession } from "@/context/session-provider";
 import { Note } from "@/types/note";
 import JSZip from "jszip";
@@ -32,7 +33,7 @@ interface SettingsDialogProps {
 const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes, onImportNotes }) => {
   const { theme, setTheme } = useTheme();
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
-  const [isPasscodeDialogOpen, setIsPasscodeDialogOpen] = useState(false);
+  const [isAppLockDialogOpen, setIsAppLockDialogOpen] = useState(false);
   const [isChangePinDialogOpen, setIsChangePinDialogOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -222,8 +223,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
             </div>
 
             <div className="flex flex-col gap-2 mt-4">
-              <Label>Encryption & Security</Label>
+              <Label>Security</Label>
               <div className="flex flex-col gap-2">
+                <Button variant="outline" onClick={() => setIsAppLockDialogOpen(true)} className="w-full justify-start">
+                  App Lock & Biometrics
+                </Button>
                 <Button variant="outline" onClick={() => setIsChangePinDialogOpen(true)} className="w-full justify-start">
                   Change Encryption PIN
                 </Button>
@@ -266,6 +270,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
             <ChangePinDialog
               isOpen={isChangePinDialogOpen}
               onClose={() => setIsChangePinDialogOpen(false)}
+            />
+
+            <AppLockDialog
+              isOpen={isAppLockDialogOpen}
+              onClose={() => setIsAppLockDialogOpen(false)}
             />
 
             <div className="flex flex-col gap-2 mt-4">

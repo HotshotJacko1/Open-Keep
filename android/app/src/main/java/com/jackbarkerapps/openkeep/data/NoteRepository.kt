@@ -48,37 +48,40 @@ class NoteRepository(context: Context) {
 
         fun changePassword(context: Context, newKey: ByteArray) {
             synchronized(this) {
-                android.util.Log.d("NoteRepository", "Starting low-level rekey operation...")
+                android.util.Log.d("NoteRepository", "Starting low-level hex-rekey operation...")
                 
-                // 1. Get the current key from KeyManager to open the raw connection
+                // 1. Get the current key from KeyManager
                 val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
                 val currentKey = keyManager.getMasterKey() ?: throw IllegalStateException("Current encryption key not found in storage.")
                 
-                // 2. Shut down Room completely to release all connections
+                // 2. Shut down Room completely
                 android.util.Log.d("NoteRepository", "Closing Room instance")
                 reset()
                 
-                // 3. Open a raw SQLCipher connection and perform the rekey
+                // 3. Open a raw SQLCipher connection using hex string key
                 try {
                     val dbPath = context.getDatabasePath("open-keep-db").absolutePath
-                    android.util.Log.d("NoteRepository", "Opening raw SQLCipher connection at $dbPath")
+                    val hexCurrentKey = currentKey.joinToString("") { "%02x".format(it) }
+                    val hexNewKey = newKey.joinToString("") { "%02x".format(it) }
                     
+                    android.util.Log.d("NoteRepository", "Opening raw SQLCipher connection at $dbPath with hex key")
+                    
+                    // Passing the key as a string with x'prefix is the most explicit way to pass raw keys to SQLCipher
                     val rawDb = net.zetetic.database.sqlcipher.SQLiteDatabase.openDatabase(
                         dbPath,
-                        currentKey,
+                        "x'$hexCurrentKey'",
                         null,
                         net.zetetic.database.sqlcipher.SQLiteDatabase.OPEN_READWRITE,
                         null
                     )
                     
-                    val hexNewKey = newKey.joinToString("") { "%02x".format(it) }
-                    android.util.Log.d("NoteRepository", "Executing PRAGMA rekey")
+                    android.util.Log.d("NoteRepository", "Executing PRAGMA rekey with new hex key")
                     rawDb.execSQL("PRAGMA rekey = \"x'$hexNewKey'\"")
                     rawDb.close()
                     android.util.Log.d("NoteRepository", "Raw rekey command completed successfully")
                 } catch (e: Exception) {
-                    android.util.Log.e("NoteRepository", "Raw rekey FAILED", e)
-                    // If raw rekey fails, try to restore Room with the old key
+                    android.util.Log.e("NoteRepository", "Raw hex-rekey FAILED", e)
+                    // Restoration attempt
                     initialize(context, currentKey)
                     throw e
                 }
@@ -87,7 +90,7 @@ class NoteRepository(context: Context) {
                 android.util.Log.d("NoteRepository", "Re-initializing Room with new key")
                 initialize(context, newKey)
                 
-                // 5. Final verification through Room
+                // 5. Final verification
                 try {
                     val verifiedDb = getDatabase().openHelper.writableDatabase
                     verifiedDb.query("SELECT 1").close()
