@@ -48,7 +48,7 @@ class NoteRepository(context: Context) {
 
         fun changePassword(context: Context, newKey: ByteArray) {
             synchronized(this) {
-                android.util.Log.d("NoteRepository", "Starting low-level hex-rekey operation...")
+                android.util.Log.d("NoteRepository", "Starting derivation-correct rekey operation...")
                 
                 // 1. Get the current key from KeyManager
                 val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
@@ -58,30 +58,27 @@ class NoteRepository(context: Context) {
                 android.util.Log.d("NoteRepository", "Closing Room instance")
                 reset()
                 
-                // 3. Open a raw SQLCipher connection using hex string key
+                // 3. Open a raw SQLCipher connection using the ByteArray directly
+                // This ensures SQLCipher applies the same PBKDF2 derivation as Room's SupportOpenHelperFactory.
                 try {
                     val dbPath = context.getDatabasePath("open-keep-db").absolutePath
-                    val hexCurrentKey = currentKey.joinToString("") { "%02x".format(it.toInt() and 0xFF) }
-                    val hexNewKey = newKey.joinToString("") { "%02x".format(it.toInt() and 0xFF) }
+                    android.util.Log.d("NoteRepository", "Opening raw SQLCipher connection at $dbPath")
                     
-                    android.util.Log.d("NoteRepository", "Opening raw SQLCipher connection at $dbPath with hex key")
-                    
-                    // Passing the key as a string with x'prefix is the most explicit way to pass raw keys to SQLCipher
                     val rawDb = net.zetetic.database.sqlcipher.SQLiteDatabase.openDatabase(
                         dbPath,
-                        "x'$hexCurrentKey'",
+                        currentKey,
                         null,
                         net.zetetic.database.sqlcipher.SQLiteDatabase.OPEN_READWRITE,
                         null
                     )
                     
-                    android.util.Log.d("NoteRepository", "Executing PRAGMA rekey with new hex key")
-                    rawDb.execSQL("PRAGMA rekey = x'$hexNewKey'")
+                    android.util.Log.d("NoteRepository", "Changing password using rawDb.changePassword()")
+                    rawDb.changePassword(newKey)
                     rawDb.close()
-                    android.util.Log.d("NoteRepository", "Raw rekey command completed successfully")
+                    android.util.Log.d("NoteRepository", "Rekey operation completed successfully")
                 } catch (e: Exception) {
-                    android.util.Log.e("NoteRepository", "Raw hex-rekey FAILED", e)
-                    // Restoration attempt
+                    android.util.Log.e("NoteRepository", "Rekey FAILED", e)
+                    // Restoration attempt with old key
                     initialize(context, currentKey)
                     throw e
                 }
@@ -97,7 +94,7 @@ class NoteRepository(context: Context) {
                     android.util.Log.d("NoteRepository", "Encryption key change verified successfully")
                 } catch (e: Exception) {
                     android.util.Log.e("NoteRepository", "Room verification FAILED after rekey", e)
-                    throw IllegalStateException("The database was rekeyed but Room failed to open it: ${e.message}")
+                    throw IllegalStateException("The database was rekeyed but Room failed to open it. This might happen if derivation settings changed: ${e.message}")
                 }
             }
         }
