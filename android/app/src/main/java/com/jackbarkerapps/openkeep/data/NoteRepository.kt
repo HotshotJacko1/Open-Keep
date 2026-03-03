@@ -61,8 +61,8 @@ class NoteRepository(context: Context) {
                 // 3. Open a raw SQLCipher connection using hex string key
                 try {
                     val dbPath = context.getDatabasePath("open-keep-db").absolutePath
-                    val hexCurrentKey = currentKey.joinToString("") { "%02x".format(it) }
-                    val hexNewKey = newKey.joinToString("") { "%02x".format(it) }
+                    val hexCurrentKey = currentKey.joinToString("") { "%02x".format(it.toInt() and 0xFF) }
+                    val hexNewKey = newKey.joinToString("") { "%02x".format(it.toInt() and 0xFF) }
                     
                     android.util.Log.d("NoteRepository", "Opening raw SQLCipher connection at $dbPath with hex key")
                     
@@ -76,7 +76,7 @@ class NoteRepository(context: Context) {
                     )
                     
                     android.util.Log.d("NoteRepository", "Executing PRAGMA rekey with new hex key")
-                    rawDb.execSQL("PRAGMA rekey = \"x'$hexNewKey'\"")
+                    rawDb.execSQL("PRAGMA rekey = x'$hexNewKey'")
                     rawDb.close()
                     android.util.Log.d("NoteRepository", "Raw rekey command completed successfully")
                 } catch (e: Exception) {

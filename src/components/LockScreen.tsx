@@ -142,7 +142,11 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
                 // We proceed anyway
             }
 
-            // 3. Clear local storage flags (none remaining for auto-lock)
+            // 3. Clear local storage flags
+            localStorage.removeItem("app-passcode");
+            localStorage.removeItem("app-lock-enabled");
+            localStorage.removeItem("app-biometrics-enabled");
+            localStorage.removeItem("custom-tags"); // While we're at it
 
             if (onReset) onReset();
 
