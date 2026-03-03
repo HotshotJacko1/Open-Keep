@@ -48,43 +48,52 @@ class NoteRepository(context: Context) {
 
         fun changePassword(context: Context, newKey: ByteArray) {
             synchronized(this) {
-                val db = INSTANCE?.openHelper?.writableDatabase
-                if (db != null && db.isOpen) {
-                    val hexKey = newKey.joinToString("") { "%02x".format(it) }
-                    android.util.Log.d("NoteRepository", "Starting rekey operation...")
+                android.util.Log.d("NoteRepository", "Starting low-level rekey operation...")
+                
+                // 1. Get the current key from KeyManager to open the raw connection
+                val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
+                val currentKey = keyManager.getMasterKey() ?: throw IllegalStateException("Current encryption key not found in storage.")
+                
+                // 2. Shut down Room completely to release all connections
+                android.util.Log.d("NoteRepository", "Closing Room instance")
+                reset()
+                
+                // 3. Open a raw SQLCipher connection and perform the rekey
+                try {
+                    val dbPath = context.getDatabasePath("open-keep-db").absolutePath
+                    android.util.Log.d("NoteRepository", "Opening raw SQLCipher connection at $dbPath")
                     
-                    try {
-                        // PRAGMA rekey changes the key on the connection. 
-                        // Because of how Android's SupportSQLiteDatabase handles verification,
-                        // this often throws an exception immediately after the key changes 
-                        // because it tries to verify the connection using the OLD key/state.
-                        db.query("PRAGMA rekey = \"x'$hexKey'\"").close()
-                        android.util.Log.d("NoteRepository", "Rekey command executed (no exception)")
-                    } catch (e: Exception) {
-                        // This exception is EXPECTED if the library tries to verify the 
-                        // connection immediately after the key change. 
-                        android.util.Log.d("NoteRepository", "Rekey command executed (caught expected transition exception: ${e.message})")
-                    }
+                    val rawDb = net.zetetic.database.sqlcipher.SQLiteDatabase.openDatabase(
+                        dbPath,
+                        currentKey,
+                        null,
+                        net.zetetic.database.sqlcipher.SQLiteDatabase.OPEN_READWRITE
+                    )
                     
-                    // Crucially: Reset the current instance (which is now invalid/locked)
-                    android.util.Log.d("NoteRepository", "Resetting database instance for re-initialization")
-                    reset()
-                    
-                    // Re-initialize with the NEW key
-                    android.util.Log.d("NoteRepository", "Re-initializing with new key")
-                    initialize(context, newKey)
-                    
-                    // VERIFY the new key works before returning success
-                    try {
-                         val verifiedDb = getDatabase().openHelper.writableDatabase
-                         verifiedDb.query("SELECT 1").close()
-                         android.util.Log.d("NoteRepository", "New key verified successfully")
-                    } catch (e: Exception) {
-                        android.util.Log.e("NoteRepository", "Verification of new key FAILED", e)
-                        throw IllegalStateException("Rekey seemed to work but new key failed verification: ${e.message}")
-                    }
-                } else {
-                     throw IllegalStateException("Database is not open, cannot change password.")
+                    val hexNewKey = newKey.joinToString("") { "%02x".format(it) }
+                    android.util.Log.d("NoteRepository", "Executing PRAGMA rekey")
+                    rawDb.execSQL("PRAGMA rekey = \"x'$hexNewKey'\"")
+                    rawDb.close()
+                    android.util.Log.d("NoteRepository", "Raw rekey command completed successfully")
+                } catch (e: Exception) {
+                    android.util.Log.e("NoteRepository", "Raw rekey FAILED", e)
+                    // If raw rekey fails, try to restore Room with the old key
+                    initialize(context, currentKey)
+                    throw e
+                }
+                
+                // 4. Re-initialize Room with the NEW key
+                android.util.Log.d("NoteRepository", "Re-initializing Room with new key")
+                initialize(context, newKey)
+                
+                // 5. Final verification through Room
+                try {
+                    val verifiedDb = getDatabase().openHelper.writableDatabase
+                    verifiedDb.query("SELECT 1").close()
+                    android.util.Log.d("NoteRepository", "Encryption key change verified successfully")
+                } catch (e: Exception) {
+                    android.util.Log.e("NoteRepository", "Room verification FAILED after rekey", e)
+                    throw IllegalStateException("The database was rekeyed but Room failed to open it: ${e.message}")
                 }
             }
         }
