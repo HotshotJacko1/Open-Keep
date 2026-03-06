@@ -10,8 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { showSuccess, showError } from "@/utils/toast";
-import { changeEncryptionKey } from "@/lib/note-storage";
+import { changeEncryptionKey, clearAllData } from "@/lib/note-storage";
+import { deleteRemoteData } from "@/lib/google-drive";
 import { NativeBiometric } from "@capgo/capacitor-native-biometric";
+import ResetDialog from "./ResetDialog";
 
 interface ChangePinDialogProps {
     isOpen: boolean;
@@ -23,6 +25,8 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
     const [newPin, setNewPin] = useState("");
     const [confirmPin, setConfirmPin] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+    const [isResetting, setIsResetting] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -107,6 +111,36 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
         }
     };
 
+    const handleForgotPin = async () => {
+        setIsResetDialogOpen(true);
+    };
+
+    const confirmReset = async () => {
+        setIsResetting(true);
+        try {
+            await clearAllData();
+            try {
+                await deleteRemoteData();
+            } catch (e) {
+                console.error("Failed to delete remote data or not authenticated", e);
+            }
+            localStorage.removeItem("app-passcode");
+            localStorage.removeItem("app-lock-enabled");
+            localStorage.removeItem("app-biometrics-enabled");
+            localStorage.removeItem("custom-tags");
+
+            showSuccess("App reset successfully");
+            onClose();
+            window.location.reload();
+        } catch (e) {
+            console.error(e);
+            showError("Failed to reset app");
+        } finally {
+            setIsResetting(false);
+            setIsResetDialogOpen(false);
+        }
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent
@@ -162,9 +196,20 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
                         />
                     </div>
                 </div>
-                <Button onClick={handleChangePin} disabled={isLoading || !currentPin || !newPin || !confirmPin} className="w-full mt-4">
-                    {isLoading ? "Changing..." : "Change PIN"}
-                </Button>
+                <div className="flex flex-col items-center mt-2">
+                    <Button variant="link" className="text-muted-foreground text-sm mb-2" onClick={handleForgotPin}>
+                        Forgot PIN?
+                    </Button>
+                    <Button onClick={handleChangePin} disabled={isLoading || !currentPin || !newPin || !confirmPin} className="w-full">
+                        {isLoading ? "Changing..." : "Change PIN"}
+                    </Button>
+                </div>
+                <ResetDialog
+                    isOpen={isResetDialogOpen}
+                    onOpenChange={setIsResetDialogOpen}
+                    onConfirm={confirmReset}
+                    isResetting={isResetting}
+                />
             </DialogContent>
         </Dialog>
     );
