@@ -69,7 +69,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
   return (
     <Card
       className={cn(
-        "group relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-foreground dark:bg-foreground text-secondary-foreground cursor-pointer border-2 border-input",
+        "group relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-foreground dark:bg-foreground text-secondary-foreground cursor-pointer border-2 border-input overflow-hidden",
         isSelected && "border-secondary-foreground shadow-lg bg-foreground",
         note.isDeleted && "opacity-75"
       )}
@@ -96,9 +96,9 @@ const NoteCard: React.FC<NoteCardProps> = ({
         </div>
       </div>
 
-      <CardHeader className="pb-2 flex flex-row items-center justify-between">
-        <CardTitle className="text-lg font-semibold">{note.title}</CardTitle>
-        <div className={cn("flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200", isSelectionMode && "opacity-0 pointer-events-none")}>
+      <CardHeader className="pb-2 flex flex-row items-start justify-between p-4 gap-2">
+        <CardTitle className="text-base sm:text-lg font-semibold break-words flex-1 leading-snug">{note.title}</CardTitle>
+        <div className={cn("hidden md:flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0", isSelectionMode && "opacity-0 pointer-events-none")}>
           {note.isDeleted ? (
             <>
               <Button
@@ -161,7 +161,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
           )}
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-4 pb-4 pt-0">
         {isList && displayContent ? (
           <ul className="space-y-1">
             {displayContent.map((item, index) => (

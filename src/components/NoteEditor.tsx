@@ -699,9 +699,23 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                     <textarea
                                         value={newItemContent}
                                         onChange={(e) => {
-                                            setNewItemContent(e.target.value);
-                                            e.target.style.height = 'auto';
-                                            e.target.style.height = `${e.target.scrollHeight}px`;
+                                            const val = e.target.value;
+                                            if (val) {
+                                                const newItemId = crypto.randomUUID();
+                                                const newItem = {
+                                                    id: newItemId,
+                                                    content: val,
+                                                    checked: false,
+                                                    indentation: ""
+                                                };
+                                                setChecklistItems(prev => [...prev, newItem]);
+                                                setNewItemContent("");
+                                                setFocusItemId(newItemId);
+                                                e.target.style.height = 'auto';
+                                            } else {
+                                                setNewItemContent("");
+                                                e.target.style.height = 'auto';
+                                            }
                                         }}
                                         onKeyDown={(e) => {
                                             if (e.key === "Enter") {
