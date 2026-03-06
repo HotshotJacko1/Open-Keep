@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Fingerprint, Lock, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Fingerprint, Lock, AlertTriangle } from "lucide-react";
 import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 import { showSuccess, showError } from "@/utils/toast";
 import { clearAllData } from "@/lib/note-storage";
@@ -164,11 +164,11 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
         <div className="fixed inset-0 z-[40] bg-background flex flex-col items-center justify-center p-4">
             <div className="flex flex-col items-center gap-6 max-w-sm w-full animate-in fade-in zoom-in duration-300">
                 <div className="bg-primary/10 p-4 rounded-full mb-4">
-                    <ShieldCheck className="w-12 h-12 text-primary" />
+                    <img src="/favicon.svg" alt="App Icon" className="w-12 h-12" />
                 </div>
 
                 <div className="text-center space-y-2">
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground text-black dark:text-white">App Locked</h1>
+                    <h1 className="text-2xl font-bold tracking-tight text-black dark:text-white">App Locked</h1>
                     <p className="text-muted-foreground">Enter your 4-6 digit PIN to unlock</p>
                 </div>
 
