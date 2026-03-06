@@ -3,6 +3,7 @@ import { Note } from "@/types/note";
 import { PublicClientApplication, Configuration, PopupRequest, NavigationClient, NavigationOptions } from "@azure/msal-browser";
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
+import { encryptData, decryptData } from "@/lib/note-storage";
 
 export const CLIENT_ID = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
 const FOLDER_NAME = "Open Keep Notes";
@@ -215,7 +216,20 @@ const downloadNotes = async (fileId: string): Promise<Note[]> => {
         return [];
     }
 
-    return await response.json();
+    const result = await response.json();
+
+    if (Capacitor.isNativePlatform()) {
+        try {
+            if (typeof result === "string") {
+                const decryptedText = await decryptData(result);
+                return JSON.parse(decryptedText);
+            }
+        } catch (e) {
+            console.warn("Could not decrypt OneDrive payload. Falling back to plaintext parsing.", e);
+        }
+    }
+
+    return result as Note[];
 };
 
 const uploadNotes = async (folderId: string, notes: Note[], fileId: string | null) => {
@@ -223,7 +237,21 @@ const uploadNotes = async (folderId: string, notes: Note[], fileId: string | nul
     // If fileId exists, use it. If not, create in folder.
     // Graph API for small files: PUT /me/drive/items/{parent-id}:/{filename}:/content
 
-    const fileContent = JSON.stringify(notes);
+    let fileContent = JSON.stringify(notes);
+
+    if (Capacitor.isNativePlatform()) {
+        try {
+            const encrypted = await encryptData(fileContent);
+            if (encrypted) {
+                // Wrap in JSON string to ensure valid JSON file format
+                fileContent = JSON.stringify(encrypted);
+            }
+        } catch (e) {
+            console.error("Encryption failed, aborting upload", e);
+            throw e;
+        }
+    }
+
     const accessToken = await getGraphAccessToken();
 
     const url = fileId

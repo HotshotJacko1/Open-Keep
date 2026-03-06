@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { App } from "@capacitor/app";
 import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 import {
     Dialog,
@@ -33,6 +34,18 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
             setIsLaunchLockEnabled(localStorage.getItem("app-lock-enabled") === "true");
         }
     }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const backButtonListener = App.addListener('backButton', () => {
+            onClose();
+        });
+
+        return () => {
+            backButtonListener.then(listener => listener.remove());
+        };
+    }, [isOpen, onClose]);
 
     const handleToggleBiometrics = async (checked: boolean) => {
         if (checked) {

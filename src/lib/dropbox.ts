@@ -1,4 +1,5 @@
 import { Note } from "@/types/note";
+import { encryptData, decryptData } from "@/lib/note-storage";
 import { Dropbox, DropboxAuth } from "dropbox";
 import { Capacitor } from "@capacitor/core";
 
@@ -85,6 +86,20 @@ const downloadNotes = async (): Promise<Note[]> => {
         const response = await dbx.filesDownload({ path: FILE_PATH });
         const blob = (response.result as any).fileBlob;
         const text = await blob.text();
+
+        if (Capacitor.isNativePlatform()) {
+            try {
+                // Check if text is a stringified encrypted JSON string
+                if (text.startsWith('"') && text.endsWith('"')) {
+                    const parsedString = JSON.parse(text);
+                    const decryptedText = await decryptData(parsedString);
+                    return JSON.parse(decryptedText);
+                }
+            } catch (e) {
+                console.warn("Could not decrypt Dropbox payload. Falling back to plaintext parsing.", e);
+            }
+        }
+
         return JSON.parse(text) as Note[];
     } catch (error: any) {
         // If file not found
@@ -100,7 +115,20 @@ const downloadNotes = async (): Promise<Note[]> => {
 const uploadNotes = async (notes: Note[]) => {
     if (!dbx) throw new Error("Dropbox not initialized");
 
-    const fileContent = JSON.stringify(notes);
+    let fileContent = JSON.stringify(notes);
+
+    if (Capacitor.isNativePlatform()) {
+        try {
+            const encrypted = await encryptData(fileContent);
+            if (encrypted) {
+                // Wrap in JSON string to ensure valid JSON file format
+                fileContent = JSON.stringify(encrypted);
+            }
+        } catch (e) {
+            console.error("Encryption failed, aborting upload", e);
+            throw e;
+        }
+    }
 
     await dbx.filesUpload({
         path: FILE_PATH,

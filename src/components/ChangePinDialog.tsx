@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { App } from "@capacitor/app";
 import {
     Dialog,
     DialogContent,
@@ -31,6 +32,18 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
             setIsLoading(false);
         }
     }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const backButtonListener = App.addListener('backButton', () => {
+            onClose();
+        });
+
+        return () => {
+            backButtonListener.then(listener => listener.remove());
+        };
+    }, [isOpen, onClose]);
 
     const handleChangePin = async () => {
         // 1. Validate inputs
