@@ -664,9 +664,9 @@ const Index = () => {
         <div
           className="pt-4"
           style={{
-            columnCount: isMobile ? 2 : "auto",
+            columnCount: 2,
             columnGap: isMobile ? "0.5rem" : "1rem",
-            columnWidth: isMobile ? "auto" : "min(100%, 280px)",
+            columnWidth: "auto",
           }}
         >
           {filteredNotes.map((note) => (

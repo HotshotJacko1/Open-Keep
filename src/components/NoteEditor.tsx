@@ -374,7 +374,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         return () => {
             if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
         };
-    }, [title, content, tags, isPinned, isArchived, onSave, initialNote, isOpen]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [title, content, tags, isPinned, isArchived]);
 
     // Toggle Mode Logic
     const handleToggleMode = () => {
