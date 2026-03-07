@@ -9,10 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/theme-provider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText, Mail } from "lucide-react";
+import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText, Mail, ArrowLeft } from "lucide-react";
 import SyncDialog from "./SyncDialog";
 import ChangePinDialog from "./ChangePinDialog";
 import AppLockDialog from "./AppLockDialog";
+import { App } from "@capacitor/app";
 import { useSession } from "@/context/session-provider";
 import { Note } from "@/types/note";
 import JSZip from "jszip";
@@ -40,6 +41,30 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { session } = useSession();
   const user = session?.user;
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    window.history.pushState({ dialog: 'settings' }, "");
+
+    const handlePopState = () => {
+      onClose();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    const backButtonListener = App.addListener('backButton', () => {
+      onClose();
+    });
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (window.history.state?.dialog === 'settings') {
+        window.history.back();
+      }
+      backButtonListener.then(listener => listener.remove());
+    };
+  }, [isOpen, onClose]);
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
@@ -192,7 +217,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
           aria-describedby={undefined}
           className="w-full h-full max-w-full sm:max-w-[425px] sm:h-auto sm:max-h-[85vh] sm:rounded-lg !rounded-none sm:!rounded-lg overflow-y-auto bg-background text-primary-foreground border-0 sm:border pt-[max(env(safe-area-inset-top),1.5rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)] px-6"
         >
-          <DialogHeader>
+          <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
+            <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
+                <ArrowLeft className="h-5 w-5 text-secondary" />
+                <span className="sr-only">Back</span>
+            </Button>
             <DialogTitle>Settings</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">

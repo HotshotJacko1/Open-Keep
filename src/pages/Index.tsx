@@ -466,13 +466,43 @@ const Index = () => {
   };
 
   const handleBulkDelete = async () => {
-    const idsToDelete = Array.from(selectedNoteIds);
-    setNotes((prevNotes) => prevNotes.filter(note => !selectedNoteIds.has(note.id)));
+    const selectedNotes = notes.filter(n => selectedNoteIds.has(n.id));
+    if (selectedNotes.length === 0) return;
 
-    await Promise.all(idsToDelete.map(id => deleteNote(id)));
+    const isBinView = selectedTag === "bin";
+    const now = Date.now();
+
+    if (isBinView) {
+      // Hard delete
+      const idsToDelete = Array.from(selectedNoteIds);
+      setNotes((prevNotes) => prevNotes.filter(note => !selectedNoteIds.has(note.id)));
+      await Promise.all(idsToDelete.map(id => deleteNote(id)));
+      showSuccess("Notes permanently deleted");
+    } else {
+      // Soft delete
+      const updates: Note[] = [];
+      const newNotes = notes.map(note => {
+        if (selectedNoteIds.has(note.id)) {
+          const updated = {
+            ...note,
+            isDeleted: true,
+            deletedAt: now,
+            isPinned: false,
+            isArchived: false,
+            updatedAt: now
+          };
+          updates.push(updated);
+          return updated;
+        }
+        return note;
+      });
+
+      setNotes(newNotes);
+      await Promise.all(updates.map(n => saveNote(n)));
+      showSuccess("Notes moved to Bin");
+    }
 
     handleClearSelection();
-    showSuccess("Notes deleted");
   };
 
   const handleBulkExport = async () => {

@@ -608,7 +608,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         <>
             <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseEditor()}>
                 <DialogContent
-                    className="w-full max-w-none h-[100vh] rounded-none sm:rounded-lg sm:max-w-[425px] sm:h-[80vh] md:max-w-[600px] lg:max-w-[800px] flex flex-col p-0 gap-0 bg-white dark:bg-[#202124] text-black dark:text-white pt-[env(safe-area-inset-top)]"
+                    className="w-full max-w-none h-screen rounded-none sm:rounded-lg sm:max-w-[425px] sm:h-[80vh] md:max-w-[600px] lg:max-w-[800px] flex flex-col p-0 gap-0 bg-white dark:bg-[#202124] text-black dark:text-white pt-[env(safe-area-inset-top)]"
                     onOpenAutoFocus={(e) => e.preventDefault()}
                 >
 

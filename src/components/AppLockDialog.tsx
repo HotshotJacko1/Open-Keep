@@ -10,7 +10,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { showSuccess, showError } from "@/utils/toast";
-import { Fingerprint, ShieldCheck } from "lucide-react";
+import { Fingerprint, ShieldCheck, ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface AppLockDialogProps {
     isOpen: boolean;
@@ -38,11 +39,23 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
     useEffect(() => {
         if (!isOpen) return;
 
+        window.history.pushState({ dialog: 'app-lock' }, "");
+
+        const handlePopState = () => {
+            onClose();
+        };
+
+        window.addEventListener('popstate', handlePopState);
+
         const backButtonListener = App.addListener('backButton', () => {
             onClose();
         });
 
         return () => {
+            window.removeEventListener('popstate', handlePopState);
+            if (window.history.state?.dialog === 'app-lock') {
+                window.history.back();
+            }
             backButtonListener.then(listener => listener.remove());
         };
     }, [isOpen, onClose]);
@@ -103,7 +116,11 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-[425px] bg-background text-primary-foreground">
-                <DialogHeader>
+                <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
+                    <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
+                        <ArrowLeft className="h-5 w-5 text-secondary" />
+                        <span className="sr-only">Back</span>
+                    </Button>
                     <DialogTitle>App Lock & Biometrics</DialogTitle>
                 </DialogHeader>
                 <div className="flex flex-col gap-6 py-4">

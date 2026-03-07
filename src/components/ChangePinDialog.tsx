@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { showSuccess, showError } from "@/utils/toast";
+import { ArrowLeft } from "lucide-react";
 import { changeEncryptionKey, clearAllData } from "@/lib/note-storage";
 import { deleteRemoteData } from "@/lib/google-drive";
 import { NativeBiometric } from "@capgo/capacitor-native-biometric";
@@ -40,11 +41,23 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
     useEffect(() => {
         if (!isOpen) return;
 
+        window.history.pushState({ dialog: 'change-pin' }, "");
+
+        const handlePopState = () => {
+            onClose();
+        };
+
+        window.addEventListener('popstate', handlePopState);
+
         const backButtonListener = App.addListener('backButton', () => {
             onClose();
         });
 
         return () => {
+            window.removeEventListener('popstate', handlePopState);
+            if (window.history.state?.dialog === 'change-pin') {
+                window.history.back();
+            }
             backButtonListener.then(listener => listener.remove());
         };
     }, [isOpen, onClose]);
@@ -147,7 +160,11 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
                 aria-describedby={undefined}
                 className="sm:max-w-[425px] bg-background text-primary-foreground"
             >
-                <DialogHeader>
+                <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
+                    <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
+                        <ArrowLeft className="h-5 w-5 text-secondary" />
+                        <span className="sr-only">Back</span>
+                    </Button>
                     <DialogTitle>Change Encryption PIN</DialogTitle>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">

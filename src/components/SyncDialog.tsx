@@ -12,7 +12,7 @@ import { useGoogleDrive } from "@/hooks/use-google-drive";
 import { useOneDrive } from "@/hooks/use-one-drive";
 import { useDropbox } from "@/hooks/use-dropbox";
 
-import { Loader2, FolderSync } from "lucide-react";
+import { Loader2, FolderSync, ArrowLeft } from "lucide-react";
 import { showSuccess, showError } from "@/utils/toast";
 import { App } from "@capacitor/app";
 
@@ -31,11 +31,23 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
   React.useEffect(() => {
     if (!isOpen) return;
 
+    window.history.pushState({ dialog: 'sync' }, "");
+
+    const handlePopState = () => {
+      onClose();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
     const backButtonListener = App.addListener('backButton', () => {
       onClose();
     });
 
     return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (window.history.state?.dialog === 'sync') {
+        window.history.back();
+      }
       backButtonListener.then(listener => listener.remove());
     };
   }, [isOpen, onClose]);
@@ -53,11 +65,17 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="w-full h-full max-w-full sm:max-w-[425px] sm:h-auto sm:max-h-[85vh] sm:rounded-lg !rounded-none sm:!rounded-lg overflow-y-auto bg-background text-primary-foreground border-0 sm:border pt-[max(env(safe-area-inset-top,3.5rem),3.5rem)] sm:pt-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] px-6">
-        <DialogHeader>
-          <DialogTitle>Sync Options</DialogTitle>
-          <DialogDescription>
-            Manage your cloud sync connections and settings.
-          </DialogDescription>
+        <DialogHeader className="flex flex-row items-start gap-2 space-y-0 text-left">
+          <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
+              <ArrowLeft className="h-5 w-5 text-secondary" />
+              <span className="sr-only">Back</span>
+          </Button>
+          <div className="flex flex-col gap-1">
+            <DialogTitle>Sync Options</DialogTitle>
+            <DialogDescription>
+              Manage your cloud sync connections and settings.
+            </DialogDescription>
+          </div>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="flex flex-col gap-4">
