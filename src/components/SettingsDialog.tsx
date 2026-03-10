@@ -22,8 +22,8 @@ import { showSuccess, showError } from "@/utils/toast";
 import { Capacitor } from "@capacitor/core";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
-
-
+import { ImportManager } from "@/utils/import-manager";
+import { ImportInput, ImportInputFile } from "@/types/import";
 interface SettingsDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -70,83 +70,65 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
     fileInputRef.current?.click();
   };
 
-  const processFile = async (file: File): Promise<Note[]> => {
-    const importedNotes: Note[] = [];
-
-    if (file.name.endsWith('.md')) {
-      const text = await file.text();
-      const title = file.name.replace('.md', '');
-      const newNote: Note = {
-        id: crypto.randomUUID(),
-        title: title,
-        content: text,
-        tags: [],
-        isPinned: false,
-        isArchived: false,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-      importedNotes.push(newNote);
-    } else if (file.name.endsWith('.zip')) {
-      try {
-        const zip = await JSZip.loadAsync(file);
-        const filePromises: Promise<void>[] = [];
-
-        zip.forEach((relativePath, zipEntry) => {
-          if (!zipEntry.dir && zipEntry.name.endsWith('.md')) {
-            const promise = zipEntry.async("string").then((content) => {
-              // Extract title from filename, handling potential paths in zip
-              const filename = zipEntry.name.split('/').pop() || zipEntry.name;
-              const title = filename.replace('.md', '');
-
-              const newNote: Note = {
-                id: crypto.randomUUID(),
-                title: title,
-                content: content,
-                tags: [],
-                isPinned: false,
-                isArchived: false,
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
-              };
-              importedNotes.push(newNote);
-            });
-            filePromises.push(promise);
-          }
-        });
-
-        await Promise.all(filePromises);
-      } catch (e) {
-        console.error("Error reading zip file:", e);
-        throw new Error("Failed to read zip file");
-      }
-    }
-    return importedNotes;
-  };
-
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
     setIsImporting(true);
     try {
-      let allImportedNotes: Note[] = [];
+      const inputFiles: ImportInputFile[] = [];
 
+      // We need to read zip contents or direct file contents
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const notesFromFile = await processFile(file);
-        allImportedNotes = [...allImportedNotes, ...notesFromFile];
+        if (file.name.endsWith('.md') || file.name.endsWith('.json')) {
+          const content = await file.text();
+          inputFiles.push({ name: file.name, content: content });
+        } else if (file.name.endsWith('.zip')) {
+          const zip = await JSZip.loadAsync(file);
+          const promises: Promise<void>[] = [];
+          
+          zip.forEach((relativePath, zipEntry) => {
+            if (!zipEntry.dir && (zipEntry.name.endsWith('.md') || zipEntry.name.endsWith('.json'))) {
+              const promise = zipEntry.async("string").then((content) => {
+                 inputFiles.push({
+                   name: zipEntry.name.split('/').pop() || zipEntry.name,
+                   content: content
+                 });
+              });
+              promises.push(promise);
+            }
+          });
+          await Promise.all(promises);
+        }
       }
 
-      if (allImportedNotes.length > 0) {
-        onImportNotes(allImportedNotes);
-        showSuccess(`Successfully imported ${allImportedNotes.length} notes`);
+      const inputData: ImportInput = { files: inputFiles };
+      const manager = new ImportManager();
+      const result = await manager.run(inputData);
+
+      if (result.notes.length > 0) {
+        // We ensure a valid ID for notes just in case
+        const mappedNotes: Note[] = result.notes.map(n => ({
+          ...n,
+          id: n.id || crypto.randomUUID(),
+          title: n.title || "Untitled",
+          content: n.content || "",
+          tags: n.tags || [],
+          isPinned: !!n.isPinned,
+          isArchived: !!n.isArchived,
+          createdAt: n.createdAt || Date.now(),
+          updatedAt: n.updatedAt || Date.now()
+        }));
+        
+        onImportNotes(mappedNotes);
+        showSuccess(`Imported ${result.report.notesImported} notes from ${result.report.source}. Created ${result.report.tagsCreated} tags.`);
       } else {
-        showError("No valid notes found to import");
+        showError("No valid notes found to import.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Import error:", error);
-      showError("Failed to import notes");
+      showError(`Import Error: ${error.message || 'Failed to import notes'}`);
     } finally {
       setIsImporting(false);
       // Reset input
@@ -272,7 +254,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
                   ref={fileInputRef}
                   onChange={handleFileChange}
                   multiple
-                  accept=".md,.zip,application/zip,application/x-zip-compressed"
+                  accept=".md,.json,.zip,application/zip,application/x-zip-compressed,application/json"
                   className="hidden"
                 />
                 <Button

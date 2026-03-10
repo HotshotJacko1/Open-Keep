@@ -10,44 +10,41 @@ const useLongPress = (
     onClick: (e: React.TouchEvent | React.MouseEvent) => void,
     { shouldPreventDefault = true, delay = 500 }: UseLongPressOptions = {}
 ) => {
-    const [longPressTriggered, setLongPressTriggered] = useState(false);
+    const longPressTriggered = useRef(false);
     const timeout = useRef<NodeJS.Timeout>();
-    const target = useRef<EventTarget>();
 
     const start = useCallback(
         (event: React.TouchEvent | React.MouseEvent) => {
-            if (shouldPreventDefault && event.target) {
-                target.current = event.target;
-            }
-            setLongPressTriggered(false);
+            longPressTriggered.current = false;
             timeout.current = setTimeout(() => {
+                longPressTriggered.current = true;
                 onLongPress(event);
-                setLongPressTriggered(true);
             }, delay);
         },
-        [onLongPress, delay, shouldPreventDefault]
+        [onLongPress, delay]
     );
 
-    const clear = useCallback(
-        (event: React.TouchEvent | React.MouseEvent, shouldTriggerClick = true) => {
-            if (timeout.current) {
-                clearTimeout(timeout.current);
-            }
-            if (shouldTriggerClick && !longPressTriggered) {
-                onClick(event);
-            }
-            setLongPressTriggered(false);
-            target.current = undefined;
-        },
-        [longPressTriggered, onClick]
-    );
+    const clear = useCallback(() => {
+        if (timeout.current) {
+            clearTimeout(timeout.current);
+        }
+    }, []);
 
     return {
         onMouseDown: (e: React.MouseEvent) => start(e),
         onTouchStart: (e: React.TouchEvent) => start(e),
-        onMouseUp: (e: React.MouseEvent) => clear(e),
-        onMouseLeave: (e: React.MouseEvent) => clear(e, false),
-        onTouchEnd: (e: React.TouchEvent) => clear(e),
+        onMouseUp: (e: React.MouseEvent) => clear(),
+        onMouseLeave: (e: React.MouseEvent) => clear(),
+        onTouchEnd: (e: React.TouchEvent) => clear(),
+        onClickCapture: (e: React.MouseEvent) => {
+            if (longPressTriggered.current) {
+                e.stopPropagation();
+                e.preventDefault();
+                longPressTriggered.current = false;
+            } else {
+                onClick(e);
+            }
+        }
     };
 };
 
