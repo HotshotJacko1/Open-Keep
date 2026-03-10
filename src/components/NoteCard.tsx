@@ -69,7 +69,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
   return (
     <Card
       className={cn(
-        "group relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-foreground dark:bg-foreground text-secondary-foreground cursor-pointer border-2 border-input overflow-hidden",
+        "group relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-foreground dark:bg-foreground text-secondary-foreground cursor-pointer border-2 border-input select-none",
         isSelected && "border-secondary-foreground shadow-lg bg-foreground",
         note.isDeleted && "opacity-75"
       )}

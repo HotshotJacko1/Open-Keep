@@ -71,6 +71,8 @@ const parseNote = (n: any): Note => {
     // Ensure booleans are booleans
     isPinned: !!n.isPinned,
     isArchived: !!n.isArchived,
+    isDeleted: !!n.isDeleted,
+    deletedAt: n.deletedAt ? Number(n.deletedAt) : undefined,
     // Ensure numbers are numbers
     createdAt: Number(n.createdAt) || Date.now(),
     updatedAt: Number(n.updatedAt) || Date.now()

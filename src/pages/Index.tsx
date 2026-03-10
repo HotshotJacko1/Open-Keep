@@ -505,6 +505,32 @@ const Index = () => {
     handleClearSelection();
   };
 
+  const handleBulkRestore = async () => {
+    const selectedNotes = notes.filter(n => selectedNoteIds.has(n.id));
+    if (selectedNotes.length === 0) return;
+
+    const now = Date.now();
+    const updates: Note[] = [];
+    const newNotes = notes.map(note => {
+      if (selectedNoteIds.has(note.id)) {
+        const updated = {
+          ...note,
+          isDeleted: false,
+          deletedAt: undefined,
+          updatedAt: now
+        };
+        updates.push(updated);
+        return updated;
+      }
+      return note;
+    });
+
+    setNotes(newNotes);
+    await Promise.all(updates.map(n => saveNote(n)));
+    showSuccess("Notes restored");
+    handleClearSelection();
+  };
+
   const handleBulkExport = async () => {
     const zip = new JSZip();
     const selectedNotes = notes.filter((n) => selectedNoteIds.has(n.id));
@@ -801,6 +827,8 @@ const Index = () => {
           onPin={handleBulkPin}
           onArchive={handleBulkArchive}
           onDelete={handleBulkDelete}
+          onRestore={handleBulkRestore}
+          showRestore={selectedTag === "bin"}
           onExport={handleBulkExport}
           availableTags={uniqueTags}
           tagStates={tagStates}

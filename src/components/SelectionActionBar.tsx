@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Pin, Archive, Trash2, Upload, Tag } from "lucide-react";
+import { X, Pin, Archive, Trash2, Upload, Tag, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import NoteLabels from "@/components/NoteLabels";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,8 @@ interface SelectionActionBarProps {
     onPin: () => void;
     onArchive: () => void;
     onDelete: () => void;
+    onRestore?: () => void;
+    showRestore?: boolean;
     onExport: () => void;
     availableTags: string[];
     tagStates: Record<string, boolean | "indeterminate">;
@@ -22,6 +24,8 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
     onPin,
     onArchive,
     onDelete,
+    onRestore,
+    showRestore,
     onExport,
     availableTags,
     tagStates,
@@ -43,6 +47,17 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
             </div>
 
             <div className="flex items-center gap-1 sm:gap-2">
+                {showRestore && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={onRestore}
+                        title="Restore"
+                        className="text-primary hover:text-primary-foreground"
+                    >
+                        <RotateCcw className="h-5 w-5" />
+                    </Button>
+                )}
                 <Button
                     variant="ghost"
                     size="icon"
