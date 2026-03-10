@@ -64,7 +64,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
       }
       backButtonListener.then(listener => listener.remove());
     };
-  }, [isOpen, onClose]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   const handleImportClick = () => {
     fileInputRef.current?.click();

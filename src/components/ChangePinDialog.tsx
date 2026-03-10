@@ -60,7 +60,8 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
             }
             backButtonListener.then(listener => listener.remove());
         };
-    }, [isOpen, onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]);
 
     const handleChangePin = async () => {
         // 1. Validate inputs

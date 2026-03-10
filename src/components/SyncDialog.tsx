@@ -50,7 +50,8 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
       }
       backButtonListener.then(listener => listener.remove());
     };
-  }, [isOpen, onClose]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   // Determine which service is active
   const activeService = useMemo(() => {

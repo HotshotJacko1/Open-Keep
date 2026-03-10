@@ -58,7 +58,8 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
             }
             backButtonListener.then(listener => listener.remove());
         };
-    }, [isOpen, onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]);
 
     const handleToggleBiometrics = async (checked: boolean) => {
         if (checked) {
