@@ -69,7 +69,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
   return (
     <Card
       className={cn(
-        "group relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-foreground dark:bg-foreground text-secondary-foreground cursor-pointer border-2 border-input select-none",
+        "group inline-block w-full relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-foreground dark:bg-foreground text-secondary-foreground cursor-pointer border-2 border-input select-none",
         isSelected && "border-secondary-foreground shadow-lg bg-foreground",
         note.isDeleted && "opacity-75"
       )}
@@ -163,9 +163,9 @@ const NoteCard: React.FC<NoteCardProps> = ({
       </CardHeader>
       <CardContent className="px-4 pb-4 pt-0">
         {isList && displayContent ? (
-          <ul className="space-y-1">
+          <ul className="space-y-1 w-full overflow-hidden">
             {displayContent.map((item, index) => (
-              <li key={index} className="flex items-center gap-2 text-sm text-black dark:text-white">
+              <li key={index} className="flex items-start gap-2 text-sm text-black dark:text-white w-full overflow-hidden">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -195,7 +195,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                     <Square className="h-4 w-4 text-muted-foreground" />
                   )}
                 </Button>
-                <span className={cn(item.checked && "line-through opacity-70")}>
+                <span className={cn(item.checked && "line-through opacity-70", "flex-1 min-w-0 break-words leading-tight mt-0.5")}>
                   {item.content}
                 </span>
               </li>

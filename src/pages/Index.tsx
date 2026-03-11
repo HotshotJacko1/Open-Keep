@@ -718,7 +718,7 @@ const Index = () => {
         className="flex-1 overflow-y-auto px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-6 md:px-8 md:pb-8 md:pt-8"
       >
         <div
-          className="pt-4"
+          className="pt-4 w-full"
           style={{
             columnCount: 2,
             columnGap: isMobile ? "0.5rem" : "1rem",
