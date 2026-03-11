@@ -278,8 +278,20 @@ class NoteStoragePlugin : Plugin() {
                 // 3. Delete Database file
                 try {
                     android.util.Log.d("NoteStorage", "Deleting database file")
-                    val deleted = context.deleteDatabase("open-keep-db")
-                    android.util.Log.d("NoteStorage", "Database file deletion result: $deleted")
+                    val dbFile = context.getDatabasePath("open-keep-db")
+                    var deleted = false
+                    if (dbFile.exists()) {
+                        deleted = dbFile.delete()
+                        // Also try to delete WAL and SHM files
+                        val dbDir = dbFile.parentFile
+                        if (dbDir != null) {
+                            java.io.File(dbDir, "open-keep-db-wal").delete()
+                            java.io.File(dbDir, "open-keep-db-shm").delete()
+                            java.io.File(dbDir, "open-keep-db-journal").delete()
+                        }
+                    }
+                    val deletedDb = context.deleteDatabase("open-keep-db")
+                    android.util.Log.d("NoteStorage", "Database file deletion result: manual delete=$deleted, context delete=$deletedDb")
                 } catch (e: Exception) {
                     android.util.Log.e("NoteStorage", "Error deleting database file: ${e.message}", e)
                 }

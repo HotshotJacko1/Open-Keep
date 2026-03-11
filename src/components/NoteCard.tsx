@@ -69,7 +69,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
   return (
     <Card
       className={cn(
-        "group inline-block w-full relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-foreground dark:bg-foreground text-secondary-foreground cursor-pointer border-2 border-input select-none",
+        "group block relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-foreground dark:bg-foreground text-secondary-foreground cursor-pointer border-2 border-input select-none overflow-hidden",
         isSelected && "border-secondary-foreground shadow-lg bg-foreground",
         note.isDeleted && "opacity-75"
       )}
@@ -204,7 +204,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
           </ul>
         ) : (
           <div
-            className="text-sm text-secondary-foreground max-h-[300px] overflow-hidden text-ellipsis prose prose-sm dark:prose-invert prose-p:my-0 prose-headings:my-1"
+            className="text-sm text-secondary-foreground max-h-[300px] overflow-hidden text-ellipsis prose prose-sm max-w-none min-w-0 break-words w-full dark:prose-invert prose-p:my-0 prose-headings:my-1"
             dangerouslySetInnerHTML={{ __html: note.content }}
           />
         )}
