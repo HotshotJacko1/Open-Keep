@@ -69,7 +69,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
   return (
     <Card
       className={cn(
-        "group block relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-foreground dark:bg-foreground text-secondary-foreground cursor-pointer border-2 border-input select-none overflow-hidden",
+        "group block w-full max-w-full relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-foreground dark:bg-foreground text-secondary-foreground cursor-pointer border-2 border-input select-none overflow-hidden",
         isSelected && "border-secondary-foreground shadow-lg bg-foreground",
         note.isDeleted && "opacity-75"
       )}
@@ -97,7 +97,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
       </div>
 
       <CardHeader className="pb-2 flex flex-row items-start justify-between p-4 gap-2 min-w-0">
-        <CardTitle className="text-base sm:text-lg font-semibold break-words flex-1 leading-snug min-w-0">{note.title}</CardTitle>
+        <CardTitle className="text-base sm:text-lg font-semibold break-all flex-1 leading-snug min-w-0">{note.title}</CardTitle>
         <div className={cn("hidden md:flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0", isSelectionMode && "opacity-0 pointer-events-none")}>
           {note.isDeleted ? (
             <>
@@ -195,7 +195,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                     <Square className="h-4 w-4 text-muted-foreground" />
                   )}
                 </Button>
-                <span className={cn(item.checked && "line-through opacity-70", "flex-1 min-w-0 break-words leading-tight mt-0.5")}>
+                <span className={cn(item.checked && "line-through opacity-70", "flex-1 min-w-0 break-all leading-tight mt-0.5")}>
                   {item.content}
                 </span>
               </li>
@@ -204,7 +204,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
           </ul>
         ) : (
           <div
-            className="text-sm text-secondary-foreground max-h-[300px] overflow-hidden text-ellipsis prose prose-sm max-w-none min-w-0 break-words w-full dark:prose-invert prose-p:my-0 prose-headings:my-1"
+            className="text-sm text-secondary-foreground max-h-[300px] overflow-hidden text-ellipsis prose prose-sm max-w-none min-w-0 break-all w-full dark:prose-invert prose-p:my-0 prose-headings:my-1"
             dangerouslySetInnerHTML={{ __html: note.content }}
           />
         )}
