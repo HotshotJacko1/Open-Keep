@@ -219,6 +219,13 @@ export const syncNotesWithDrive = async (localNotes: Note[]): Promise<Note[]> =>
 
 export const deleteRemoteData = async (): Promise<void> => {
     if (!isInitialized) await initGoogleDrive();
+
+    // Do not attempt to find or delete remote folder if user is not authenticated
+    const token = gapi.client.getToken();
+    if (!token) {
+        return;
+    }
+
     const folderId = await findFolder();
     if (folderId) {
         await gapi.client.drive.files.delete({ fileId: folderId });
