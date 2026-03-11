@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { App } from "@capacitor/app";
 import {
     Dialog,
     DialogContent,
@@ -43,22 +42,18 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
 
         window.history.pushState({ dialog: 'change-pin' }, "");
 
-        const handlePopState = () => {
+        const handlePopState = (event: PopStateEvent) => {
+            if (event.state?.dialog === 'change-pin') return;
             onClose();
         };
 
         window.addEventListener('popstate', handlePopState);
-
-        const backButtonListener = App.addListener('backButton', () => {
-            onClose();
-        });
 
         return () => {
             window.removeEventListener('popstate', handlePopState);
             if (window.history.state?.dialog === 'change-pin') {
                 window.history.back();
             }
-            backButtonListener.then(listener => listener.remove());
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);

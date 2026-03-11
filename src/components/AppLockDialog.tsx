@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { App } from "@capacitor/app";
 import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 import {
     Dialog,
@@ -41,22 +40,18 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
 
         window.history.pushState({ dialog: 'app-lock' }, "");
 
-        const handlePopState = () => {
+        const handlePopState = (event: PopStateEvent) => {
+            if (event.state?.dialog === 'app-lock') return;
             onClose();
         };
 
         window.addEventListener('popstate', handlePopState);
-
-        const backButtonListener = App.addListener('backButton', () => {
-            onClose();
-        });
 
         return () => {
             window.removeEventListener('popstate', handlePopState);
             if (window.history.state?.dialog === 'app-lock') {
                 window.history.back();
             }
-            backButtonListener.then(listener => listener.remove());
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);

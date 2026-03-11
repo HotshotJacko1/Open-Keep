@@ -757,9 +757,12 @@ const Index = () => {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         notes={notes}
-        onImportNotes={(importedNotes) => {
+        onImportNotes={async (importedNotes) => {
           setNotes((prev) => [...importedNotes, ...prev]);
-          importedNotes.forEach(saveNote); // Save imported notes
+          // Save incrementally to prevent overwhelming the Capacitor SQLite plugin bridge
+          for (const note of importedNotes) {
+            await saveNote(note);
+          }
         }}
       />
 

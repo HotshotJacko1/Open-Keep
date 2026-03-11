@@ -14,7 +14,6 @@ import { useDropbox } from "@/hooks/use-dropbox";
 
 import { Loader2, FolderSync, ArrowLeft } from "lucide-react";
 import { showSuccess, showError } from "@/utils/toast";
-import { App } from "@capacitor/app";
 
 interface SyncDialogProps {
   isOpen: boolean;
@@ -33,22 +32,18 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
 
     window.history.pushState({ dialog: 'sync' }, "");
 
-    const handlePopState = () => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state?.dialog === 'sync') return;
       onClose();
     };
 
     window.addEventListener('popstate', handlePopState);
-
-    const backButtonListener = App.addListener('backButton', () => {
-      onClose();
-    });
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
       if (window.history.state?.dialog === 'sync') {
         window.history.back();
       }
-      backButtonListener.then(listener => listener.remove());
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);

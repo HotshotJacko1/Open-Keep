@@ -169,7 +169,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6"
+                  className="h-6 w-6 shrink-0 p-0"
                   onClick={(e) => {
                     e.stopPropagation();
                     // We need to pass the original line index to toggle.
@@ -195,7 +195,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                     <Square className="h-4 w-4 text-muted-foreground" />
                   )}
                 </Button>
-                <span className={cn(item.checked && "line-through text-black dark:text-white")}>
+                <span className={cn(item.checked && "line-through opacity-70")}>
                   {item.content}
                 </span>
               </li>

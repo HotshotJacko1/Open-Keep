@@ -13,7 +13,6 @@ import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText, Mail, 
 import SyncDialog from "./SyncDialog";
 import ChangePinDialog from "./ChangePinDialog";
 import AppLockDialog from "./AppLockDialog";
-import { App } from "@capacitor/app";
 import { useSession } from "@/context/session-provider";
 import { Note } from "@/types/note";
 import JSZip from "jszip";
@@ -47,22 +46,19 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
 
     window.history.pushState({ dialog: 'settings' }, "");
 
-    const handlePopState = () => {
+    const handlePopState = (event: PopStateEvent) => {
+      // If we popped back TO settings state, stay open
+      if (event.state?.dialog === 'settings') return;
       onClose();
     };
 
     window.addEventListener('popstate', handlePopState);
-
-    const backButtonListener = App.addListener('backButton', () => {
-      onClose();
-    });
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
       if (window.history.state?.dialog === 'settings') {
         window.history.back();
       }
-      backButtonListener.then(listener => listener.remove());
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);

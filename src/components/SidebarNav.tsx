@@ -46,15 +46,15 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
             key={tag}
             variant="ghost"
             className={cn(
-              "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg whitespace-nowrap overflow-hidden transition-all",
+              "text-black dark:text-white justify-start px-4 py-2 rounded-3xl text-lg h-auto whitespace-normal break-words text-left transition-all",
               selectedTag === tag && "bg-sidebar-accent hover:bg-sidebar-accent/90"
             )}
             asChild
             onClick={handleNavigation}
           >
-            <Link to={`/?tag=${tag}`}>
+            <Link to={`/?tag=${tag}`} className="flex items-center">
               <Tag className="mr-4 h-5 w-5 flex-shrink-0" />
-              {tag}
+              <span className="flex-1">{tag}</span>
             </Link>
           </Button>
         ))}
