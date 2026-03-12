@@ -278,22 +278,37 @@ class NoteStoragePlugin : Plugin() {
                 // 3. Delete Database file
                 try {
                     android.util.Log.d("NoteStorage", "Deleting database file")
+                    
                     val dbFile = context.getDatabasePath("open-keep-db")
-                    var deleted = false
-                    if (dbFile.exists()) {
-                        deleted = dbFile.delete()
-                        // Also try to delete WAL and SHM files
-                        val dbDir = dbFile.parentFile
-                        if (dbDir != null) {
-                            java.io.File(dbDir, "open-keep-db-wal").delete()
-                            java.io.File(dbDir, "open-keep-db-shm").delete()
-                            java.io.File(dbDir, "open-keep-db-journal").delete()
+                    android.util.Log.d("NoteStorage", "dbFile path: ${dbFile.absolutePath}, exists: ${dbFile.exists()}")
+
+                    // Ensure all Room DBs are definitely closed and helper is shutdown
+                    try {
+                        if (com.jackbarkerapps.openkeep.data.NoteRepository.isInitialized()) {
+                            com.jackbarkerapps.openkeep.data.NoteRepository.getDatabase().close()
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w("NoteStorage", "Ignored error during aggressive close: \${e.message}")
+                    }
+                    
+                    // Small delay to let Android/Room release any pending file locks
+                    kotlinx.coroutines.delay(100)
+
+                    var anyDeleted = false
+                    val dbDir = dbFile.parentFile
+                    if (dbDir != null && dbDir.exists()) {
+                        dbDir.listFiles()?.forEach { file ->
+                            if (file.name.startsWith("open-keep-db")) {
+                                val fd = file.delete()
+                                android.util.Log.d("NoteStorage", "Deleted auxiliary DB file \${file.name}: \$fd")
+                                if (fd) anyDeleted = true
+                            }
                         }
                     }
                     val deletedDb = context.deleteDatabase("open-keep-db")
-                    android.util.Log.d("NoteStorage", "Database file deletion result: manual delete=$deleted, context delete=$deletedDb")
+                    android.util.Log.d("NoteStorage", "Database file deletion result: loop deleted anything=\$anyDeleted, context delete=\$deletedDb, still exists=\${dbFile.exists()}")
                 } catch (e: Exception) {
-                    android.util.Log.e("NoteStorage", "Error deleting database file: ${e.message}", e)
+                    android.util.Log.e("NoteStorage", "Error deleting database file: \${e.message}", e)
                 }
 
                 android.util.Log.d("NoteStorage", "clearAllData process completed")

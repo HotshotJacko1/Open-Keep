@@ -25,7 +25,7 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
       <Button
         variant="ghost"
         className={cn(
-          "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg whitespace-nowrap overflow-hidden transition-all h-auto select-none",
+          "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg w-full whitespace-nowrap overflow-hidden transition-all h-auto select-none",
           !selectedTag && "bg-sidebar-accent hover:bg-sidebar-accent/90"
         )}
         asChild
@@ -46,7 +46,7 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
             key={tag}
             variant="ghost"
             className={cn(
-              "text-black dark:text-white justify-start px-4 py-2 rounded-3xl text-lg h-auto whitespace-normal break-words text-left transition-all select-none",
+              "text-black dark:text-white justify-start px-4 py-2 rounded-3xl text-lg w-full h-auto whitespace-normal break-words text-left transition-all select-none",
               selectedTag === tag && "bg-sidebar-accent hover:bg-sidebar-accent/90"
             )}
             asChild
