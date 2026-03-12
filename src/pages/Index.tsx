@@ -178,16 +178,15 @@ const Index = () => {
   useEffect(() => {
     const setupBackButton = async () => {
       const listener = await CapacitorApp.addListener("backButton", ({ canGoBack }) => {
-        if (isEditorOpen) {
-          setIsEditorOpen(false);
-        } else if (isSettingsOpen) {
-          setIsSettingsOpen(false);
-        } else if (isEditLabelsOpen) {
+        if (isEditLabelsOpen) {
           setIsEditLabelsOpen(false);
         } else if (isSheetOpen) {
           setIsSheetOpen(false);
         } else if (selectedNoteIds.size > 0) {
           setSelectedNoteIds(new Set()); // Clear selection
+        } else if (canGoBack) {
+          // Defer to browser history for Settings, NoteEditor, and nested dialogs
+          window.history.back();
         } else {
           // If none of the above, exit app
           CapacitorApp.exitApp();
@@ -202,7 +201,7 @@ const Index = () => {
     return () => {
       listenerPromise.then(listener => listener.remove());
     };
-  }, [isEditorOpen, isSettingsOpen, isEditLabelsOpen, isSheetOpen, selectedNoteIds]);
+  }, [isEditLabelsOpen, isSheetOpen, selectedNoteIds]);
 
   const handleSaveNote = async (noteToSave: Note) => {
     // Optimistic Update
@@ -786,8 +785,8 @@ const Index = () => {
               <Menu className="h-6 w-6 text-muted-foreground" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-64 p-0 bg-sidebar text-sidebar-foreground border-r-sidebar-border pt-[env(safe-area-inset-top)]">
-            <div className="p-4 text-2xl font-bold text-sidebar-primary flex items-center">
+          <SheetContent side="left" className="w-64 p-0 bg-sidebar text-sidebar-foreground border-r-sidebar-border pt-[env(safe-area-inset-top)] flex flex-col">
+            <div className="p-4 text-2xl font-bold text-sidebar-primary flex items-center shrink-0">
               <Lightbulb className="mr-2 h-6 w-6 text-yellow-500" fill="currentColor" />
               <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
             </div>
@@ -849,7 +848,7 @@ const Index = () => {
           <div className="flex flex-1 min-w-0">
             {!isSidebarCollapsed ? (
               <ResizablePanelGroup direction="horizontal" className="h-full">
-                <ResizablePanel defaultSize={15} minSize={10} maxSize={25} className="bg-sidebar text-sidebar-foreground border-r-sidebar-border pt-4">
+                <ResizablePanel defaultSize={15} minSize={10} maxSize={25} className="bg-sidebar text-sidebar-foreground border-r-sidebar-border pt-4 flex flex-col">
                   <SidebarNav
                     uniqueTags={uniqueTags}
                     onEditLabels={() => setIsEditLabelsOpen(true)}

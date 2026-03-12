@@ -14,6 +14,14 @@ export const useDropbox = () => {
     const [lastSynced, setLastSynced] = useState<string | null>(localStorage.getItem("dropbox-last-synced"));
     const [accessToken, setAccessToken] = useState<string | null>(localStorage.getItem("dropbox-access-token"));
 
+    useEffect(() => {
+        const handleNotesUpdated = () => {
+            setLastSynced(localStorage.getItem("dropbox-last-synced"));
+        };
+        window.addEventListener("notes-updated", handleNotesUpdated);
+        return () => window.removeEventListener("notes-updated", handleNotesUpdated);
+    }, []);
+
     // Initialize on mount if token exists, and listen for cross-component token updates
     useEffect(() => {
         if (accessToken) {
@@ -48,6 +56,8 @@ export const useDropbox = () => {
                         window.dispatchEvent(new Event("dropbox-token-updated"));
                         initDropbox(token);
                         showSuccess("Connected to Dropbox!");
+                        
+                        await doInternalSync();
                     } catch (error) {
                         console.error("Dropbox auth error from deep link:", error);
                         showError("Failed to finalize Dropbox login.");
@@ -73,6 +83,8 @@ export const useDropbox = () => {
                     window.dispatchEvent(new Event("dropbox-token-updated"));
                     initDropbox(token);
                     showSuccess("Connected to Dropbox!");
+                    
+                    await doInternalSync();
                 } catch (error) {
                     console.error("Dropbox auth error:", error);
                 }
@@ -106,12 +118,7 @@ export const useDropbox = () => {
         }
     }, []);
 
-    const sync = useCallback(async () => {
-        if (!accessToken) {
-            showError("Please connect to Dropbox first.");
-            return;
-        }
-
+    const doInternalSync = async () => {
         setIsSyncing(true);
         try {
             const localNotes = await loadNotes();
@@ -135,6 +142,15 @@ export const useDropbox = () => {
         } finally {
             setIsSyncing(false);
         }
+    };
+
+    const sync = useCallback(async () => {
+        if (!accessToken) {
+            showError("Please connect to Dropbox first.");
+            return;
+        }
+
+        await doInternalSync();
     }, [accessToken]);
 
     const disconnect = useCallback(() => {

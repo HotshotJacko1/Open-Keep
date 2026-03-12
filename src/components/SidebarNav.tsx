@@ -21,7 +21,7 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
   };
 
   return (
-    <nav className="flex flex-col p-2 space-y-1">
+    <nav className="flex flex-col p-2 space-y-1 h-full overflow-y-auto">
       <Button
         variant="ghost"
         className={cn(

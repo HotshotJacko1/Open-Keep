@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
 import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
 import { Capacitor } from "@capacitor/core";
@@ -10,6 +10,14 @@ export const useGoogleDrive = () => {
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSynced, setLastSynced] = useState<string | null>(localStorage.getItem("last-synced-time"));
     const [userEmail, setUserEmail] = useState<string | null>(localStorage.getItem("google-user-email"));
+
+    useEffect(() => {
+        const handleNotesUpdated = () => {
+            setLastSynced(localStorage.getItem("last-synced-time"));
+        };
+        window.addEventListener("notes-updated", handleNotesUpdated);
+        return () => window.removeEventListener("notes-updated", handleNotesUpdated);
+    }, []);
 
     const webLogin = useGoogleLogin({
         onSuccess: async (tokenResponse) => {
@@ -27,6 +35,7 @@ export const useGoogleDrive = () => {
                 localStorage.setItem("google-user-email", userInfo.email);
 
                 showSuccess(`Connected to Google Drive as ${userInfo.email}`);
+                await doInternalSync();
             } catch (error) {
                 console.error("Login setup failed:", error);
                 showError("Failed to connect to Google Drive.");
@@ -63,6 +72,7 @@ export const useGoogleDrive = () => {
                 localStorage.setItem("google-user-email", user.email);
 
                 showSuccess(`Connected to Google Drive as ${user.email}`);
+                await doInternalSync();
             } catch (error) {
                 console.error("Native Login Failed:", error);
                 showError("Google Sign-In Failed");
@@ -72,13 +82,11 @@ export const useGoogleDrive = () => {
         }
     };
 
-    const sync = useCallback(async () => {
+    const doInternalSync = async () => {
         setIsSyncing(true);
         try {
-            // Initialize GAPI early so `gapi.client` is available for `setAccessToken`
             await initGoogleDrive();
 
-            // Then ensure we have a valid token before proceeding with sync
             if (Capacitor.isNativePlatform()) {
                 await GoogleAuth.initialize({
                     scopes: ["profile", "email", "https://www.googleapis.com/auth/drive.file"]
@@ -93,25 +101,13 @@ export const useGoogleDrive = () => {
                     setUserEmail(user.email);
                     localStorage.setItem("google-user-email", user.email);
                 }
-            } else {
-                // For web, if we don't have a token, we might need a mechanism to login again
-                // For now, we rely on the implicit flow to still have the token or prompt login if failed.
-                // Ideally, web should check if token exists. If not, trigger webLogin().
             }
 
             const localNotes = await loadNotes();
             const mergedNotes = await syncNotesWithDrive(localNotes);
 
-            // Save merged notes locally
-            // We use saveNote for each to ensure upsert (REPLACE strategy)
             await Promise.all(mergedNotes.map(note => saveNote(note)));
 
-            // Force a reload of notes in the UI? 
-            // The app probably reads from localStorage on mount or has a listener.
-            // Note: note-storage.ts doesn't emit events. 
-            // We might need to dispatch a storage event or window event to update the UI if it relies on localStorage directly without context.
-            // Looking at SettingsDialog (it doesn't list notes), but the main app does.
-            // I'll emit a custom event or check how the app updates. 
             window.dispatchEvent(new Event("notes-updated"));
 
             const now = new Date().toLocaleString();
@@ -124,6 +120,10 @@ export const useGoogleDrive = () => {
         } finally {
             setIsSyncing(false);
         }
+    };
+
+    const sync = useCallback(async () => {
+        await doInternalSync();
     }, []);
 
     const disconnect = async () => {

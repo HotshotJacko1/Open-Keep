@@ -12,6 +12,14 @@ export const useOneDrive = () => {
     const [lastSynced, setLastSynced] = useState<string | null>(localStorage.getItem("onedrive-last-synced"));
     const [userEmail, setUserEmail] = useState<string | null>(localStorage.getItem("onedrive-user-email"));
 
+    useEffect(() => {
+        const handleNotesUpdated = () => {
+            setLastSynced(localStorage.getItem("onedrive-last-synced"));
+        };
+        window.addEventListener("notes-updated", handleNotesUpdated);
+        return () => window.removeEventListener("notes-updated", handleNotesUpdated);
+    }, []);
+
     // Check for active account on load and setup Deep Link Listener
     useEffect(() => {
         let listenerHandle: any = null;
@@ -31,6 +39,7 @@ export const useOneDrive = () => {
                         setUserEmail(response.account.username);
                         localStorage.setItem("onedrive-user-email", response.account.username);
                         showSuccess(`Connected to OneDrive as ${response.account.username}`);
+                        await doInternalSync();
                     }
                 } catch (e) {
                     console.error("handleRedirectPromise deep link error:", e);
@@ -50,6 +59,8 @@ export const useOneDrive = () => {
 
                 if (isNewLogin) {
                     showSuccess(`Connected to OneDrive as ${account.username}`);
+                    // Trigger sync on first successful connection
+                    await doInternalSync();
                 }
             }
 
@@ -77,24 +88,14 @@ export const useOneDrive = () => {
         }
     }, []);
 
-    const sync = useCallback(async () => {
-        if (!userEmail) {
-            showError("Please connect to OneDrive first.");
-            return;
-        }
-
+    const doInternalSync = async () => {
         setIsSyncing(true);
         try {
-            // Ensure initialized
             await initOneDrive();
-
             const localNotes = await loadNotes();
             const mergedNotes = await syncNotesWithOneDrive(localNotes);
 
-            // Save merged notes locally
             await Promise.all(mergedNotes.map(n => saveNote(n)));
-
-            // Notify UI
             window.dispatchEvent(new Event("notes-updated"));
 
             const now = new Date().toLocaleString();
@@ -107,6 +108,14 @@ export const useOneDrive = () => {
         } finally {
             setIsSyncing(false);
         }
+    };
+
+    const sync = useCallback(async () => {
+        if (!userEmail) {
+            showError("Please connect to OneDrive first.");
+            return;
+        }
+        await doInternalSync();
     }, [userEmail]);
 
     const disconnect = useCallback(async () => {
