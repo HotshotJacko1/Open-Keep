@@ -25,13 +25,13 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
       <Button
         variant="ghost"
         className={cn(
-          "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg whitespace-nowrap overflow-hidden transition-all",
+          "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg whitespace-nowrap overflow-hidden transition-all h-auto select-none",
           !selectedTag && "bg-sidebar-accent hover:bg-sidebar-accent/90"
         )}
         asChild
         onClick={handleNavigation}
       >
-        <Link to="/">
+        <Link to="/" draggable={false}>
           <Lightbulb className="mr-4 h-5 w-5 flex-shrink-0" />
           Notes
         </Link>
@@ -46,13 +46,13 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
             key={tag}
             variant="ghost"
             className={cn(
-              "text-black dark:text-white justify-start px-4 py-2 rounded-3xl text-lg h-auto whitespace-normal break-words text-left transition-all",
+              "text-black dark:text-white justify-start px-4 py-2 rounded-3xl text-lg h-auto whitespace-normal break-words text-left transition-all select-none",
               selectedTag === tag && "bg-sidebar-accent hover:bg-sidebar-accent/90"
             )}
             asChild
             onClick={handleNavigation}
           >
-            <Link to={`/?tag=${tag}`} className="flex items-center">
+            <Link to={`/?tag=${tag}`} className="flex items-center" draggable={false}>
               <Tag className="mr-4 h-5 w-5 flex-shrink-0" />
               <span className="flex-1">{tag}</span>
             </Link>
@@ -61,7 +61,7 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
         {onEditLabels && (
           <Button
             variant="ghost"
-            className="justify-start px-4 py-2 rounded-full text-lg w-full mt-2 text-black dark:text-white whitespace-nowrap overflow-hidden transition-all"
+            className="justify-start px-4 py-2 rounded-full text-lg w-full mt-2 text-black dark:text-white whitespace-nowrap overflow-hidden transition-all h-auto select-none"
             onClick={onEditLabels}
           >
             <Pencil className="mr-4 h-5 w-5 flex-shrink-0" />
@@ -74,13 +74,13 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
         <Button
           variant="ghost"
           className={cn(
-            "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg w-full whitespace-nowrap overflow-hidden transition-all",
+            "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg w-full whitespace-nowrap overflow-hidden transition-all h-auto select-none",
             selectedTag === "archive" && "bg-sidebar-accent hover:bg-sidebar-accent/90"
           )}
           asChild
           onClick={handleNavigation}
         >
-          <Link to="/?tag=archive">
+          <Link to="/?tag=archive" draggable={false}>
             <Archive className="mr-4 h-5 w-5 flex-shrink-0" />
             Archive
           </Link>
@@ -88,13 +88,13 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
         <Button
           variant="ghost"
           className={cn(
-            "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg w-full whitespace-nowrap overflow-hidden transition-all",
+            "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg w-full whitespace-nowrap overflow-hidden transition-all h-auto select-none",
             selectedTag === "bin" && "bg-sidebar-accent hover:bg-sidebar-accent/90"
           )}
           asChild
           onClick={handleNavigation}
         >
-          <Link to="/?tag=bin">
+          <Link to="/?tag=bin" draggable={false}>
             <Trash2 className="mr-4 h-5 w-5 flex-shrink-0" />
             Bin
           </Link>

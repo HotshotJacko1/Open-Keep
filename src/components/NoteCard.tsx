@@ -209,11 +209,11 @@ const NoteCard: React.FC<NoteCardProps> = ({
           />
         )}
         {note.tags.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
+          <div className="mt-2 flex flex-wrap gap-1 w-full max-w-full overflow-hidden">
             {note.tags.map((tag) => (
               <span
                 key={tag}
-                className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 max-w-full truncate break-words"
               >
                 {tag}
               </span>
