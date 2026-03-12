@@ -52,9 +52,9 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
             asChild
             onClick={handleNavigation}
           >
-            <Link to={`/?tag=${tag}`} className="flex items-center" draggable={false}>
+            <Link to={`/?tag=${tag}`} className="flex items-center w-full" draggable={false}>
               <Tag className="mr-4 h-5 w-5 flex-shrink-0" />
-              <span className="flex-1">{tag}</span>
+              <span className="flex-1 min-w-0 break-words">{tag}</span>
             </Link>
           </Button>
         ))}

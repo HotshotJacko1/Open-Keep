@@ -194,8 +194,17 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const [focusItemId, setFocusItemId] = useState<string | null>(null);
 
     const noteIdRef = useRef<string>(initialNote?.id || crypto.randomUUID());
+    const titleTextareaRef = useRef<HTMLTextAreaElement>(null);
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const prevIsOpen = useRef(isOpen);
+
+    const adjustTitleHeight = () => {
+        const textarea = titleTextareaRef.current;
+        if (textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = `${textarea.scrollHeight}px`;
+        }
+    };
 
     // Mobile Back Button Handling
     useEffect(() => {
@@ -284,6 +293,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             // Focus logic
             // We use setTimeout to ensure the Dialog animation/mounting is complete enough for focus to take
             setTimeout(() => {
+                adjustTitleHeight();
                 if (!autoFocus) return;
 
                 // Focus on content as requested.
@@ -661,11 +671,16 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     {/* Scrollable Body */}
                     <div className="flex-1 overflow-y-auto p-4">
                         {/* Title */}
-                        <Input
+                        <textarea
                             id="title"
+                            ref={titleTextareaRef}
                             value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            className="w-full bg-white dark:bg-[#202124] text-black dark:text-white border-0 focus-visible:ring-0 text-xl font-semibold px-0 mb-4 placeholder:text-gray-400"
+                            onChange={(e) => {
+                                setTitle(e.target.value);
+                                adjustTitleHeight();
+                            }}
+                            rows={1}
+                            className="w-full bg-white dark:bg-[#202124] text-black dark:text-white border-0 focus:outline-none text-xl font-semibold px-0 mb-4 placeholder:text-gray-400 resize-none overflow-hidden h-auto"
                             placeholder="Title"
                         />
 

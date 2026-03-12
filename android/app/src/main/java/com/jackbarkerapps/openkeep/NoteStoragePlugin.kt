@@ -266,46 +266,63 @@ class NoteStoragePlugin : Plugin() {
                     android.util.Log.e("NoteStorage", "Error clearing KeyManager: ${e.message}", e)
                 }
 
-                // 2. Reset Repository
+                // 2. Clear Tables and Get Exact Path
+                var actualDbPath: String? = null
+                try {
+                    android.util.Log.d("NoteStorage", "Attempting to clear tables and get exact DB path")
+                    if (com.jackbarkerapps.openkeep.data.NoteRepository.isInitialized()) {
+                        val db = com.jackbarkerapps.openkeep.data.NoteRepository.getDatabase()
+                        
+                        try {
+                            db.clearAllTables()
+                            android.util.Log.d("NoteStorage", "Successfully cleared all tables in Room")
+                        } catch (e: Exception) {
+                            android.util.Log.e("NoteStorage", "Failed to clear tables: \${e.message}")
+                        }
+                        
+                        try {
+                            actualDbPath = db.openHelper.writableDatabase.path
+                            android.util.Log.d("NoteStorage", "Room reports active DB path: \$actualDbPath")
+                        } catch (e: Exception) {
+                            android.util.Log.e("NoteStorage", "Failed to get active DB path: \${e.message}")
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("NoteStorage", "Error during DB pre-deletion step: \${e.message}", e)
+                }
+
+                // 2.5 Reset Repository
                 try {
                     android.util.Log.d("NoteStorage", "Resetting NoteRepository")
                     NoteRepository.reset()
                     android.util.Log.d("NoteStorage", "NoteRepository reset")
                 } catch (e: Exception) {
-                    android.util.Log.e("NoteStorage", "Error resetting NoteRepository: ${e.message}", e)
+                    android.util.Log.e("NoteStorage", "Error resetting NoteRepository: \${e.message}", e)
                 }
+                
+                // Small delay to let Android/Room release any pending file locks
+                kotlinx.coroutines.delay(100)
 
                 // 3. Delete Database file
                 try {
                     android.util.Log.d("NoteStorage", "Deleting database file")
                     
-                    val dbFile = context.getDatabasePath("open-keep-db")
-                    android.util.Log.d("NoteStorage", "dbFile path: ${dbFile.absolutePath}, exists: ${dbFile.exists()}")
-
-                    // Ensure all Room DBs are definitely closed and helper is shutdown
-                    try {
-                        if (com.jackbarkerapps.openkeep.data.NoteRepository.isInitialized()) {
-                            com.jackbarkerapps.openkeep.data.NoteRepository.getDatabase().close()
-                        }
-                    } catch (e: Exception) {
-                        android.util.Log.w("NoteStorage", "Ignored error during aggressive close: \${e.message}")
-                    }
-                    
-                    // Small delay to let Android/Room release any pending file locks
-                    kotlinx.coroutines.delay(100)
+                    val dbFile = if (actualDbPath != null) java.io.File(actualDbPath) else context.getDatabasePath("open-keep-db")
+                    android.util.Log.d("NoteStorage", "Target dbFile path: \${dbFile.absolutePath}, exists: \${dbFile.exists()}")
 
                     var anyDeleted = false
                     val dbDir = dbFile.parentFile
                     if (dbDir != null && dbDir.exists()) {
+                        val baseName = dbFile.name
                         dbDir.listFiles()?.forEach { file ->
-                            if (file.name.startsWith("open-keep-db")) {
+                            if (file.name.startsWith(baseName) || file.name.startsWith("open-keep-db")) {
                                 val fd = file.delete()
-                                android.util.Log.d("NoteStorage", "Deleted auxiliary DB file \${file.name}: \$fd")
+                                android.util.Log.d("NoteStorage", "Deleted DB file \${file.name}: \$fd")
                                 if (fd) anyDeleted = true
                             }
                         }
                     }
-                    val deletedDb = context.deleteDatabase("open-keep-db")
+                    val deletedDb = if (actualDbPath != null) false else context.deleteDatabase("open-keep-db")
                     android.util.Log.d("NoteStorage", "Database file deletion result: loop deleted anything=\$anyDeleted, context delete=\$deletedDb, still exists=\${dbFile.exists()}")
                 } catch (e: Exception) {
                     android.util.Log.e("NoteStorage", "Error deleting database file: \${e.message}", e)
