@@ -213,7 +213,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
             {note.tags.map((tag) => (
               <span
                 key={tag}
-                className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 max-w-full truncate break-words"
+                className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 max-w-full whitespace-normal break-all [overflow-wrap:anywhere]"
               >
                 {tag}
               </span>

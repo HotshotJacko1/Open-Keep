@@ -35,6 +35,7 @@ class NoteRepository(context: Context) {
 //                    .fallbackToDestructiveMigration() // Should likely remove this for prod
                     .build()
                     INSTANCE = instance
+                    _instanceFlow.value = instance
                 }
             }
         }
@@ -43,8 +44,14 @@ class NoteRepository(context: Context) {
             synchronized(this) {
                 INSTANCE?.close()
                 INSTANCE = null
+                // Signal to any Flow collectors that the DB is gone
+                _instanceFlow.value = null
             }
         }
+        
+        // Use a static flow to notify repositories of the current instance
+        private val _instanceFlow = kotlinx.coroutines.flow.MutableStateFlow<AppDatabase?>(null)
+        val instanceFlow: kotlinx.coroutines.flow.StateFlow<AppDatabase?> = kotlinx.coroutines.flow.asStateFlow(_instanceFlow)
 
         fun changePassword(context: Context, newKey: ByteArray) {
             synchronized(this) {
@@ -108,11 +115,18 @@ class NoteRepository(context: Context) {
         }
     }
 
-    private fun getDao(): NoteDao {
-         return getDatabase().noteDao()
+    private fun getDao(): NoteDao? {
+         return INSTANCE?.noteDao()
     }
 
-    fun getAllNotes(): Flow<List<NoteEntity>> = getDao().getAllNotes()
+    // A state flow to hold the current dao state
+    private val daoStateFlow = kotlinx.coroutines.flow.MutableStateFlow(getDao())
+    
+    // We observe this and flatMapLatest into the actual query, so when it's null we emit empty
+    @kotlin.OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun getAllNotes(): Flow<List<NoteEntity>> = daoStateFlow.flatMapLatest { dao ->
+        dao?.getAllNotes() ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    }
 
     suspend fun saveNote(note: NoteEntity) {
         getDao().insertNote(note)
