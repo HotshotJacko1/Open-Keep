@@ -3,6 +3,8 @@ package com.jackbarkerapps.openkeep.data
 import android.content.Context
 import androidx.room.Room
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 
 class NoteRepository(context: Context) {
     // Singleton pattern for DB to prevent multiple instances
@@ -51,7 +53,7 @@ class NoteRepository(context: Context) {
         
         // Use a static flow to notify repositories of the current instance
         private val _instanceFlow = kotlinx.coroutines.flow.MutableStateFlow<AppDatabase?>(null)
-        val instanceFlow: kotlinx.coroutines.flow.StateFlow<AppDatabase?> = kotlinx.coroutines.flow.asStateFlow(_instanceFlow)
+        val instanceFlow: kotlinx.coroutines.flow.StateFlow<AppDatabase?> = _instanceFlow.asStateFlow()
 
         fun changePassword(context: Context, newKey: ByteArray) {
             synchronized(this) {
@@ -119,24 +121,21 @@ class NoteRepository(context: Context) {
          return INSTANCE?.noteDao()
     }
 
-    // A state flow to hold the current dao state
-    private val daoStateFlow = kotlinx.coroutines.flow.MutableStateFlow(getDao())
-    
-    // We observe this and flatMapLatest into the actual query, so when it's null we emit empty
+    // We observe the instance flow and flatMapLatest into the actual query, so when it's null we emit empty
     @kotlin.OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    fun getAllNotes(): Flow<List<NoteEntity>> = daoStateFlow.flatMapLatest { dao ->
-        dao?.getAllNotes() ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    fun getAllNotes(): Flow<List<NoteEntity>> = instanceFlow.flatMapLatest { instance ->
+        instance?.noteDao()?.getAllNotes() ?: kotlinx.coroutines.flow.flowOf(emptyList())
     }
 
     suspend fun saveNote(note: NoteEntity) {
-        getDao().insertNote(note)
+        getDao()?.insertNote(note)
     }
 
     suspend fun deleteNote(id: String) {
-        getDao().markDeleted(id, System.currentTimeMillis())
+        getDao()?.markDeleted(id, System.currentTimeMillis())
     }
 
     suspend fun bulkInsert(notes: List<NoteEntity>) {
-        getDao().insertAll(notes)
+        getDao()?.insertAll(notes)
     }
 }
