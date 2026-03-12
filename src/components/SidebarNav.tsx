@@ -31,9 +31,9 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
         asChild
         onClick={handleNavigation}
       >
-        <Link to="/" draggable={false}>
+        <Link to="/" draggable={false} className="flex items-center">
           <Lightbulb className="mr-4 h-5 w-5 flex-shrink-0" />
-          Notes
+          <span className="flex-1">Notes</span>
         </Link>
       </Button>
 
@@ -80,9 +80,9 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
           asChild
           onClick={handleNavigation}
         >
-          <Link to="/?tag=archive" draggable={false}>
+          <Link to="/?tag=archive" draggable={false} className="flex items-center">
             <Archive className="mr-4 h-5 w-5 flex-shrink-0" />
-            Archive
+            <span className="flex-1">Archive</span>
           </Link>
         </Button>
         <Button
@@ -94,9 +94,9 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
           asChild
           onClick={handleNavigation}
         >
-          <Link to="/?tag=bin" draggable={false}>
+          <Link to="/?tag=bin" draggable={false} className="flex items-center">
             <Trash2 className="mr-4 h-5 w-5 flex-shrink-0" />
-            Bin
+            <span className="flex-1">Bin</span>
           </Link>
         </Button>
       </div>

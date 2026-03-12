@@ -96,8 +96,8 @@ const NoteCard: React.FC<NoteCardProps> = ({
         </div>
       </div>
 
-      <CardHeader className="pb-2 flex flex-row items-start justify-between p-4 gap-2 min-w-0">
-        <CardTitle className="text-base sm:text-lg font-semibold break-words flex-1 leading-snug min-w-0">{note.title}</CardTitle>
+      <CardHeader className="pb-2 flex flex-row items-start justify-between p-4 gap-2 min-w-0 w-full max-w-full">
+        <CardTitle className="text-base sm:text-lg font-semibold break-words flex-1 leading-snug min-w-0 max-w-full overflow-hidden [overflow-wrap:anywhere]">{note.title}</CardTitle>
         <div className={cn("hidden md:flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0", isSelectionMode && "opacity-0 pointer-events-none")}>
           {note.isDeleted ? (
             <>
