@@ -139,8 +139,13 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
             localStorage.removeItem("custom-tags");
 
             showSuccess("App reset successfully");
-            onClose();
-            window.location.reload();
+            
+            // Bypass onClose() so window.history.back() isn't triggered from the cleanup
+            // Use reload inside a timeout to prevent the current state from lingering in history 
+            // and bypassing the back button lock
+            setTimeout(() => {
+                window.location.reload();
+            }, 100);
         } catch (e) {
             console.error(e);
             showError("Failed to reset app");

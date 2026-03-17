@@ -2,8 +2,9 @@ import React, { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tag, Trash2, Pencil, Check, Plus } from "lucide-react";
+import { Tag, Trash2, Pencil, Check, Plus, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useEffect } from "react";
 
 interface EditLabelsProps {
     isOpen: boolean;
@@ -25,6 +26,27 @@ const EditLabels: React.FC<EditLabelsProps> = ({
     const [newLabel, setNewLabel] = useState("");
     const [editingTag, setEditingTag] = useState<string | null>(null);
     const [editValue, setEditValue] = useState("");
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        window.history.pushState({ dialog: 'edit-labels' }, "");
+
+        const handlePopState = (event: PopStateEvent) => {
+            if (event.state?.dialog === 'edit-labels') return;
+            onClose();
+        };
+
+        window.addEventListener('popstate', handlePopState);
+
+        return () => {
+            window.removeEventListener('popstate', handlePopState);
+            if (window.history.state?.dialog === 'edit-labels') {
+                window.history.back();
+            }
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]);
 
     const handleCreate = () => {
         if (newLabel.trim()) {
@@ -49,7 +71,11 @@ const EditLabels: React.FC<EditLabelsProps> = ({
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-[425px] text-black dark:text-white">
-                <DialogHeader>
+                <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
+                    <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
+                        <ArrowLeft className="h-5 w-5 text-secondary" />
+                        <span className="sr-only">Back</span>
+                    </Button>
                     <DialogTitle>Edit Labels</DialogTitle>
                 </DialogHeader>
 

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { App } from "@capacitor/app";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +16,16 @@ const EncryptionSetupScreen: React.FC<EncryptionSetupScreenProps> = ({ onSetupCo
     const [pin, setPin] = useState("");
     const [confirmPin, setConfirmPin] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        const backButtonListener = App.addListener('backButton', () => {
+            App.exitApp();
+        });
+
+        return () => {
+            backButtonListener.then(listener => listener.remove());
+        };
+    }, []);
 
     const handleSetup = async () => {
         if (pin.length < 4 || pin.length > 6) {
