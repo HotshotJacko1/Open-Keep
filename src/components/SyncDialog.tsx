@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import { useGoogleDrive } from "@/hooks/use-google-drive";
 import { useOneDrive } from "@/hooks/use-one-drive";
 import { useDropbox } from "@/hooks/use-dropbox";
 
-import { Loader2, FolderSync, ArrowLeft } from "lucide-react";
+import { Loader2, FolderSync, ArrowLeft, AlertCircle } from "lucide-react";
 import { showSuccess, showError } from "@/utils/toast";
 
 interface SyncDialogProps {
@@ -25,6 +25,8 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
   const oneDrive = useOneDrive();
   const dropbox = useDropbox();
 
+  const [conflictData, setConflictData] = useState<{ activeService: any, cloudPayload: string } | null>(null);
+
 
 
   React.useEffect(() => {
@@ -34,6 +36,12 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
 
     const handlePopState = (event: PopStateEvent) => {
       if (event.state?.dialog === 'sync') return;
+      if (conflictData) {
+        setConflictData(null);
+        // keep the dialog open, push state back
+        window.history.pushState({ dialog: 'sync' }, "");
+        return;
+      }
       onClose();
     };
 
@@ -57,6 +65,20 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
   }, [googleDrive.isConnected, oneDrive.isConnected, dropbox.isConnected, googleDrive, oneDrive, dropbox]);
 
   const isAnySyncing = googleDrive.isSyncing || oneDrive.isSyncing || dropbox.isSyncing;
+
+  const handleSync = async () => {
+    if (!activeService) return;
+    const result = await activeService.sync();
+    if (result && result.status === "conflict" && 'cloudPayload' in result) {
+      setConflictData({ activeService, cloudPayload: (result as any).cloudPayload });
+    }
+  };
+
+  const resolveConflict = async (resolution: "local" | "cloud") => {
+    if (!conflictData) return;
+    await conflictData.activeService.sync(resolution, conflictData.cloudPayload);
+    setConflictData(null);
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -104,6 +126,44 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                   <FolderSync className="mr-2 h-4 w-4" /> Sync with Dropbox
                 </Button>
               </div>
+            ) : conflictData ? (
+              <div className="flex flex-col gap-4 py-2 border rounded-md p-4 bg-muted/50">
+                <div className="flex items-center gap-2 text-destructive">
+                  <AlertCircle className="h-5 w-5" />
+                  <h3 className="font-semibold text-lg text-primary-foreground">Sync Conflict Detected</h3>
+                </div>
+                <p className="text-sm text-primary-foreground/90 leading-relaxed">
+                  The cloud backup is locked with a different database key than your local device. 
+                  This usually happens if you set up the app independently on multiple devices.
+                </p>
+                <p className="text-sm font-medium text-primary-foreground">How would you like to resolve this?</p>
+                
+                <div className="flex flex-col gap-3 mt-2">
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => resolveConflict("cloud")}
+                    disabled={isAnySyncing}
+                  >
+                     {isAnySyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Keep Cloud Data (Deletes Local Notes)
+                  </Button>
+                  <Button 
+                    variant="default" 
+                    onClick={() => resolveConflict("local")}
+                    disabled={isAnySyncing}
+                  >
+                     {isAnySyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Keep Local Data (Overwrites Cloud)
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setConflictData(null)}
+                    disabled={isAnySyncing}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
             ) : (
               <div className="flex flex-col gap-3 border rounded-md p-4 bg-muted/50 text-primary-foreground">
                 <div className="flex flex-col gap-1">
@@ -121,7 +181,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                 <div className="flex gap-2 mt-2">
                   <Button
                     variant="outline"
-                    onClick={() => activeService.sync()}
+                    onClick={handleSync}
                     disabled={isAnySyncing}
                     className="flex-1 text-primary-foreground"
                   >

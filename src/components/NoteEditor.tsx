@@ -614,6 +614,35 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         }
     };
 
+    const handleArchiveToggle = () => {
+        const newState = !isArchived;
+        setIsArchived(newState);
+        
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+        }
+
+        const plainText = content.replace(/<[^>]+>/g, '').trim();
+
+        if (title.trim() === "" && plainText === "") {
+            onDelete(noteIdRef.current);
+        } else {
+            const finalNote: Note = {
+                id: noteIdRef.current,
+                title,
+                content,
+                tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+                isPinned,
+                isArchived: newState,
+                createdAt: initialNote?.createdAt || Date.now(),
+                updatedAt: Date.now(),
+            };
+            onSave(finalNote);
+        }
+        toast.success(newState ? "Note archived" : "Note unarchived");
+        onClose();
+    };
+
     return (
         <>
             <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseEditor()}>
@@ -656,7 +685,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        onClick={() => setIsArchived(!isArchived)}
+                                        onClick={handleArchiveToggle}
                                         className={isArchived ? "text-blue-400" : "text-secondary"}
                                     >
                                         <Archive className="h-5 w-5" />

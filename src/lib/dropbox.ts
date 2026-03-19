@@ -5,6 +5,7 @@ import { Capacitor } from "@capacitor/core";
 
 const CLIENT_ID = import.meta.env.VITE_DROPBOX_CLIENT_ID;
 const FILE_PATH = "/notes.json";
+const ENCRYPTED_KEY_FILE_NAME = "/encrypted_master_key.json";
 
 // We need to persist the access token
 let dbx: Dropbox | null = null;
@@ -79,6 +80,23 @@ export const handleAuthRedirect = async (code: string) => {
 
 // --- API Helpers ---
 
+export const checkDropboxMasterKey = async (): Promise<{ exists: boolean, payload: string | null }> => {
+    if (!dbx) return { exists: false, payload: null };
+    
+    try {
+        const response = await dbx.filesDownload({ path: ENCRYPTED_KEY_FILE_NAME });
+        const blob = (response.result as any).fileBlob;
+        const text = await blob.text();
+        const payload = JSON.parse(text);
+        return { exists: true, payload };
+    } catch (error: any) {
+         if (error.status === 409 || (error.error && error.error.path && error.error.path['.tag'] === 'not_found')) {
+            return { exists: false, payload: null };
+        }
+        return { exists: false, payload: null };
+    }
+};
+
 const downloadNotes = async (): Promise<Note[]> => {
     if (!dbx) throw new Error("Dropbox not initialized");
 
@@ -137,10 +155,43 @@ const uploadNotes = async (notes: Note[]) => {
     });
 };
 
-export const syncNotesWithDropbox = async (localNotes: Note[]): Promise<Note[]> => {
+const uploadMasterKey = async (payload: string) => {
     if (!dbx) throw new Error("Dropbox not initialized");
 
-    const remoteNotes = await downloadNotes();
+    await dbx.filesUpload({
+        path: ENCRYPTED_KEY_FILE_NAME,
+        contents: JSON.stringify(payload),
+        mode: { '.tag': 'overwrite' }
+    });
+};
+
+export const syncNotesWithDropbox = async (
+    localNotes: Note[], 
+    options?: {
+        masterKeyPayload?: string;
+        forceResolution?: "local" | "cloud";
+    }
+): Promise<Note[]> => {
+    if (!dbx) throw new Error("Dropbox not initialized");
+
+    const { masterKeyPayload, forceResolution } = options || {};
+
+    if (masterKeyPayload) {
+        await uploadMasterKey(masterKeyPayload);
+    }
+
+    // If Keep Local, ignore remote notes entirely
+    if (forceResolution === "local") {
+        await uploadNotes(localNotes);
+        return localNotes;
+    }
+
+    let remoteNotes: Note[] = [];
+    try {
+        remoteNotes = await downloadNotes();
+    } catch (e) {
+        console.warn("Could not download/parse remote notes, continuing with empty remote", e);
+    }
 
     // Merge Logic (shared)
     const mergedNotesMap = new Map<string, Note>();

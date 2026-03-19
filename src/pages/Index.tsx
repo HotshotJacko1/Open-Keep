@@ -862,7 +862,8 @@ const Index = () => {
           onDelete={handleBulkDelete}
           onRestore={handleBulkRestore}
           showRestore={selectedTag === "bin"}
-          hideArchive={selectedTag === "archive"}
+          hideArchive={selectedTag === "archive" || selectedTag === "bin"}
+          hidePin={selectedTag === "archive" || selectedTag === "bin"}
           onExport={handleBulkExport}
           availableTags={uniqueTags}
           tagStates={tagStates}

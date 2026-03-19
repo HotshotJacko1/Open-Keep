@@ -78,7 +78,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
       {/* Selection Checkbox */}
       <div
         className={cn(
-          "absolute -top-3 -left-3 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200",
+          "absolute top-0 left-0 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200",
           (isSelected || isSelectionMode) && "opacity-100"
         )}
         onClick={handleSelectionClick}
@@ -88,7 +88,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
         onTouchEnd={(e) => e.stopPropagation()}
       >
         <div className={cn(
-          "w-6 h-6 rounded-full border-2 border-secondary dark:border-secondary bg-transparent flex items-center justify-center hover:bg-secondary-foreground",
+          "w-6 h-6 rounded-full border-2 border-secondary dark:border-secondary bg-transparent flex items-center justify-center hover:bg-secondary-foreground -translate-x-1/2 -translate-y-1/2",
           isSelected && "bg-secondary-foreground dark:bg-secondary-foreground border-secondary dark:border-secondary text-secondary-foreground"
         )}>
           {isSelected && <Check className="h-4 w-4 text-secondary dark:text-secondary" />}

@@ -8,7 +8,11 @@ export interface NoteStoragePlugin {
   migrateFromWeb(options: { notes: any[] }): Promise<void>;
   initialize(options: { key: string }): Promise<void>;
   checkStatus(): Promise<{ isConfigured: boolean; isLocked?: boolean }>;
-  changeEncryptionKey(options: { key: string }): Promise<void>;
+  changeEncryptionKey(options: { oldPin: string; newPin: string }): Promise<void>;
+  exportMasterKey(options: { pin: string }): Promise<{ payload: string }>;
+  importMasterKey(options: { payload: string; pin: string }): Promise<void>;
+  verifyCloudMasterKeyMatch(options: { payload: string; pin: string }): Promise<{ isMatch: boolean }>;
+  wipeDatabaseButKeepKeys(): Promise<void>;
   encrypt(options: { data: string }): Promise<{ data: string }>;
   decrypt(options: { data: string }): Promise<{ data: string }>;
   lock(): Promise<void>;
@@ -194,14 +198,57 @@ export const clearAllData = async (): Promise<void> => {
   }
 };
 
-export const changeEncryptionKey = async (key: string): Promise<void> => {
+export const changeEncryptionKey = async (oldPin: string, newPin: string): Promise<void> => {
   try {
-    await NoteStorage.changeEncryptionKey({ key });
+    await NoteStorage.changeEncryptionKey({ oldPin, newPin });
   } catch (error) {
     console.error("Error changing encryption key:", error);
     throw error;
   }
 };
+
+export const exportMasterKey = async (pin: string): Promise<string> => {
+  try {
+    const result = await NoteStorage.exportMasterKey({ pin });
+    return result.payload;
+  } catch (error) {
+    console.error("Error exporting master key:", error);
+    throw error;
+  }
+};
+
+export const importMasterKey = async (payload: string, pin: string): Promise<void> => {
+  try {
+    await NoteStorage.importMasterKey({ payload, pin });
+  } catch (error) {
+    console.error("Error importing master key:", error);
+    throw error;
+  }
+};
+
+export const verifyCloudMasterKeyMatch = async (payload: string, pin: string): Promise<boolean> => {
+  try {
+    const result = await NoteStorage.verifyCloudMasterKeyMatch({ payload, pin });
+    return result.isMatch;
+  } catch (error) {
+    console.error("Error verifying master key match:", error);
+    throw error;
+  }
+};
+
+export const wipeDatabaseButKeepKeys = async (): Promise<void> => {
+  try {
+    await NoteStorage.wipeDatabaseButKeepKeys();
+  } catch (error) {
+    console.error("Error wiping database:", error);
+    throw error;
+  }
+};
+
+export type SyncResult = 
+    | { status: "success" }
+    | { status: "conflict", cloudPayload: string }
+    | { status: "error", message: string };
 
 // Legacy LocalStorage helpers
 const LOCAL_STORAGE_KEY = "markdown-notes-app";

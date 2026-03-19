@@ -126,13 +126,19 @@ class NoteStoragePlugin : Plugin() {
         }
 
         try {
-            // Derive key from PIN
             val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
-            val derivedKey = keyManager.deriveKey(pin)
+            val dbFile = context.getDatabasePath("open-keep-db")
+            val dbExists = dbFile.exists()
+
+            val masterKey = if (!dbExists && !keyManager.hasV2Key()) {
+                keyManager.generateRandomMasterKeyAndSave(pin)
+            } else {
+                keyManager.getMasterKeyForPin(pin)
+            }
 
             // Reset any previous instance
             NoteRepository.reset()
-            NoteRepository.initialize(context, derivedKey)
+            NoteRepository.initialize(context, masterKey)
 
             // Trigger a dummy query to verify the key works
             scope.launch {
@@ -140,13 +146,14 @@ class NoteStoragePlugin : Plugin() {
                     repository = NoteRepository(context)
                     repository.getAllNotes().first()
                     
-                    // If successful, store the key for auto-unlock
+                    // If successful, store the key for auto-unlock and upgrade to V2 if needed
                     try {
-                        keyManager.storeMasterKey(derivedKey)
+                        keyManager.upgradeToV2(masterKey, pin)
+                        keyManager.storeMasterKey(masterKey)
                         call.resolve()
                     } catch (e: Exception) {
                         android.util.Log.e("NoteStorage", "Failed to store master key for auto-unlock", e)
-                        call.reject("Database verified but failed to store encryption key: ${e.message}")
+                        call.reject("Database verified but failed to save encryption key state: ${e.message}")
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("NoteStorage", "Database verification failed", e)
@@ -343,6 +350,23 @@ class NoteStoragePlugin : Plugin() {
     }
 
     @PluginMethod
+    fun wipeDatabaseButKeepKeys(call: PluginCall) {
+        scope.launch {
+            try {
+                if (com.jackbarkerapps.openkeep.data.NoteRepository.isInitialized()) {
+                    com.jackbarkerapps.openkeep.data.NoteRepository.getDatabase().clearAllTables()
+                }
+                NoteRepository.reset()
+                kotlinx.coroutines.delay(100)
+                context.deleteDatabase("open-keep-db")
+                call.resolve()
+            } catch (e: Exception) {
+                call.reject("Failed to wipe database: ${e.message}")
+            }
+        }
+    }
+
+    @PluginMethod
     fun migrateFromWeb(call: PluginCall) {
         val notesArray = call.getArray("notes")
         if (notesArray == null) {
@@ -380,27 +404,103 @@ class NoteStoragePlugin : Plugin() {
     }
     @PluginMethod
     fun changeEncryptionKey(call: PluginCall) {
-        val key = call.getString("key")
-        if (key == null) {
-            call.reject("Key is missing")
+        val oldPin = call.getString("oldPin")
+        val newPin = call.getString("newPin")
+        
+        if (oldPin == null || newPin == null) {
+            // Fallback for legacy calls
+            val legacyKey = call.getString("key")
+            if (legacyKey != null) {
+                call.reject("Old PIN is required for V2 architecture to re-wrap the Master Key")
+                return
+            }
+            call.reject("Missing PINs")
             return
         }
 
         scope.launch {
             try {
-                // Derive key from PIN
                 val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
-                val derivedKey = keyManager.deriveKey(key)
-
-                NoteRepository.changePassword(context, derivedKey)
                 
-                // Update stored key for future auto-unlocks
-                keyManager.storeMasterKey(derivedKey)
+                if (keyManager.hasV2Key()) {
+                    keyManager.changePinV2(oldPin, newPin)
+                } else {
+                    // Legacy V1 logic: the PIN-derived key encrypts the DB directly
+                    val newDerivedKey = keyManager.deriveLocalKEK(newPin)
+                    NoteRepository.changePassword(context, newDerivedKey)
+                    
+                    // Upgrade them to V2 while we're at it!
+                    keyManager.upgradeToV2(newDerivedKey, newPin)
+                }
+                
+                // Keep auto-unlock matching the current Master Key
+                val newMasterKey = keyManager.getMasterKeyForPin(newPin)
+                keyManager.storeMasterKey(newMasterKey)
 
                 call.resolve()
             } catch (e: Exception) {
                 call.reject("Failed to change encryption key: ${e.message}")
             }
+        }
+    }
+
+    @PluginMethod
+    fun exportMasterKey(call: PluginCall) {
+        val pin = call.getString("pin")
+        if (pin == null) {
+            call.reject("PIN is missing")
+            return
+        }
+        try {
+            val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
+            val payload = keyManager.exportCloudMasterKey(pin)
+            val ret = JSObject()
+            ret.put("payload", payload)
+            call.resolve(ret)
+        } catch (e: Exception) {
+            call.reject("Failed to export master key: ${e.message}")
+        }
+    }
+
+    @PluginMethod
+    fun importMasterKey(call: PluginCall) {
+        val payload = call.getString("payload")
+        val pin = call.getString("pin")
+        if (payload == null || pin == null) {
+            call.reject("Missing payload or PIN")
+            return
+        }
+        try {
+            val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
+            keyManager.importCloudMasterKey(payload, pin)
+            
+            // Re-initialize repository with the newly imported master key to prove it works
+            val masterKey = keyManager.getMasterKeyForPin(pin)
+            NoteRepository.reset()
+            NoteRepository.initialize(context, masterKey)
+
+            call.resolve()
+        } catch (e: Exception) {
+            call.reject("Failed to import master key: ${e.message}")
+        }
+    }
+
+    @PluginMethod
+    fun verifyCloudMasterKeyMatch(call: PluginCall) {
+        val payload = call.getString("payload")
+        val pin = call.getString("pin")
+        if (payload == null || pin == null) {
+            call.reject("Missing payload or PIN")
+            return
+        }
+        try {
+            val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
+            val isMatch = keyManager.verifyCloudMasterKeyMatch(payload, pin)
+            val ret = JSObject()
+            ret.put("isMatch", isMatch)
+            call.resolve(ret)
+        } catch (e: Exception) {
+            call.reject("Verification failed: ${e.message}")
         }
     }
 }

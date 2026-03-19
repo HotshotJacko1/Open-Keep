@@ -8,6 +8,7 @@ import { encryptData, decryptData } from "@/lib/note-storage";
 export const CLIENT_ID = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
 const FOLDER_NAME = "Open Keep Notes";
 const NOTES_FILE_NAME = "notes.json";
+const ENCRYPTED_KEY_FILE_NAME = "encrypted_master_key.json";
 
 // MSAL Configuration
 export const REDIRECT_URI = Capacitor.isNativePlatform()
@@ -203,6 +204,42 @@ const findNotesFile = async (folderId: string): Promise<string | null> => {
     return null;
 };
 
+const findKeyFile = async (folderId: string): Promise<string | null> => {
+    try {
+        const response = await callGraphApi(`/me/drive/special/approot/children?$filter=name eq '${ENCRYPTED_KEY_FILE_NAME}'`);
+        if (response && response.value && response.value.length > 0) {
+            return response.value[0].id;
+        }
+    } catch (error) {
+        console.warn("special/approot may not exist yet.", error);
+    }
+    return null;
+};
+
+export const checkOneDriveMasterKey = async (): Promise<{ exists: boolean, fileId: string | null, payload: string | null }> => {
+    const folderId = await findFolder();
+    if (!folderId) return { exists: false, fileId: null, payload: null };
+    
+    const fileId = await findKeyFile(folderId);
+    if (!fileId) return { exists: false, fileId: null, payload: null };
+
+    const payload = await downloadMasterKey(fileId);
+    return { exists: true, fileId, payload };
+};
+
+const downloadMasterKey = async (fileId: string): Promise<string | null> => {
+    const accessToken = await getGraphAccessToken();
+    const response = await fetch(`${GRAPH_ENDPOINT}/me/drive/items/${fileId}/content`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    if (!response.ok) {
+        return null;
+    }
+    const result = await response.json();
+    return typeof result === 'string' ? result : JSON.stringify(result);
+};
+
 const downloadNotes = async (fileId: string): Promise<Note[]> => {
     // To get file content, we use /content endpoint which returns raw binary/text
     // callGraphApi helper assumes JSON response, let's make a custom fetch for content
@@ -272,17 +309,62 @@ const uploadNotes = async (folderId: string, notes: Note[], fileId: string | nul
     }
 };
 
-export const syncNotesWithOneDrive = async (localNotes: Note[]): Promise<Note[]> => {
+const uploadMasterKey = async (payload: string, fileId: string | null) => {
+    const accessToken = await getGraphAccessToken();
+
+    const url = fileId
+        ? `${GRAPH_ENDPOINT}/me/drive/items/${fileId}/content`
+        : `${GRAPH_ENDPOINT}/me/drive/special/approot:/${ENCRYPTED_KEY_FILE_NAME}:/content`;
+
+    const response = await fetch(url, {
+        method: "PUT",
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+        throw new Error("Failed to upload master key to OneDrive");
+    }
+};
+
+export const syncNotesWithOneDrive = async (
+    localNotes: Note[], 
+    options?: {
+        masterKeyPayload?: string;
+        forceResolution?: "local" | "cloud";
+    }
+): Promise<Note[]> => {
     let folderId = await findFolder();
     if (!folderId) {
         folderId = await createFolder();
     }
 
+    const { masterKeyPayload, forceResolution } = options || {};
+
+    if (masterKeyPayload) {
+        const keyFileId = await findKeyFile(folderId);
+        await uploadMasterKey(masterKeyPayload, keyFileId);
+    }
+
     const fileId = await findNotesFile(folderId);
+    
+    // If Keep Local, ignore remote notes entirely
+    if (forceResolution === "local") {
+        await uploadNotes(folderId, localNotes, fileId);
+        return localNotes;
+    }
+
     let remoteNotes: Note[] = [];
 
     if (fileId) {
-        remoteNotes = await downloadNotes(fileId);
+        try {
+            remoteNotes = await downloadNotes(fileId);
+        } catch (e) {
+            console.warn("Could not download/parse remote notes, continuing with empty remote", e);
+        }
     }
 
     // Merge Logic (Reusing same logic as Google Drive for consistency. 

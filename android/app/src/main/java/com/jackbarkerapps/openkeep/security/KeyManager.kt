@@ -8,12 +8,16 @@ import androidx.security.crypto.MasterKey
 import java.security.SecureRandom
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
+import javax.crypto.Cipher
+import javax.crypto.spec.SecretKeySpec
+import javax.crypto.spec.GCMParameterSpec
 
 class KeyManager(private val context: Context) {
 
     companion object {
         private const val SHARED_PREFS_FILENAME = "secure_prefs"
         private const val KEY_ALIAS = "db_master_key"
+        private const val ENCRYPTED_MASTER_KEY_V2 = "encrypted_master_key_v2"
         private const val SALT_KEY = "kdf_salt"
         private const val SALT_SIZE = 16
         private const val ITERATIONS = 10000 // OWASP recommends higher, but this is reasonable for mobile
@@ -99,11 +103,115 @@ class KeyManager(private val context: Context) {
         return salt
     }
 
-    fun deriveKey(pin: String): ByteArray {
+    // Derives local KEK using local salt
+    fun deriveLocalKEK(pin: String): ByteArray {
         val salt = getOrGenerateSalt()
         val spec = PBEKeySpec(pin.toCharArray(), salt, ITERATIONS, KEY_LENGTH)
         val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
         return factory.generateSecret(spec).encoded
+    }
+
+    // Derives Export KEK using static salt for cloud syncing
+    private fun deriveExportKEK(pin: String): ByteArray {
+        // A static 16-byte salt solely for wrapping the Master Key for cloud export
+        val staticSalt = "OpenKeepCloudExportSalt123".toByteArray(Charsets.UTF_8).copyOf(16)
+        val spec = PBEKeySpec(pin.toCharArray(), staticSalt, ITERATIONS, KEY_LENGTH)
+        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        return factory.generateSecret(spec).encoded
+    }
+
+    private fun encryptWithKEK(payload: ByteArray, kek: ByteArray): String {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        val spec = SecretKeySpec(kek, "AES")
+        cipher.init(Cipher.ENCRYPT_MODE, spec)
+        val iv = cipher.iv
+        val ciphertext = cipher.doFinal(payload)
+        val combined = ByteArray(iv.size + ciphertext.size)
+        System.arraycopy(iv, 0, combined, 0, iv.size)
+        System.arraycopy(ciphertext, 0, combined, iv.size, ciphertext.size)
+        return Base64.encodeToString(combined, Base64.DEFAULT)
+    }
+
+    private fun decryptWithKEK(encryptedBase64: String, kek: ByteArray): ByteArray {
+        val combined = Base64.decode(encryptedBase64, Base64.DEFAULT)
+        val iv = ByteArray(12)
+        if (combined.size < 12) throw IllegalArgumentException("Invalid encrypted payload")
+        System.arraycopy(combined, 0, iv, 0, 12)
+        val ciphertext = ByteArray(combined.size - 12)
+        System.arraycopy(combined, 12, ciphertext, 0, ciphertext.size)
+        
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        val spec = SecretKeySpec(kek, "AES")
+        val gcmSpec = GCMParameterSpec(128, iv)
+        cipher.init(Cipher.DECRYPT_MODE, spec, gcmSpec)
+        return cipher.doFinal(ciphertext)
+    }
+
+    fun hasV2Key(): Boolean {
+        return securePrefs.contains(ENCRYPTED_MASTER_KEY_V2)
+    }
+
+    fun generateRandomMasterKeyAndSave(pin: String): ByteArray {
+        val masterKey = ByteArray(32)
+        SecureRandom().nextBytes(masterKey)
+        val kek = deriveLocalKEK(pin)
+        val encrypted = encryptWithKEK(masterKey, kek)
+        securePrefs.edit().putString(ENCRYPTED_MASTER_KEY_V2, encrypted).apply()
+        return masterKey
+    }
+
+    fun getMasterKeyForPin(pin: String): ByteArray {
+        val v2Encoded = securePrefs.getString(ENCRYPTED_MASTER_KEY_V2, null)
+        if (v2Encoded != null) {
+            val kek = deriveLocalKEK(pin)
+            return decryptWithKEK(v2Encoded, kek)
+        }
+        // Fallback to V1 logic where the derived PIN key IS the Master Key
+        return deriveLocalKEK(pin)
+    }
+
+    fun upgradeToV2(masterKey: ByteArray, pin: String) {
+        val v2Encoded = securePrefs.getString(ENCRYPTED_MASTER_KEY_V2, null)
+        if (v2Encoded == null) {
+            val kek = deriveLocalKEK(pin)
+            val encrypted = encryptWithKEK(masterKey, kek)
+            securePrefs.edit().putString(ENCRYPTED_MASTER_KEY_V2, encrypted).apply()
+        }
+    }
+
+    fun exportCloudMasterKey(pin: String): String {
+        val masterKey = getMasterKeyForPin(pin)
+        val exportKEK = deriveExportKEK(pin)
+        return encryptWithKEK(masterKey, exportKEK)
+    }
+
+    fun importCloudMasterKey(payload: String, pin: String) {
+        val exportKEK = deriveExportKEK(pin)
+        val masterKey = decryptWithKEK(payload, exportKEK)
+        // Save it locally wrapped with local KEK
+        val localKEK = deriveLocalKEK(pin)
+        val encryptedLocal = encryptWithKEK(masterKey, localKEK)
+        securePrefs.edit().putString(ENCRYPTED_MASTER_KEY_V2, encryptedLocal).apply()
+        // Also save it for auto-unlock
+        storeMasterKey(masterKey)
+    }
+
+    fun verifyCloudMasterKeyMatch(payload: String, pin: String): Boolean {
+        try {
+            val exportKEK = deriveExportKEK(pin)
+            val cloudMasterKey = decryptWithKEK(payload, exportKEK)
+            val currentMasterKey = getMasterKeyForPin(pin)
+            return cloudMasterKey.contentEquals(currentMasterKey)
+        } catch (e: Exception) {
+            return false
+        }
+    }
+
+    fun changePinV2(oldPin: String, newPin: String) {
+        val masterKey = getMasterKeyForPin(oldPin)
+        val newLocalKEK = deriveLocalKEK(newPin)
+        val encryptedLocal = encryptWithKEK(masterKey, newLocalKEK)
+        securePrefs.edit().putString(ENCRYPTED_MASTER_KEY_V2, encryptedLocal).apply()
     }
 
     fun storeMasterKey(key: ByteArray) {
@@ -159,8 +267,7 @@ class KeyManager(private val context: Context) {
 
     fun clear() {
         securePrefs.edit().remove(KEY_ALIAS).apply()
-        // Do we clear salt? Probably not, or we can't derive same key if user re-enters PIN
-        // But if user "resets" app, we might. behavior depends on "logout".
-        // For now, keep salt to allow re-login with same PIN to same DB.
+        // We do NOT clear ENCRYPTED_MASTER_KEY_V2, as that represents our locked database key.
+        // Clearing KEY_ALIAS simply "locks" the auto-unlock feature.
     }
 }

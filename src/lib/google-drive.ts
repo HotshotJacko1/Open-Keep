@@ -5,6 +5,7 @@ import { encryptData, decryptData } from "@/lib/note-storage";
 
 const FOLDER_NAME = "Open Keep Notes";
 const NOTES_FILE_NAME = "notes.json";
+const ENCRYPTED_KEY_FILE_NAME = "encrypted_master_key.json";
 const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
 
 let isInitialized = false;
@@ -77,6 +78,45 @@ const findNotesFile = async (folderId: string): Promise<string | null> => {
         return files && files.length > 0 ? files[0].id : null;
     } catch (error: any) {
         console.error("Error finding notes file:", error?.result?.error?.message || JSON.stringify(error));
+        return null;
+    }
+};
+
+const findKeyFile = async (folderId: string): Promise<string | null> => {
+    try {
+        const response = await gapi.client.drive.files.list({
+            q: `name='${ENCRYPTED_KEY_FILE_NAME}' and '${folderId}' in parents and trashed=false`,
+            fields: "files(id, name)",
+        });
+        const files = response.result.files;
+        return files && files.length > 0 ? files[0].id : null;
+    } catch (error: any) {
+        console.error("Error finding master key file:", error?.result?.error?.message || JSON.stringify(error));
+        return null;
+    }
+};
+
+export const checkGoogleDriveMasterKey = async (): Promise<{ exists: boolean, fileId: string | null, payload: string | null }> => {
+    if (!isInitialized) await initGoogleDrive();
+    const folderId = await findFolder();
+    if (!folderId) return { exists: false, fileId: null, payload: null };
+    
+    const fileId = await findKeyFile(folderId);
+    if (!fileId) return { exists: false, fileId: null, payload: null };
+
+    const payload = await downloadMasterKey(fileId);
+    return { exists: true, fileId, payload };
+};
+
+const downloadMasterKey = async (fileId: string): Promise<string | null> => {
+    try {
+        const response = await gapi.client.drive.files.get({
+            fileId: fileId,
+            alt: "media",
+        });
+        return typeof response.result === 'string' ? response.result : JSON.stringify(response.result);
+    } catch (error: any) {
+        console.error("Error downloading master key:", error?.result?.error?.message || JSON.stringify(error));
         return null;
     }
 };
@@ -172,7 +212,43 @@ const uploadNotes = async (
     }
 };
 
-export const syncNotesWithDrive = async (localNotes: Note[]): Promise<Note[]> => {
+const uploadMasterKey = async (folderId: string, payload: string, fileId: string | null): Promise<void> => {
+    const metadata = {
+        name: ENCRYPTED_KEY_FILE_NAME,
+        mimeType: "application/json",
+        parents: fileId ? undefined : [folderId],
+    };
+
+    const accessToken = gapi.client.getToken()?.access_token;
+    if (!accessToken) throw new Error("No access token found");
+
+    const form = new FormData();
+    form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+    form.append("file", new Blob([payload], { type: "application/json" }));
+
+    const url = fileId
+        ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
+        : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
+    const method = fileId ? "PATCH" : "POST";
+
+    const response = await fetch(url, {
+        method,
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: form,
+    });
+
+    if (!response.ok) {
+        throw new Error(`Master key upload failed: ${response.statusText}`);
+    }
+};
+
+export const syncNotesWithDrive = async (
+    localNotes: Note[], 
+    options?: {
+        masterKeyPayload?: string;
+        forceResolution?: "local" | "cloud";
+    }
+): Promise<Note[]> => {
     if (!isInitialized) await initGoogleDrive();
 
     let folderId = await findFolder();
@@ -180,11 +256,29 @@ export const syncNotesWithDrive = async (localNotes: Note[]): Promise<Note[]> =>
         folderId = await createFolder();
     }
 
+    const { masterKeyPayload, forceResolution } = options || {};
+
+    if (masterKeyPayload) {
+        const keyFileId = await findKeyFile(folderId);
+        await uploadMasterKey(folderId, masterKeyPayload, keyFileId);
+    }
+
     const fileId = await findNotesFile(folderId);
+    
+    // If Keep Local, ignore remote notes entirely
+    if (forceResolution === "local") {
+        await uploadNotes(folderId, localNotes, fileId);
+        return localNotes;
+    }
+
     let remoteNotes: Note[] = [];
 
     if (fileId) {
-        remoteNotes = await downloadNotes(fileId);
+        try {
+            remoteNotes = await downloadNotes(fileId);
+        } catch (e) {
+            console.warn("Could not download/parse remote notes, continuing with empty remote", e);
+        }
     }
 
     // Merge Logic

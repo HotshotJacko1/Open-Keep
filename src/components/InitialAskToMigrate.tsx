@@ -28,7 +28,7 @@ const InitialAskToMigrate: React.FC<InitialAskToMigrateProps> = ({ isOpen, onAcc
             Don't worry, we won't delete them from Google Keep.
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter className="flex gap-2 sm:gap-0 pt-4">
+        <DialogFooter className="flex gap-2 sm:gap-0 pt-4 text-black dark:text-white">
           <Button variant="outline" onClick={onDecline}>
             Not Now
           </Button>

@@ -13,6 +13,7 @@ interface SelectionActionBarProps {
     onRestore?: () => void;
     showRestore?: boolean;
     hideArchive?: boolean;
+    hidePin?: boolean;
     onExport: () => void;
     availableTags: string[];
     tagStates: Record<string, boolean | "indeterminate">;
@@ -28,6 +29,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
     onRestore,
     showRestore,
     hideArchive,
+    hidePin,
     onExport,
     availableTags,
     tagStates,
@@ -60,15 +62,17 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                         <RotateCcw className="h-5 w-5" />
                     </Button>
                 )}
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={onPin}
-                    title="Pin"
-                    className="text-primary hover:text-primary-foreground"
-                >
-                    <Pin className="h-5 w-5" />
-                </Button>
+                {!hidePin && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={onPin}
+                        title="Pin"
+                        className="text-primary hover:text-primary-foreground"
+                    >
+                        <Pin className="h-5 w-5" />
+                    </Button>
+                )}
                 {!hideArchive && (
                     <Button
                         variant="ghost"

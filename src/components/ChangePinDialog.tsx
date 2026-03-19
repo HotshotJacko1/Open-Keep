@@ -92,7 +92,7 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
         setIsLoading(true);
         try {
             // 2. Change native encryption key
-            await changeEncryptionKey(newPin);
+            await changeEncryptionKey(currentPin, newPin);
 
             // 3. Update local storage passcode
             localStorage.setItem("app-passcode", newPin);

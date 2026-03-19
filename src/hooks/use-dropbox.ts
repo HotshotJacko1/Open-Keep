@@ -1,7 +1,7 @@
 
 import { useState, useCallback, useEffect } from "react";
-import { initDropbox, getAuthenticationUrl, handleAuthRedirect, syncNotesWithDropbox } from "@/lib/dropbox";
-import { loadNotes, saveNote } from "@/lib/note-storage";
+import { initDropbox, getAuthenticationUrl, handleAuthRedirect, syncNotesWithDropbox, checkDropboxMasterKey } from "@/lib/dropbox";
+import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, wipeDatabaseButKeepKeys, SyncResult } from "@/lib/note-storage";
 import { showSuccess, showError } from "@/utils/toast";
 import { Browser } from "@capacitor/browser";
 import { App as CapacitorApp } from "@capacitor/app";
@@ -118,11 +118,45 @@ export const useDropbox = () => {
         }
     }, []);
 
-    const doInternalSync = async () => {
+    const doInternalSync = async (forceResolution?: "local" | "cloud", cloudPayload?: string): Promise<SyncResult> => {
         setIsSyncing(true);
         try {
+            const pin = localStorage.getItem("app-passcode");
+            if (!pin && Capacitor.isNativePlatform()) {
+                throw new Error("No PIN found. Please set up a PIN in App Lock settings first.");
+            }
+
+            if (forceResolution === "cloud" && cloudPayload && pin) {
+                await wipeDatabaseButKeepKeys();
+                await importMasterKey(cloudPayload, pin);
+            }
+
+            let masterKeyPayload: string | undefined;
+
+            if (pin && Capacitor.isNativePlatform()) {
+                if (forceResolution === "local" || (!forceResolution)) {
+                    masterKeyPayload = await exportMasterKey(pin);
+                }
+
+                if (!forceResolution) {
+                    const cloudKey = await checkDropboxMasterKey();
+                    if (cloudKey.exists && cloudKey.payload) {
+                        const localNotes = await loadNotes();
+                        if (localNotes.length === 0) {
+                            await importMasterKey(cloudKey.payload, pin);
+                            masterKeyPayload = undefined;
+                        } else {
+                            const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, pin);
+                            if (!isMatch) {
+                                return { status: "conflict", cloudPayload: cloudKey.payload };
+                            }
+                        }
+                    }
+                }
+            }
+
             const localNotes = await loadNotes();
-            const mergedNotes = await syncNotesWithDropbox(localNotes);
+            const mergedNotes = await syncNotesWithDropbox(localNotes, { masterKeyPayload, forceResolution });
 
             await Promise.all(mergedNotes.map(n => saveNote(n)));
             window.dispatchEvent(new Event("notes-updated"));
@@ -131,6 +165,7 @@ export const useDropbox = () => {
             setLastSynced(now);
             localStorage.setItem("dropbox-last-synced", now);
             showSuccess("Notes synced with Dropbox!");
+            return { status: "success" };
         } catch (error) {
             console.error("Dropbox sync failed:", error);
             if ((error as any).status === 401) {
@@ -139,18 +174,19 @@ export const useDropbox = () => {
             } else {
                 showError("Dropbox sync failed.");
             }
+            return { status: "error", message: (error as Error).message };
         } finally {
             setIsSyncing(false);
         }
     };
 
-    const sync = useCallback(async () => {
+    const sync = useCallback(async (forceResolution?: "local" | "cloud", cloudPayload?: string) => {
         if (!accessToken) {
             showError("Please connect to Dropbox first.");
-            return;
+            return { status: "error", message: "Not connected" };
         }
 
-        await doInternalSync();
+        return await doInternalSync(forceResolution, cloudPayload);
     }, [accessToken]);
 
     const disconnect = useCallback(() => {
