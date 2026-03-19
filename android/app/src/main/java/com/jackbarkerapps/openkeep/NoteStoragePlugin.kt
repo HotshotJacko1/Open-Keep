@@ -86,9 +86,9 @@ class NoteStoragePlugin : Plugin() {
                     type = noteObj.getString("type") ?: "TEXT",
                     createdAt = noteObj.getLong("createdAt") ?: 0L,
                     updatedAt = noteObj.getLong("updatedAt") ?: 0L,
-                    isPinned = noteObj.getBoolean("isPinned") ?: false,
-                    isArchived = noteObj.getBoolean("isArchived") ?: false,
-                    deleted = noteObj.getBoolean("isDeleted") ?: false,
+                    isPinned = noteObj.optBoolean("isPinned", false),
+                    isArchived = noteObj.optBoolean("isArchived", false),
+                    deleted = noteObj.optBoolean("isDeleted", false),
                     tags = tagsString,
                     syncState = "PENDING"
                 )
