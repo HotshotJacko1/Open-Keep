@@ -43,6 +43,10 @@ class NoteStoragePlugin : Plugin() {
                     jsNote.put("updatedAt", note.updatedAt)
                     jsNote.put("isPinned", note.isPinned)
                     jsNote.put("isArchived", note.isArchived)
+                    jsNote.put("isDeleted", note.deleted)
+                    if (note.deleted) {
+                        jsNote.put("deletedAt", note.updatedAt)
+                    }
                     
                     try {
                         jsNote.put("tags", JSONArray(note.tags))
@@ -84,7 +88,7 @@ class NoteStoragePlugin : Plugin() {
                     updatedAt = noteObj.getLong("updatedAt") ?: 0L,
                     isPinned = noteObj.getBoolean("isPinned") ?: false,
                     isArchived = noteObj.getBoolean("isArchived") ?: false,
-                    deleted = false,
+                    deleted = noteObj.getBoolean("isDeleted") ?: false,
                     tags = tagsString,
                     syncState = "PENDING"
                 )
@@ -362,7 +366,7 @@ class NoteStoragePlugin : Plugin() {
                         updatedAt = noteObj.getLong("updatedAt"),
                         isPinned = noteObj.optBoolean("isPinned", false),
                         isArchived = noteObj.optBoolean("isArchived", false),
-                        deleted = false,
+                        deleted = noteObj.optBoolean("isDeleted", false),
                         tags = tagsArray.toString(),
                         syncState = "SYNCED"
                     ))

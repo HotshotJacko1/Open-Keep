@@ -11,6 +11,8 @@ import SidebarNav from "@/components/SidebarNav";
 import SettingsDialog from "@/components/SettingsDialog";
 import EditLabels from "@/components/EditLabels";
 import AddNoteOptions from "@/components/AddNoteOptions";
+import InitialAskToMigrate from "@/components/InitialAskToMigrate";
+import GoogleKeepMigrationGuide from "@/components/GoogleKeepMigrationGuide";
 import { Button } from "@/components/ui/button";
 import { Menu, Lightbulb, Settings } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
@@ -45,6 +47,8 @@ const Index = () => {
     const saved = localStorage.getItem("custom-tags");
     return saved ? JSON.parse(saved) : [];
   });
+  const [showInitialMigrationAsk, setShowInitialMigrationAsk] = useState(false);
+  const [showMigrationGuide, setShowMigrationGuide] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -152,6 +156,12 @@ const Index = () => {
           // clearLegacyWebNotes(); // Optional: keep for safety for now
         }
         localStorage.setItem(MIGRATION_KEY, 'true');
+      }
+
+      // Check for first launch / Keep Migration prompt
+      const HAS_SEEN_MIGRATION_PROMPT = 'has_seen_keep_migration_prompt';
+      if (!localStorage.getItem(HAS_SEEN_MIGRATION_PROMPT)) {
+        setShowInitialMigrationAsk(true);
       }
 
       const loadedNotes = await loadNotes();
@@ -716,6 +726,11 @@ const Index = () => {
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-6 md:px-8 md:pb-8 md:pt-8"
       >
+        {selectedTag === "bin" && (
+          <div className="text-center italic text-muted-foreground mb-4">
+            Notes in the bin will be deleted after 30 days.
+          </div>
+        )}
         <div
           className="pt-4 w-full"
           style={{
@@ -773,6 +788,24 @@ const Index = () => {
         onRenameTag={handleRenameTag}
         onDeleteTag={handleDeleteTag}
       />
+
+      <InitialAskToMigrate
+        isOpen={showInitialMigrationAsk}
+        onAccept={() => {
+          localStorage.setItem('has_seen_keep_migration_prompt', 'true');
+          setShowInitialMigrationAsk(false);
+          setShowMigrationGuide(true);
+        }}
+        onDecline={() => {
+          localStorage.setItem('has_seen_keep_migration_prompt', 'true');
+          setShowInitialMigrationAsk(false);
+        }}
+      />
+
+      <GoogleKeepMigrationGuide
+        isOpen={showMigrationGuide}
+        onClose={() => setShowMigrationGuide(false)}
+      />
     </div >
   );
 
@@ -802,11 +835,9 @@ const Index = () => {
           <Menu className="h-6 w-6 text-muted-foreground" />
         </Button>
       )}
-      {!isMobile && (
-        <div className="text-xl font-bold flex items-center">
-          {getHeaderContent()}
-        </div>
-      )}
+      <div className="text-xl font-bold flex items-center">
+        {getHeaderContent()}
+      </div>
     </div>
   );
 
@@ -831,6 +862,7 @@ const Index = () => {
           onDelete={handleBulkDelete}
           onRestore={handleBulkRestore}
           showRestore={selectedTag === "bin"}
+          hideArchive={selectedTag === "archive"}
           onExport={handleBulkExport}
           availableTags={uniqueTags}
           tagStates={tagStates}

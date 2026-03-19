@@ -13,6 +13,7 @@ import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText, Mail, 
 import SyncDialog from "./SyncDialog";
 import ChangePinDialog from "./ChangePinDialog";
 import AppLockDialog from "./AppLockDialog";
+import GoogleKeepMigrationGuide from "./GoogleKeepMigrationGuide";
 import { useSession } from "@/context/session-provider";
 import { Note } from "@/types/note";
 import JSZip from "jszip";
@@ -35,6 +36,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
   const [isAppLockDialogOpen, setIsAppLockDialogOpen] = useState(false);
   const [isChangePinDialogOpen, setIsChangePinDialogOpen] = useState(false);
+  const [isKeepGuideOpen, setIsKeepGuideOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -265,6 +267,14 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
                 </Button>
                 <Button
                   variant="outline"
+                  onClick={() => setIsKeepGuideOpen(true)}
+                  className="justify-start"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Google Keep Import Guide
+                </Button>
+                <Button
+                  variant="outline"
                   onClick={handleExportAll}
                   disabled={isExporting || notes.length === 0}
                   className="justify-start"
@@ -332,6 +342,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
       <SyncDialog
         isOpen={isSyncDialogOpen}
         onClose={() => setIsSyncDialogOpen(false)}
+      />
+
+      <GoogleKeepMigrationGuide
+        isOpen={isKeepGuideOpen}
+        onClose={() => setIsKeepGuideOpen(false)}
       />
     </>
   );
