@@ -67,9 +67,10 @@ const useLongPress = (
                 e.stopPropagation();
                 e.preventDefault();
                 longPressTriggered.current = false;
-            } else {
-                onClick(e);
             }
+        },
+        onClick: (e: React.MouseEvent) => {
+            onClick(e);
         }
     };
 };

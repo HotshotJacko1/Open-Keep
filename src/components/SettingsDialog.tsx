@@ -258,20 +258,20 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
                 />
                 <Button
                   variant="outline"
+                  onClick={() => setIsKeepGuideOpen(true)}
+                  className="justify-start"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Google Keep Import Guide
+                </Button>
+                <Button
+                  variant="outline"
                   onClick={handleImportClick}
                   disabled={isImporting}
                   className="justify-start"
                 >
                   {isImporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
                   Import Notes
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsKeepGuideOpen(true)}
-                  className="justify-start"
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Google Keep Import Guide
                 </Button>
                 <Button
                   variant="outline"

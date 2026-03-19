@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
     const [isLoading, setIsLoading] = useState(false);
     const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
     const [isResetting, setIsResetting] = useState(false);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         // Load saved passcode
@@ -45,6 +46,10 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
             // Small delay to ensure UI is ready and not conflicting with app resume
             setTimeout(() => {
                 handleBiometricUnlock();
+            }, 300);
+        } else {
+            setTimeout(() => {
+                inputRef.current?.focus();
             }, 300);
         }
     }, [isNativeEncryption]);
@@ -175,6 +180,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
                 <form onSubmit={handleSubmit} className={`w-full max-w-[240px] space-y-4 ${errorPing ? "animate-shake" : ""}`}>
                     <div className="flex gap-2 justify-center text-black dark:text-white">
                         <Input
+                            ref={inputRef}
                             type="password"
                             inputMode="numeric"
                             pattern="[0-9]*"

@@ -70,8 +70,8 @@ const EditLabels: React.FC<EditLabelsProps> = ({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[425px] text-black dark:text-white">
-                <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
+            <DialogContent className="max-w-full w-full h-full sm:max-w-full m-0 !rounded-none border-none p-4 flex flex-col text-black dark:text-white">
+                <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left shrink-0">
                     <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
                         <ArrowLeft className="h-5 w-5 text-secondary" />
                         <span className="sr-only">Back</span>
@@ -79,7 +79,7 @@ const EditLabels: React.FC<EditLabelsProps> = ({
                     <DialogTitle>Edit Labels</DialogTitle>
                 </DialogHeader>
 
-                <div className="py-4 space-y-2">
+                <div className="py-4 space-y-2 flex flex-col flex-1 min-h-0">
                     {/* Create New Label */}
                     <div className="flex items-center gap-2 px-2 py-2 border-b border-border mb-4">
                         <Button
@@ -110,7 +110,7 @@ const EditLabels: React.FC<EditLabelsProps> = ({
                     </div>
 
                     {/* List of Labels */}
-                    <div className="space-y-1 max-h-[60vh] overflow-y-auto">
+                    <div className="space-y-1 flex-1 overflow-y-auto">
                         {tags.map((tag) => (
                             <div
                                 key={tag}

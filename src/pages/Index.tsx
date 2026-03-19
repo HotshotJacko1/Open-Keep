@@ -74,7 +74,7 @@ const Index = () => {
       return <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3] truncate max-w-[150px]">{selectedTag}</span>;
     }
     return (
-      <div className="flex items-center">
+      <div className="hidden lg:flex items-center">
         <Lightbulb className="mr-2 h-6 w-6 text-yellow-500 flex-shrink-0" fill="currentColor" />
         <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
       </div>
@@ -279,7 +279,6 @@ const Index = () => {
         isDeleted: true,
         deletedAt: Date.now(),
         isPinned: false, // Unpin when deleting
-        isArchived: false, // Unarchive when deleting
         updatedAt: Date.now()
       };
 
@@ -474,6 +473,29 @@ const Index = () => {
     showSuccess("Notes archived");
   };
 
+  const handleBulkUnarchive = async () => {
+    const selectedNotes = notes.filter(n => selectedNoteIds.has(n.id));
+    if (selectedNotes.length === 0) return;
+
+    const now = Date.now();
+    const updates: Note[] = [];
+
+    const newNotes = notes.map(note => {
+      if (selectedNoteIds.has(note.id)) {
+        const updated = { ...note, isArchived: false, updatedAt: now };
+        updates.push(updated);
+        return updated;
+      }
+      return note;
+    });
+
+    setNotes(newNotes);
+    await Promise.all(updates.map(n => saveNote(n)));
+
+    handleClearSelection();
+    showSuccess("Notes unarchived");
+  };
+
   const handleBulkDelete = async () => {
     const selectedNotes = notes.filter(n => selectedNoteIds.has(n.id));
     if (selectedNotes.length === 0) return;
@@ -497,7 +519,6 @@ const Index = () => {
             isDeleted: true,
             deletedAt: now,
             isPinned: false,
-            isArchived: false,
             updatedAt: now
           };
           updates.push(updated);
@@ -862,6 +883,8 @@ const Index = () => {
           onDelete={handleBulkDelete}
           onRestore={handleBulkRestore}
           showRestore={selectedTag === "bin"}
+          onUnarchive={handleBulkUnarchive}
+          showUnarchive={selectedTag === "archive"}
           hideArchive={selectedTag === "archive" || selectedTag === "bin"}
           hidePin={selectedTag === "archive" || selectedTag === "bin"}
           onExport={handleBulkExport}

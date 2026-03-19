@@ -12,6 +12,8 @@ interface SelectionActionBarProps {
     onDelete: () => void;
     onRestore?: () => void;
     showRestore?: boolean;
+    onUnarchive?: () => void;
+    showUnarchive?: boolean;
     hideArchive?: boolean;
     hidePin?: boolean;
     onExport: () => void;
@@ -28,6 +30,8 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
     onDelete,
     onRestore,
     showRestore,
+    onUnarchive,
+    showUnarchive,
     hideArchive,
     hidePin,
     onExport,
@@ -79,6 +83,17 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                         size="icon"
                         onClick={onArchive}
                         title="Archive"
+                        className="text-primary hover:text-primary-foreground"
+                    >
+                        <Archive className="h-5 w-5" />
+                    </Button>
+                )}
+                {showUnarchive && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={onUnarchive}
+                        title="Unarchive"
                         className="text-primary hover:text-primary-foreground"
                     >
                         <Archive className="h-5 w-5" />
