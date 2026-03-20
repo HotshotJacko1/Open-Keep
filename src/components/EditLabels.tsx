@@ -70,7 +70,7 @@ const EditLabels: React.FC<EditLabelsProps> = ({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-full w-full h-full sm:max-w-full m-0 !rounded-none border-none p-4 flex flex-col text-black dark:text-white">
+            <DialogContent className="max-w-full w-full h-full sm:max-w-full m-0 !rounded-none border-none px-4 pt-[max(env(safe-area-inset-top,1rem),1rem)] pb-[max(env(safe-area-inset-bottom,1rem),1rem)] flex flex-col text-black dark:text-white">
                 <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left shrink-0">
                     <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
                         <ArrowLeft className="h-5 w-5 text-secondary" />

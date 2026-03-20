@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,8 +17,10 @@ const AddNoteOptions: React.FC<AddNoteOptionsProps> = ({
   onNewTextNote,
   onNewListNote,
 }) => {
+  const [open, setOpen] = useState(false);
+
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button
           className="fixed bottom-8 right-8 z-50 rounded-full shadow-lg 
@@ -27,7 +29,7 @@ const AddNoteOptions: React.FC<AddNoteOptionsProps> = ({
                      transition-all duration-200 h-16 w-16 md:h-12 md:w-12"
           size="icon"
         >
-          <Plus className="h-8 w-8 md:h-6 md:w-6" />
+          <Plus className={`h-8 w-8 md:h-6 md:w-6 transition-transform duration-300 ${open ? "rotate-45" : "rotate-0"}`} />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

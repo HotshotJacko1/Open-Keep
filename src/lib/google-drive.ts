@@ -114,7 +114,10 @@ const downloadMasterKey = async (fileId: string): Promise<string | null> => {
             fileId: fileId,
             alt: "media",
         });
-        return typeof response.result === 'string' ? response.result : JSON.stringify(response.result);
+        
+        // GAPI sets result to false if it attempts to parse application/json and fails
+        const result = response.result === false && response.body ? response.body : response.result;
+        return typeof result === 'string' ? result : JSON.stringify(result);
     } catch (error: any) {
         console.error("Error downloading master key:", error?.result?.error?.message || JSON.stringify(error));
         return null;
@@ -215,7 +218,7 @@ const uploadNotes = async (
 const uploadMasterKey = async (folderId: string, payload: string, fileId: string | null): Promise<void> => {
     const metadata = {
         name: ENCRYPTED_KEY_FILE_NAME,
-        mimeType: "application/json",
+        mimeType: "text/plain",
         parents: fileId ? undefined : [folderId],
     };
 
@@ -224,7 +227,7 @@ const uploadMasterKey = async (folderId: string, payload: string, fileId: string
 
     const form = new FormData();
     form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
-    form.append("file", new Blob([payload], { type: "application/json" }));
+    form.append("file", new Blob([payload], { type: "text/plain" }));
 
     const url = fileId
         ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
