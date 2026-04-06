@@ -103,13 +103,13 @@ const Index = () => {
 
   const handleTouchStart = (e: React.TouchEvent) => {
     // Check if we are at the top of the scroll container
-    if ((!scrollContainerRef.current || scrollContainerRef.current.scrollTop === 0) && !isSelectionMode) {
+    if (activeService && (!scrollContainerRef.current || scrollContainerRef.current.scrollTop === 0) && !isSelectionMode) {
       setPullStartPoint(e.targetTouches[0].clientY);
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (pullStartPoint > 0 && (!scrollContainerRef.current || scrollContainerRef.current.scrollTop === 0) && !isSelectionMode) {
+    if (activeService && pullStartPoint > 0 && (!scrollContainerRef.current || scrollContainerRef.current.scrollTop === 0) && !isSelectionMode) {
       const pullY = e.targetTouches[0].clientY;
       const dist = pullY - pullStartPoint;
       if (dist > 0) {

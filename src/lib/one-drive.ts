@@ -262,8 +262,13 @@ const downloadNotes = async (fileId: string): Promise<Note[]> => {
                 return JSON.parse(decryptedText);
             }
         } catch (e) {
-            console.warn("Could not decrypt OneDrive payload. Falling back to plaintext parsing.", e);
+            console.warn("Could not decrypt OneDrive payload.", e);
+            throw e;
         }
+    }
+
+    if (typeof result === "string") {
+        throw new Error("Payload is an encrypted string but decryption is not supported on this platform.");
     }
 
     return result as Note[];
@@ -363,7 +368,8 @@ export const syncNotesWithOneDrive = async (
         try {
             remoteNotes = await downloadNotes(fileId);
         } catch (e) {
-            console.warn("Could not download/parse remote notes, continuing with empty remote", e);
+            console.error("Could not download/parse remote notes, aborting sync to prevent data loss", e);
+            throw e;
         }
     }
 

@@ -125,6 +125,7 @@ export const useGoogleDrive = () => {
                     if (cloudKey.exists && cloudKey.payload) {
                         const localNotes = await loadNotes();
                         if (localNotes.length === 0) {
+                            await wipeDatabaseButKeepKeys();
                             await importMasterKey(cloudKey.payload, pin);
                             masterKeyPayload = undefined;
                         } else {

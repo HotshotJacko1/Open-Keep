@@ -24,6 +24,8 @@ import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { ImportManager } from "@/utils/import-manager";
 import { ImportInput, ImportInputFile } from "@/types/import";
+import { App } from "@capacitor/app";
+import { Device } from "@capacitor/device";
 interface SettingsDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -62,7 +64,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
         window.history.back();
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const handleImportClick = () => {
@@ -86,14 +88,14 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
         } else if (file.name.endsWith('.zip')) {
           const zip = await JSZip.loadAsync(file);
           const promises: Promise<void>[] = [];
-          
+
           zip.forEach((relativePath, zipEntry) => {
             if (!zipEntry.dir && (zipEntry.name.endsWith('.md') || zipEntry.name.endsWith('.json'))) {
               const promise = zipEntry.async("string").then((content) => {
-                 inputFiles.push({
-                   name: zipEntry.name.split('/').pop() || zipEntry.name,
-                   content: content
-                 });
+                inputFiles.push({
+                  name: zipEntry.name.split('/').pop() || zipEntry.name,
+                  content: content
+                });
               });
               promises.push(promise);
             }
@@ -119,7 +121,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
           createdAt: n.createdAt || Date.now(),
           updatedAt: n.updatedAt || Date.now()
         }));
-        
+
         onImportNotes(mappedNotes);
         showSuccess(`Imported ${result.report.notesImported} notes from ${result.report.source}. Created ${result.report.tagsCreated} tags.`);
       } else {
@@ -190,6 +192,34 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
     }
   };
 
+  const handleFeedbackEmail = async () => {
+    try {
+      const info = await Device.getInfo();
+      const appInfo = await App.getInfo();
+      const platformString = Capacitor.getPlatform();
+      const subject = "Open Keep App";
+      const emailRecipient = "openkeep@jorvikwebdesigns.com";
+
+      const emailBody = `Platform: ${platformString}
+Device make: ${info.manufacturer || 'Unknown'}
+Device model: ${info.model || 'Unknown'}
+App version: ${appInfo.version}`;
+
+      const mailtoUrl = `mailto:${emailRecipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
+
+      // Copy to clipboard
+      await navigator.clipboard.writeText(emailRecipient);
+      showSuccess('Email copied to clipboard');
+
+      // Open mail client
+      window.location.href = mailtoUrl;
+    } catch (error) {
+      console.error("Feedback error:", error);
+      // Fallback if device info fails
+      window.location.href = "mailto:openkeep@jorvikwebdesigns.com?subject=Open%20Keep%20App";
+    }
+  };
+
 
   return (
     <>
@@ -200,8 +230,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
         >
           <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
             <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
-                <ArrowLeft className="h-5 w-5 text-secondary" />
-                <span className="sr-only">Back</span>
+              <ArrowLeft className="h-5 w-5 text-secondary" />
+              <span className="sr-only">Back</span>
             </Button>
             <DialogTitle>Settings</DialogTitle>
           </DialogHeader>
@@ -315,10 +345,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
             <div className="flex flex-col gap-2 mt-4">
               <Button
                 variant="outline"
-                onClick={() => window.location.href = "mailto:openkeep@jorvikwebdesigns.com"}
+                onClick={handleFeedbackEmail}
                 className="w-full"
               >
-                <Mail className="h-4 w-4 mr-2" /> Suggestions & Feedback
+                <Mail className="h-4 w-4 mr-2" /> Feedback, Suggestions, & Support
               </Button>
               <Button
                 variant="outline"

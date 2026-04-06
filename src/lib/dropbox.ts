@@ -114,7 +114,8 @@ const downloadNotes = async (): Promise<Note[]> => {
                     return JSON.parse(decryptedText);
                 }
             } catch (e) {
-                console.warn("Could not decrypt Dropbox payload. Falling back to plaintext parsing.", e);
+                console.warn("Could not decrypt Dropbox payload.", e);
+                throw e;
             }
         }
 
@@ -126,7 +127,7 @@ const downloadNotes = async (): Promise<Note[]> => {
         }
         console.error("Error downloading notes from Dropbox:", error);
         if (error.error) console.error("Dropbox Error Detail:", JSON.stringify(error.error, null, 2));
-        return [];
+        throw error;
     }
 };
 
@@ -190,7 +191,8 @@ export const syncNotesWithDropbox = async (
     try {
         remoteNotes = await downloadNotes();
     } catch (e) {
-        console.warn("Could not download/parse remote notes, continuing with empty remote", e);
+        console.error("Could not download/parse remote notes, aborting sync to prevent data loss", e);
+        throw e;
     }
 
     // Merge Logic (shared)

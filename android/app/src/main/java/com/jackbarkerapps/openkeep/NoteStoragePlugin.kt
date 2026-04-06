@@ -353,12 +353,42 @@ class NoteStoragePlugin : Plugin() {
     fun wipeDatabaseButKeepKeys(call: PluginCall) {
         scope.launch {
             try {
-                if (com.jackbarkerapps.openkeep.data.NoteRepository.isInitialized()) {
-                    com.jackbarkerapps.openkeep.data.NoteRepository.getDatabase().clearAllTables()
-                }
+                android.util.Log.d("NoteStorage", "Starting wipeDatabaseButKeepKeys process")
+                
+                try {
+                    if (com.jackbarkerapps.openkeep.data.NoteRepository.isInitialized()) {
+                        val db = com.jackbarkerapps.openkeep.data.NoteRepository.getDatabase()
+                        try {
+                            db.clearAllTables()
+                        } catch (e: Exception) {}
+                    }
+                } catch (e: Exception) {}
+
                 NoteRepository.reset()
-                kotlinx.coroutines.delay(100)
-                context.deleteDatabase("open-keep-db")
+                
+                // Allow Room's background threads to fully release file locks
+                kotlinx.coroutines.delay(500)
+
+                try {
+                    val dbName = "open-keep-db"
+                    val deleted = context.deleteDatabase(dbName)
+                    android.util.Log.d("NoteStorage", "Context deleteDatabase returned: $deleted")
+                    
+                    // Fallback manual deletion just in case
+                    val dbFile = context.getDatabasePath(dbName)
+                    val dbDir = dbFile.parentFile
+                    if (dbDir != null && dbDir.exists()) {
+                        dbDir.listFiles()?.forEach { file ->
+                            if (file.name.startsWith(dbName)) {
+                                val fd = file.delete()
+                                android.util.Log.d("NoteStorage", "Manual fallback deleted file ${file.name}: $fd")
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("NoteStorage", "Error deleting database file during wipe", e)
+                }
+
                 call.resolve()
             } catch (e: Exception) {
                 call.reject("Failed to wipe database: ${e.message}")

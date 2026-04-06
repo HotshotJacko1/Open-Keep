@@ -146,9 +146,8 @@ const downloadNotes = async (fileId: string): Promise<Note[]> => {
                 return response.result as unknown as Note[];
 
             } catch (e) {
-                console.error("Decryption failed or content was not encrypted", e);
-                // If decryption fails, maybe it IS plaintext but parsed as string? unlikely.
-                return [];
+                console.error("Decryption failed", e);
+                throw e;
             }
         }
 
@@ -280,7 +279,8 @@ export const syncNotesWithDrive = async (
         try {
             remoteNotes = await downloadNotes(fileId);
         } catch (e) {
-            console.warn("Could not download/parse remote notes, continuing with empty remote", e);
+            console.error("Could not download/parse remote notes, aborting sync to prevent data loss", e);
+            throw e;
         }
     }
 
