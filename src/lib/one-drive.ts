@@ -349,15 +349,14 @@ export const syncNotesWithOneDrive = async (
 
     const { masterKeyPayload, forceResolution } = options || {};
 
-    if (masterKeyPayload) {
-        const keyFileId = await findKeyFile(folderId);
-        await uploadMasterKey(masterKeyPayload, keyFileId);
-    }
-
     const fileId = await findNotesFile(folderId);
     
     // If Keep Local, ignore remote notes entirely
     if (forceResolution === "local") {
+        if (masterKeyPayload) {
+            const keyFileId = await findKeyFile(folderId);
+            await uploadMasterKey(masterKeyPayload, keyFileId);
+        }
         await uploadNotes(folderId, localNotes, fileId);
         return localNotes;
     }
@@ -399,6 +398,10 @@ export const syncNotesWithOneDrive = async (
 
     // Upload merged notes
     // We pass fileId if we have it, otherwise it creates new (or overwrites at path)
+    if (masterKeyPayload) {
+        const keyFileId = await findKeyFile(folderId);
+        await uploadMasterKey(masterKeyPayload, keyFileId);
+    }
     await uploadNotes(folderId, mergedNotes, fileId);
 
     return mergedNotes;

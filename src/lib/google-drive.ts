@@ -269,6 +269,10 @@ export const syncNotesWithDrive = async (
     
     // If Keep Local, ignore remote notes entirely
     if (forceResolution === "local") {
+        if (masterKeyPayload) {
+            const keyFileId = await findKeyFile(folderId);
+            await uploadMasterKey(folderId, masterKeyPayload, keyFileId);
+        }
         await uploadNotes(folderId, localNotes, fileId);
         return localNotes;
     }

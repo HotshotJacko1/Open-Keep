@@ -177,12 +177,11 @@ export const syncNotesWithDropbox = async (
 
     const { masterKeyPayload, forceResolution } = options || {};
 
-    if (masterKeyPayload) {
-        await uploadMasterKey(masterKeyPayload);
-    }
-
     // If Keep Local, ignore remote notes entirely
     if (forceResolution === "local") {
+        if (masterKeyPayload) {
+            await uploadMasterKey(masterKeyPayload);
+        }
         await uploadNotes(localNotes);
         return localNotes;
     }
@@ -213,6 +212,9 @@ export const syncNotesWithDropbox = async (
 
     const mergedNotes = Array.from(mergedNotesMap.values());
 
+    if (masterKeyPayload) {
+        await uploadMasterKey(masterKeyPayload);
+    }
     await uploadNotes(mergedNotes);
 
     return mergedNotes;

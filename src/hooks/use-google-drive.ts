@@ -152,6 +152,13 @@ export const useGoogleDrive = () => {
             return { status: "success" };
         } catch (error) {
             console.error("Sync failed:", error);
+            if ((error as Error).message.includes("BAD_DECRYPT") || (error as Error).message.includes("Decryption failed")) {
+                showError("Cloud notes could not be decrypted. They may be locked with an old, unknown key.");
+                const cloudKey = await checkGoogleDriveMasterKey();
+                if (cloudKey.payload) {
+                    return { status: "conflict", cloudPayload: cloudKey.payload };
+                }
+            }
             showError("Sync failed. Please reconnect Google Drive.");
             return { status: "error", message: (error as Error).message };
         } finally {

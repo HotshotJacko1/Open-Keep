@@ -172,6 +172,13 @@ export const useDropbox = () => {
             if ((error as any).status === 401) {
                 showError("Dropbox session expired. Please reconnect.");
                 disconnect();
+            } else if ((error as Error).message.includes("BAD_DECRYPT") || (error as Error).message.includes("Decryption failed")) {
+                showError("Cloud notes could not be decrypted. They may be locked with an old, unknown key.");
+                const cloudKey = await checkDropboxMasterKey();
+                if (cloudKey.payload) {
+                    return { status: "conflict", cloudPayload: cloudKey.payload };
+                }
+                return { status: "error", message: (error as Error).message };
             } else {
                 showError("Dropbox sync failed.");
             }
