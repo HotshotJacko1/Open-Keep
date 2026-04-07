@@ -108,10 +108,12 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
             {!activeService ? (
               <div className="flex flex-col gap-2">
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     showSuccess("Initiating Google Login...");
-                    console.log("Calling googleDrive.login()");
-                    googleDrive.login();
+                    const result = await googleDrive.login();
+                    if (result && result.status === "conflict" && 'cloudPayload' in result) {
+                      setConflictData({ activeService: googleDrive, cloudPayload: (result as any).cloudPayload });
+                    }
                   }}
                   className="w-full justify-start"
                   variant="outline"
@@ -133,8 +135,9 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                   <h3 className="font-semibold text-lg text-primary-foreground">Sync Conflict Detected</h3>
                 </div>
                 <p className="text-sm text-primary-foreground/90 leading-relaxed">
-                  The cloud backup is locked with a different database key than your local device. 
-                  This usually happens if you set up the app independently on multiple devices.
+                  Cloud data was found. Which version would you like to keep?
+                  Choosing <strong>Cloud</strong> will replace your local notes with the cloud backup.
+                  Choosing <strong>Local</strong> will overwrite the cloud with your device's notes.
                 </p>
                 <p className="text-sm font-medium text-primary-foreground">How would you like to resolve this?</p>
                 

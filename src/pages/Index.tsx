@@ -184,6 +184,17 @@ const Index = () => {
     initNotes();
   }, []);
 
+  // Reload notes whenever cloud sync writes to the DB
+  useEffect(() => {
+    const handleNotesUpdated = async () => {
+      const reloadedNotes = await loadNotes();
+      setNotes(reloadedNotes);
+    };
+    window.addEventListener("notes-updated", handleNotesUpdated);
+    return () => window.removeEventListener("notes-updated", handleNotesUpdated);
+  }, []);
+
+
   // Back Button Handler (Mobile)
   useEffect(() => {
     const setupBackButton = async () => {

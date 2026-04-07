@@ -55,7 +55,7 @@ export const useGoogleDrive = () => {
         prompt: 'select_account',
     });
 
-    const login = async () => {
+    const login = async (): Promise<SyncResult | undefined> => {
         if (Capacitor.isNativePlatform()) {
             try {
                 // Initialize plugin before sign in (required for capacitor-google-auth v3.2.0+)
@@ -72,7 +72,7 @@ export const useGoogleDrive = () => {
                 localStorage.setItem("google-user-email", user.email);
 
                 showSuccess(`Connected to Google Drive as ${user.email}`);
-                await doInternalSync();
+                return await doInternalSync();
             } catch (error) {
                 console.error("Native Login Failed:", error);
                 showError("Google Sign-In Failed");
@@ -124,13 +124,19 @@ export const useGoogleDrive = () => {
                     const cloudKey = await checkGoogleDriveMasterKey();
                     if (cloudKey.exists && cloudKey.payload) {
                         const localNotes = await loadNotes();
+                        const isFirstConnect = !localStorage.getItem("last-synced-time");
                         if (localNotes.length === 0) {
+                            // Local is empty — auto-restore from cloud
                             await wipeDatabaseButKeepKeys();
                             await importMasterKey(cloudKey.payload, pin);
                             masterKeyPayload = undefined;
                         } else {
                             const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, pin);
                             if (!isMatch) {
+                                // Keys differ — conflict resolution required
+                                return { status: "conflict", cloudPayload: cloudKey.payload };
+                            } else if (isFirstConnect) {
+                                // Keys match but this is first connect — ask user which data to keep
                                 return { status: "conflict", cloudPayload: cloudKey.payload };
                             }
                         }
