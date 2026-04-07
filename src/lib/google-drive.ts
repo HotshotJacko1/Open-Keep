@@ -124,46 +124,50 @@ const downloadMasterKey = async (fileId: string): Promise<string | null> => {
     }
 };
 
-const downloadNotes = async (fileId: string): Promise<Note[]> => {
+const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTags: string[] }> => {
     try {
         const response = await gapi.client.drive.files.get({
             fileId: fileId,
             alt: "media",
         });
 
+        let result = response.result;
+
         if (Capacitor.isNativePlatform()) {
             try {
-                const result = response.result;
-                if (Array.isArray(result)) {
-                    // Plaintext (legacy or from web)
-                    return result as unknown as Note[];
-                } else if (typeof result === 'string') {
+                if (typeof result === 'string') {
                     // Attempt decrypt
                     const decryptedText = await decryptData(result);
-                    return JSON.parse(decryptedText);
+                    result = JSON.parse(decryptedText);
                 }
-                // If it is an object but NOT array, it might be weird.
-                return response.result as unknown as Note[];
-
             } catch (e) {
                 console.error("Decryption failed", e);
                 throw e;
             }
         }
 
-        return response.result as unknown as Note[];
+        if (Array.isArray(result)) {
+            // Legacy format: just an array of notes
+            return { notes: result as unknown as Note[], customTags: [] };
+        } else if (result && typeof result === 'object' && 'notes' in result) {
+            // New format: { notes: Note[], customTags: string[] }
+            return result as { notes: Note[], customTags: string[] };
+        }
+
+        return { notes: [], customTags: [] };
     } catch (error: any) {
         console.error("Error downloading notes:", error?.result?.error?.message || JSON.stringify(error));
-        return [];
+        return { notes: [], customTags: [] };
     }
 };
 
 const uploadNotes = async (
     folderId: string,
     notes: Note[],
+    customTags: string[],
     fileId: string | null
 ): Promise<void> => {
-    let fileContent = JSON.stringify(notes);
+    let fileContent = JSON.stringify({ notes, customTags });
 
     if (Capacitor.isNativePlatform()) {
         try {
@@ -246,11 +250,12 @@ const uploadMasterKey = async (folderId: string, payload: string, fileId: string
 
 export const syncNotesWithDrive = async (
     localNotes: Note[], 
+    localCustomTags: string[],
     options?: {
         masterKeyPayload?: string;
         forceResolution?: "local" | "cloud";
     }
-): Promise<Note[]> => {
+): Promise<{ notes: Note[], customTags: string[] }> => {
     if (!isInitialized) await initGoogleDrive();
 
     let folderId = await findFolder();
@@ -273,15 +278,18 @@ export const syncNotesWithDrive = async (
             const keyFileId = await findKeyFile(folderId);
             await uploadMasterKey(folderId, masterKeyPayload, keyFileId);
         }
-        await uploadNotes(folderId, localNotes, fileId);
-        return localNotes;
+        await uploadNotes(folderId, localNotes, localCustomTags, fileId);
+        return { notes: localNotes, customTags: localCustomTags };
     }
 
     let remoteNotes: Note[] = [];
+    let remoteCustomTags: string[] = [];
 
     if (fileId) {
         try {
-            remoteNotes = await downloadNotes(fileId);
+            const remoteData = await downloadNotes(fileId);
+            remoteNotes = remoteData.notes;
+            remoteCustomTags = remoteData.customTags || [];
         } catch (e) {
             console.error("Could not download/parse remote notes, aborting sync to prevent data loss", e);
             throw e;
@@ -312,10 +320,13 @@ export const syncNotesWithDrive = async (
 
     const mergedNotes = Array.from(mergedNotesMap.values());
 
-    // Upload merged notes
-    await uploadNotes(folderId, mergedNotes, fileId);
+    // Merge Tags logic (Set union)
+    const mergedTags = Array.from(new Set([...localCustomTags, ...remoteCustomTags])).sort();
 
-    return mergedNotes;
+    // Upload merged data
+    await uploadNotes(folderId, mergedNotes, mergedTags, fileId);
+
+    return { notes: mergedNotes, customTags: mergedTags };
 };
 
 export const deleteRemoteData = async (): Promise<void> => {

@@ -145,9 +145,11 @@ export const useGoogleDrive = () => {
             }
 
             const localNotes = await loadNotes();
-            const mergedNotes = await syncNotesWithDrive(localNotes, { masterKeyPayload, forceResolution });
+            const localCustomTags = JSON.parse(localStorage.getItem("custom-tags") || "[]");
+            const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithDrive(localNotes, localCustomTags, { masterKeyPayload, forceResolution });
 
             await Promise.all(mergedNotes.map(note => saveNote(note)));
+            localStorage.setItem("custom-tags", JSON.stringify(mergedTags));
 
             window.dispatchEvent(new Event("notes-updated"));
 

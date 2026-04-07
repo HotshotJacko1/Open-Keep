@@ -128,9 +128,11 @@ export const useOneDrive = () => {
             }
 
             const localNotes = await loadNotes();
-            const mergedNotes = await syncNotesWithOneDrive(localNotes, { masterKeyPayload, forceResolution });
+            const localCustomTags = JSON.parse(localStorage.getItem("custom-tags") || "[]");
+            const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithOneDrive(localNotes, localCustomTags, { masterKeyPayload, forceResolution });
 
-            await Promise.all(mergedNotes.map(n => saveNote(n)));
+            await Promise.all(mergedNotes.map(note => saveNote(note)));
+            localStorage.setItem("custom-tags", JSON.stringify(mergedTags));
             window.dispatchEvent(new Event("notes-updated"));
 
             const now = new Date().toLocaleString();

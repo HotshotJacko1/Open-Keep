@@ -97,7 +97,7 @@ export const checkDropboxMasterKey = async (): Promise<{ exists: boolean, payloa
     }
 };
 
-const downloadNotes = async (): Promise<Note[]> => {
+const downloadNotes = async (): Promise<{ notes: Note[], customTags: string[] }> => {
     if (!dbx) throw new Error("Dropbox not initialized");
 
     try {
@@ -105,36 +105,44 @@ const downloadNotes = async (): Promise<Note[]> => {
         const blob = (response.result as any).fileBlob;
         const text = await blob.text();
 
+        let result: any;
         if (Capacitor.isNativePlatform()) {
             try {
-                // Check if text is a stringified encrypted JSON string
                 if (text.startsWith('"') && text.endsWith('"')) {
                     const parsedString = JSON.parse(text);
                     const decryptedText = await decryptData(parsedString);
-                    return JSON.parse(decryptedText);
+                    result = JSON.parse(decryptedText);
+                } else {
+                    result = JSON.parse(text);
                 }
             } catch (e) {
                 console.warn("Could not decrypt Dropbox payload.", e);
                 throw e;
             }
+        } else {
+            result = JSON.parse(text);
         }
 
-        return JSON.parse(text) as Note[];
+        if (Array.isArray(result)) {
+            return { notes: result as Note[], customTags: [] };
+        } else if (result && typeof result === 'object' && 'notes' in result) {
+            return result as { notes: Note[], customTags: string[] };
+        }
+
+        return { notes: [], customTags: [] };
     } catch (error: any) {
-        // If file not found
         if (error.status === 409 || (error.error && error.error.path && error.error.path['.tag'] === 'not_found')) {
-            return [];
+            return { notes: [], customTags: [] };
         }
         console.error("Error downloading notes from Dropbox:", error);
-        if (error.error) console.error("Dropbox Error Detail:", JSON.stringify(error.error, null, 2));
         throw error;
     }
 };
 
-const uploadNotes = async (notes: Note[]) => {
+const uploadNotes = async (notes: Note[], customTags: string[]) => {
     if (!dbx) throw new Error("Dropbox not initialized");
 
-    let fileContent = JSON.stringify(notes);
+    let fileContent = JSON.stringify({ notes, customTags });
 
     if (Capacitor.isNativePlatform()) {
         try {
@@ -168,11 +176,12 @@ const uploadMasterKey = async (payload: string) => {
 
 export const syncNotesWithDropbox = async (
     localNotes: Note[], 
+    localCustomTags: string[],
     options?: {
         masterKeyPayload?: string;
         forceResolution?: "local" | "cloud";
     }
-): Promise<Note[]> => {
+): Promise<{ notes: Note[], customTags: string[] }> => {
     if (!dbx) throw new Error("Dropbox not initialized");
 
     const { masterKeyPayload, forceResolution } = options || {};
@@ -182,13 +191,16 @@ export const syncNotesWithDropbox = async (
         if (masterKeyPayload) {
             await uploadMasterKey(masterKeyPayload);
         }
-        await uploadNotes(localNotes);
-        return localNotes;
+        await uploadNotes(localNotes, localCustomTags);
+        return { notes: localNotes, customTags: localCustomTags };
     }
 
     let remoteNotes: Note[] = [];
+    let remoteCustomTags: string[] = [];
     try {
-        remoteNotes = await downloadNotes();
+        const remoteData = await downloadNotes();
+        remoteNotes = remoteData.notes;
+        remoteCustomTags = remoteData.customTags || [];
     } catch (e) {
         console.error("Could not download/parse remote notes, aborting sync to prevent data loss", e);
         throw e;
@@ -212,10 +224,13 @@ export const syncNotesWithDropbox = async (
 
     const mergedNotes = Array.from(mergedNotesMap.values());
 
+    // Merge Tags logic (Set union)
+    const mergedTags = Array.from(new Set([...localCustomTags, ...remoteCustomTags])).sort();
+
     if (masterKeyPayload) {
         await uploadMasterKey(masterKeyPayload);
     }
-    await uploadNotes(mergedNotes);
+    await uploadNotes(mergedNotes, mergedTags);
 
-    return mergedNotes;
+    return { notes: mergedNotes, customTags: mergedTags };
 };

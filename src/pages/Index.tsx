@@ -189,6 +189,11 @@ const Index = () => {
     const handleNotesUpdated = async () => {
       const reloadedNotes = await loadNotes();
       setNotes(reloadedNotes);
+
+      const savedTags = localStorage.getItem("custom-tags");
+      if (savedTags) {
+        setCustomTags(JSON.parse(savedTags));
+      }
     };
     window.addEventListener("notes-updated", handleNotesUpdated);
     return () => window.removeEventListener("notes-updated", handleNotesUpdated);

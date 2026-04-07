@@ -240,9 +240,7 @@ const downloadMasterKey = async (fileId: string): Promise<string | null> => {
     return typeof result === 'string' ? result : JSON.stringify(result);
 };
 
-const downloadNotes = async (fileId: string): Promise<Note[]> => {
-    // To get file content, we use /content endpoint which returns raw binary/text
-    // callGraphApi helper assumes JSON response, let's make a custom fetch for content
+const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTags: string[] }> => {
     const accessToken = await getGraphAccessToken();
     const response = await fetch(`${GRAPH_ENDPOINT}/me/drive/items/${fileId}/content`, {
         headers: { Authorization: `Bearer ${accessToken}` }
@@ -250,16 +248,16 @@ const downloadNotes = async (fileId: string): Promise<Note[]> => {
 
     if (!response.ok) {
         console.error("Error downloading notes content");
-        return [];
+        return { notes: [], customTags: [] };
     }
 
-    const result = await response.json();
+    let result = await response.json();
 
     if (Capacitor.isNativePlatform()) {
         try {
             if (typeof result === "string") {
                 const decryptedText = await decryptData(result);
-                return JSON.parse(decryptedText);
+                result = JSON.parse(decryptedText);
             }
         } catch (e) {
             console.warn("Could not decrypt OneDrive payload.", e);
@@ -267,19 +265,17 @@ const downloadNotes = async (fileId: string): Promise<Note[]> => {
         }
     }
 
-    if (typeof result === "string") {
-        throw new Error("Payload is an encrypted string but decryption is not supported on this platform.");
+    if (Array.isArray(result)) {
+        return { notes: result as Note[], customTags: [] };
+    } else if (result && typeof result === 'object' && 'notes' in result) {
+        return result as { notes: Note[], customTags: string[] };
     }
 
-    return result as Note[];
+    return { notes: [], customTags: [] };
 };
 
-const uploadNotes = async (folderId: string, notes: Note[], fileId: string | null) => {
-    // To upload file, we PUT to /content
-    // If fileId exists, use it. If not, create in folder.
-    // Graph API for small files: PUT /me/drive/items/{parent-id}:/{filename}:/content
-
-    let fileContent = JSON.stringify(notes);
+const uploadNotes = async (folderId: string, notes: Note[], customTags: string[], fileId: string | null) => {
+    let fileContent = JSON.stringify({ notes, customTags });
 
     if (Capacitor.isNativePlatform()) {
         try {
@@ -337,11 +333,12 @@ const uploadMasterKey = async (payload: string, fileId: string | null) => {
 
 export const syncNotesWithOneDrive = async (
     localNotes: Note[], 
+    localCustomTags: string[],
     options?: {
         masterKeyPayload?: string;
         forceResolution?: "local" | "cloud";
     }
-): Promise<Note[]> => {
+): Promise<{ notes: Note[], customTags: string[] }> => {
     let folderId = await findFolder();
     if (!folderId) {
         folderId = await createFolder();
@@ -357,15 +354,18 @@ export const syncNotesWithOneDrive = async (
             const keyFileId = await findKeyFile(folderId);
             await uploadMasterKey(masterKeyPayload, keyFileId);
         }
-        await uploadNotes(folderId, localNotes, fileId);
-        return localNotes;
+        await uploadNotes(folderId, localNotes, localCustomTags, fileId);
+        return { notes: localNotes, customTags: localCustomTags };
     }
 
     let remoteNotes: Note[] = [];
+    let remoteCustomTags: string[] = [];
 
     if (fileId) {
         try {
-            remoteNotes = await downloadNotes(fileId);
+            const remoteData = await downloadNotes(fileId);
+            remoteNotes = remoteData.notes;
+            remoteCustomTags = remoteData.customTags || [];
         } catch (e) {
             console.error("Could not download/parse remote notes, aborting sync to prevent data loss", e);
             throw e;
@@ -396,15 +396,17 @@ export const syncNotesWithOneDrive = async (
 
     const mergedNotes = Array.from(mergedNotesMap.values());
 
-    // Upload merged notes
-    // We pass fileId if we have it, otherwise it creates new (or overwrites at path)
+    // Merge Tags logic (Set union)
+    const mergedTags = Array.from(new Set([...localCustomTags, ...remoteCustomTags])).sort();
+
+    // Upload merged data
     if (masterKeyPayload) {
         const keyFileId = await findKeyFile(folderId);
         await uploadMasterKey(masterKeyPayload, keyFileId);
     }
-    await uploadNotes(folderId, mergedNotes, fileId);
+    await uploadNotes(folderId, mergedNotes, mergedTags, fileId);
 
-    return mergedNotes;
+    return { notes: mergedNotes, customTags: mergedTags };
 };
 
 export const logoutFromOneDrive = async () => {
