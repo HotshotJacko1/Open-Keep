@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { initializeDatabase } from "@/lib/note-storage";
+import { initializeDatabase, clearAllData } from "@/lib/note-storage";
 import { showError, showSuccess } from "@/utils/toast";
 import { Lock } from "lucide-react";
 
@@ -16,6 +16,7 @@ const EncryptionSetupScreen: React.FC<EncryptionSetupScreenProps> = ({ onSetupCo
     const [pin, setPin] = useState("");
     const [confirmPin, setConfirmPin] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [setupError, setSetupError] = useState<string | null>(null);
 
     useEffect(() => {
         const backButtonListener = App.addListener('backButton', () => {
@@ -42,6 +43,7 @@ const EncryptionSetupScreen: React.FC<EncryptionSetupScreenProps> = ({ onSetupCo
         }
 
         setIsLoading(true);
+        setSetupError(null);
         try {
             await initializeDatabase(pin);
 
@@ -51,9 +53,27 @@ const EncryptionSetupScreen: React.FC<EncryptionSetupScreenProps> = ({ onSetupCo
 
             showSuccess("Encryption set up successfully!");
             onSetupComplete();
+        } catch (error: any) {
+            console.error(error);
+            const errMsg = String(error);
+            setSetupError(errMsg);
+            showError("Failed to set up encryption");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleWipeAndStartOver = async () => {
+        setIsLoading(true);
+        try {
+            await clearAllData();
+            showSuccess("Previous data cleared. You can now set a new PIN.");
+            setSetupError(null);
+            setPin("");
+            setConfirmPin("");
         } catch (error) {
             console.error(error);
-            showError("Failed to set up encryption");
+            showError("Failed to clear data");
         } finally {
             setIsLoading(false);
         }
@@ -74,6 +94,15 @@ const EncryptionSetupScreen: React.FC<EncryptionSetupScreenProps> = ({ onSetupCo
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                    {setupError && (
+                        <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-md text-red-500 text-sm">
+                            <p className="font-semibold mb-1">Decryption failed</p>
+                            <p className="mb-3">This usually happens if previous encryption keys are still on your device. To reuse them (required for Cloud Restore), enter your previous PIN.</p>
+                            <Button variant="destructive" className="w-full text-xs h-8" onClick={handleWipeAndStartOver} disabled={isLoading}>
+                                Erase Old Keys & Start Over
+                            </Button>
+                        </div>
+                    )}
                     <div className="space-y-2">
                         <Label htmlFor="pin">Enter PIN</Label>
                         <Input
@@ -109,7 +138,7 @@ const EncryptionSetupScreen: React.FC<EncryptionSetupScreenProps> = ({ onSetupCo
                         onClick={handleSetup}
                         disabled={isLoading || !pin || !confirmPin}
                     >
-                        {isLoading ? "Encrypting..." : "Enable Encryption"}
+                        {isLoading ? "Processing..." : "Enable Encryption"}
                     </Button>
                 </CardFooter>
             </Card>

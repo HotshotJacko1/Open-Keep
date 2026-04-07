@@ -270,4 +270,9 @@ class KeyManager(private val context: Context) {
         // We do NOT clear ENCRYPTED_MASTER_KEY_V2, as that represents our locked database key.
         // Clearing KEY_ALIAS simply "locks" the auto-unlock feature.
     }
+
+    fun clearAll() {
+        clear()
+        securePrefs.edit().remove(ENCRYPTED_MASTER_KEY_V2).apply()
+    }
 }

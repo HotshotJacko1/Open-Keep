@@ -271,7 +271,7 @@ class NoteStoragePlugin : Plugin() {
                 try {
                     android.util.Log.d("NoteStorage", "Clearing KeyManager")
                     val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
-                    keyManager.clear()
+                    keyManager.clearAll()
                     android.util.Log.d("NoteStorage", "KeyManager cleared")
                 } catch (e: Exception) {
                     android.util.Log.e("NoteStorage", "Error clearing KeyManager: ${e.message}", e)
