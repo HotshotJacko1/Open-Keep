@@ -9,4 +9,5 @@ export interface Note {
   deletedAt?: number;
   createdAt: number;
   updatedAt: number;
+  images?: string[];
 }

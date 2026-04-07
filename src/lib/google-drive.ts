@@ -2,6 +2,7 @@ import { Note } from "@/types/note";
 import { gapi } from "gapi-script";
 import { Capacitor } from "@capacitor/core";
 import { encryptData, decryptData } from "@/lib/note-storage";
+import { resolveImagesToBase64, restoreImagesFromBase64 } from "@/lib/image-storage";
 
 const FOLDER_NAME = "Open Keep Notes";
 const NOTES_FILE_NAME = "notes.json";
@@ -146,15 +147,28 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
             }
         }
 
+        let parsedNotes: Note[] = [];
+        let parsedTags: string[] = [];
+        let parsedNoteImages: Record<string, Array<{id: string, data: string}>> = {};
+
         if (Array.isArray(result)) {
             // Legacy format: just an array of notes
-            return { notes: result as unknown as Note[], customTags: [] };
+            parsedNotes = result as unknown as Note[];
         } else if (result && typeof result === 'object' && 'notes' in result) {
             // New format: { notes: Note[], customTags: string[] }
-            return result as { notes: Note[], customTags: string[] };
+            parsedNotes = result.notes || [];
+            parsedTags = result.customTags || [];
+            parsedNoteImages = result.noteImages || {};
         }
 
-        return { notes: [], customTags: [] };
+        // Restore images
+        for (const note of parsedNotes) {
+            if (parsedNoteImages[note.id] && parsedNoteImages[note.id].length > 0) {
+                note.images = await restoreImagesFromBase64(parsedNoteImages[note.id]);
+            }
+        }
+
+        return { notes: parsedNotes, customTags: parsedTags };
     } catch (error: any) {
         console.error("Error downloading notes:", error?.result?.error?.message || JSON.stringify(error));
         return { notes: [], customTags: [] };
@@ -167,7 +181,15 @@ const uploadNotes = async (
     customTags: string[],
     fileId: string | null
 ): Promise<void> => {
-    let fileContent = JSON.stringify({ notes, customTags });
+    // Resolve images
+    const noteImages: Record<string, Array<{id: string, data: string}>> = {};
+    for (const note of notes) {
+        if (note.images && note.images.length > 0) {
+            noteImages[note.id] = await resolveImagesToBase64(note.images);
+        }
+    }
+
+    let fileContent = JSON.stringify({ notes, customTags, noteImages });
 
     if (Capacitor.isNativePlatform()) {
         try {

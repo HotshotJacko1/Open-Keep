@@ -46,6 +46,9 @@ import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { useIsMobile } from "@/hooks/use-mobile";
 
+import { saveImage, getImageSrc, deleteImage } from "@/lib/image-storage";
+import { ImageIcon } from "lucide-react";
+
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import UnderlineExtension from '@tiptap/extension-underline'
@@ -186,6 +189,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const [isArchived, setIsArchived] = useState(false);
     const [isLabelsOpen, setIsLabelsOpen] = useState(false);
     const [showFormatting, setShowFormatting] = useState(false);
+    const [images, setImages] = useState<string[]>([]);
+    const [imageSrcs, setImageSrcs] = useState<string[]>([]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Checklist Mode State
     const [isChecklistMode, setIsChecklistMode] = useState(false);
@@ -261,6 +267,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 setTags(initialNote.tags.join(", "));
                 setIsPinned(initialNote.isPinned);
                 setIsArchived(initialNote.isArchived);
+                
+                const initialImages = initialNote.images || [];
+                setImages(initialImages);
+                Promise.all(initialImages.map(getImageSrc)).then(setImageSrcs);
 
                 // Update Editor Content
                 if (editor) {
@@ -284,6 +294,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 setIsArchived(false);
                 setIsChecklistMode(false);
                 setChecklistItems([]);
+                setImages([]);
+                setImageSrcs([]);
 
                 if (editor) {
                     editor.commands.setContent('');
@@ -525,8 +537,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
         const plainText = content.replace(/<[^>]+>/g, '').trim();
 
-        // Cleanup empty note if needed
-        if (title.trim() === "" && plainText === "") {
+        // Cleanup empty note if needed (but save if it has images)
+        if (title.trim() === "" && plainText === "" && images.length === 0) {
             onDelete(noteIdRef.current);
         } else {
             // Force immediate save on close
@@ -539,6 +551,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 isArchived,
                 createdAt: initialNote?.createdAt || Date.now(),
                 updatedAt: Date.now(),
+                images,
             };
             onSave(finalNote);
         }
@@ -699,6 +712,52 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
                     {/* Scrollable Body */}
                     <div className="flex-1 overflow-y-auto p-4">
+                        {/* Hidden file input */}
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                if (images.length >= 5) {
+                                    toast.error('Maximum 5 images per note');
+                                    return;
+                                }
+                                try {
+                                    const path = await saveImage(file);
+                                    const src = await getImageSrc(path);
+                                    setImages(prev => [...prev, path]);
+                                    setImageSrcs(prev => [...prev, src]);
+                                } catch (err) {
+                                    toast.error('Failed to add image');
+                                }
+                                e.target.value = '';
+                            }}
+                        />
+
+                        {/* Image strip */}
+                        {imageSrcs.length > 0 && (
+                            <div className="flex gap-2 overflow-x-auto mb-4 -mx-4 px-4">
+                                {imageSrcs.map((src, i) => (
+                                    <div key={i} className="relative flex-shrink-0 w-40 h-32 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                                        <img src={src} alt="" className="w-full h-full object-cover" />
+                                        <button
+                                            onClick={async () => {
+                                                await deleteImage(images[i]);
+                                                setImages(prev => prev.filter((_, idx) => idx !== i));
+                                                setImageSrcs(prev => prev.filter((_, idx) => idx !== i));
+                                            }}
+                                            className="absolute top-1 right-1 bg-black/50 rounded-full p-0.5 text-white"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
                         {/* Title */}
                         <textarea
                             id="title"
@@ -788,6 +847,16 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     {/* Footer */}
                     <DialogFooter className="flex flex-row items-center justify-between sm:justify-between p-2 border-t border-gray-200 dark:border-gray-700 shrink-0">
                         <div className="flex gap-2">
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="text-secondary">
+                                        <ImageIcon className="h-5 w-5" />
+                                        <span className="sr-only">Add Photo</span>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Add Photo</p></TooltipContent>
+                            </Tooltip>
+
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Button variant="ghost" size="icon" onClick={handleToggleMode} className="text-secondary">

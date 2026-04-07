@@ -1,5 +1,6 @@
 import { Note } from "@/types/note";
 import { encryptData, decryptData } from "@/lib/note-storage";
+import { resolveImagesToBase64, restoreImagesFromBase64 } from "@/lib/image-storage";
 import { Dropbox, DropboxAuth } from "dropbox";
 import { Capacitor } from "@capacitor/core";
 
@@ -123,13 +124,25 @@ const downloadNotes = async (): Promise<{ notes: Note[], customTags: string[] }>
             result = JSON.parse(text);
         }
 
+        let parsedNotes: Note[] = [];
+        let parsedTags: string[] = [];
+        let parsedNoteImages: Record<string, Array<{id: string, data: string}>> = {};
+
         if (Array.isArray(result)) {
-            return { notes: result as Note[], customTags: [] };
+            parsedNotes = result as Note[];
         } else if (result && typeof result === 'object' && 'notes' in result) {
-            return result as { notes: Note[], customTags: string[] };
+            parsedNotes = result.notes || [];
+            parsedTags = result.customTags || [];
+            parsedNoteImages = result.noteImages || {};
         }
 
-        return { notes: [], customTags: [] };
+        for (const note of parsedNotes) {
+            if (parsedNoteImages[note.id] && parsedNoteImages[note.id].length > 0) {
+                note.images = await restoreImagesFromBase64(parsedNoteImages[note.id]);
+            }
+        }
+
+        return { notes: parsedNotes, customTags: parsedTags };
     } catch (error: any) {
         if (error.status === 409 || (error.error && error.error.path && error.error.path['.tag'] === 'not_found')) {
             return { notes: [], customTags: [] };
@@ -142,7 +155,14 @@ const downloadNotes = async (): Promise<{ notes: Note[], customTags: string[] }>
 const uploadNotes = async (notes: Note[], customTags: string[]) => {
     if (!dbx) throw new Error("Dropbox not initialized");
 
-    let fileContent = JSON.stringify({ notes, customTags });
+    const noteImages: Record<string, Array<{id: string, data: string}>> = {};
+    for (const note of notes) {
+        if (note.images && note.images.length > 0) {
+            noteImages[note.id] = await resolveImagesToBase64(note.images);
+        }
+    }
+
+    let fileContent = JSON.stringify({ notes, customTags, noteImages });
 
     if (Capacitor.isNativePlatform()) {
         try {

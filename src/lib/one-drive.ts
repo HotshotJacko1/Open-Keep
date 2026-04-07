@@ -4,6 +4,7 @@ import { PublicClientApplication, Configuration, PopupRequest, NavigationClient,
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import { encryptData, decryptData } from "@/lib/note-storage";
+import { resolveImagesToBase64, restoreImagesFromBase64 } from "@/lib/image-storage";
 
 export const CLIENT_ID = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
 const FOLDER_NAME = "Open Keep Notes";
@@ -265,17 +266,36 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
         }
     }
 
+    let parsedNotes: Note[] = [];
+    let parsedTags: string[] = [];
+    let parsedNoteImages: Record<string, Array<{id: string, data: string}>> = {};
+
     if (Array.isArray(result)) {
-        return { notes: result as Note[], customTags: [] };
+        parsedNotes = result as Note[];
     } else if (result && typeof result === 'object' && 'notes' in result) {
-        return result as { notes: Note[], customTags: string[] };
+        parsedNotes = result.notes || [];
+        parsedTags = result.customTags || [];
+        parsedNoteImages = result.noteImages || {};
     }
 
-    return { notes: [], customTags: [] };
+    for (const note of parsedNotes) {
+        if (parsedNoteImages[note.id] && parsedNoteImages[note.id].length > 0) {
+            note.images = await restoreImagesFromBase64(parsedNoteImages[note.id]);
+        }
+    }
+
+    return { notes: parsedNotes, customTags: parsedTags };
 };
 
 const uploadNotes = async (folderId: string, notes: Note[], customTags: string[], fileId: string | null) => {
-    let fileContent = JSON.stringify({ notes, customTags });
+    const noteImages: Record<string, Array<{id: string, data: string}>> = {};
+    for (const note of notes) {
+        if (note.images && note.images.length > 0) {
+            noteImages[note.id] = await resolveImagesToBase64(note.images);
+        }
+    }
+
+    let fileContent = JSON.stringify({ notes, customTags, noteImages });
 
     if (Capacitor.isNativePlatform()) {
         try {

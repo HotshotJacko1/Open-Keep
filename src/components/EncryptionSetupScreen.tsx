@@ -126,6 +126,11 @@ const EncryptionSetupScreen: React.FC<EncryptionSetupScreenProps> = ({ onSetupCo
                             pattern="[0-9]*"
                             value={confirmPin}
                             onChange={(e) => setConfirmPin(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" && !isLoading && pin && confirmPin) {
+                                    handleSetup();
+                                }
+                            }}
                             placeholder="Retype PIN"
                             disabled={isLoading}
                             maxLength={6}

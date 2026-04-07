@@ -14,7 +14,7 @@ export interface ImportInput {
 // using Omit to allow flexible ID and timestamp generation if needed, 
 // but for a true universal format, we might define an intermediate type.
 // Since the prompt suggested ImportNote -> Note, let's define it.
-export type ImportNote = Omit<Note, 'id'> & { id?: string };
+export type ImportNote = Omit<Note, 'id'> & { id?: string; images?: string[] };
 
 export interface ImportReport {
   source: string;

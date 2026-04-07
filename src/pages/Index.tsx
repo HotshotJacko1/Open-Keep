@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Note } from "@/types/note";
 import { loadNotes, saveNote, deleteNote, getLegacyWebNotes, migrateWebNotes, clearLegacyWebNotes } from "@/lib/note-storage";
+import { deleteImage } from "@/lib/image-storage";
+import { Filesystem, Directory } from "@capacitor/filesystem";
 import NoteCard from "@/components/NoteCard";
 import NoteEditor from "@/components/NoteEditor"; // Unified Editor
 import { useGoogleDrive } from "@/hooks/use-google-drive";
@@ -173,7 +175,12 @@ const Index = () => {
 
       if (notesToPermanentlyDelete.length > 0) {
         console.log(`Cleaning up ${notesToPermanentlyDelete.length} old deleted notes`);
-        await Promise.all(notesToPermanentlyDelete.map(n => deleteNote(n.id)));
+        await Promise.all(notesToPermanentlyDelete.map(async n => {
+          if (n.images && n.images.length > 0) {
+            await Promise.all(n.images.map(deleteImage));
+          }
+          await deleteNote(n.id);
+        }));
         const idsToDelete = new Set(notesToPermanentlyDelete.map(n => n.id));
         setNotes(loadedNotes.filter(n => !idsToDelete.has(n.id)));
       } else {
@@ -285,6 +292,9 @@ const Index = () => {
 
     if (note.isDeleted) {
       // Permanent Delete
+      if (note.images && note.images.length > 0) {
+        await Promise.all(note.images.map(deleteImage));
+      }
       setNotes((prevNotes) => prevNotes.filter((n) => n.id !== id));
       await deleteNote(id);
       showSuccess("Note permanently deleted");
@@ -522,8 +532,15 @@ const Index = () => {
     if (isBinView) {
       // Hard delete
       const idsToDelete = Array.from(selectedNoteIds);
+      
+      await Promise.all(selectedNotes.map(async n => {
+        if (n.images && n.images.length > 0) {
+          await Promise.all(n.images.map(deleteImage));
+        }
+        await deleteNote(n.id);
+      }));
+
       setNotes((prevNotes) => prevNotes.filter(note => !selectedNoteIds.has(note.id)));
-      await Promise.all(idsToDelete.map(id => deleteNote(id)));
       showSuccess("Notes permanently deleted");
     } else {
       // Soft delete
@@ -581,14 +598,31 @@ const Index = () => {
     const zip = new JSZip();
     const selectedNotes = notes.filter((n) => selectedNoteIds.has(n.id));
 
-    selectedNotes.forEach((note) => {
+    // Support exporting images async
+    await Promise.all(selectedNotes.map(async (note) => {
       // Content is already markdown
       const content = note.content;
 
       // Sanitize title for filename
-      const filename = `${note.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'untitled'}_${note.id.substring(0, 4)}.md`;
+      const safeTitle = note.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'untitled';
+      const filename = `${safeTitle}_${note.id.substring(0, 4)}.md`;
+      
       zip.file(filename, `# ${note.title}\n\n${content}`);
-    });
+
+      if (note.images && note.images.length > 0) {
+        const imgFolder = zip.folder(`${safeTitle}_images`);
+        if (imgFolder) {
+          for (const imgPath of note.images) {
+            try {
+              const { data } = await Filesystem.readFile({ path: imgPath, directory: Directory.Data });
+              imgFolder.file(imgPath.split('/').pop() || 'image.jpg', data, { base64: true });
+            } catch (e) {
+              console.warn("Failed to export image", imgPath);
+            }
+          }
+        }
+      }
+    }));
 
     const content = await zip.generateAsync({ type: "blob" });
     saveAs(content, "notes_export.zip");

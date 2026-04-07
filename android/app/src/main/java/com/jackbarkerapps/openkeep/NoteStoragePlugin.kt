@@ -54,6 +54,12 @@ class NoteStoragePlugin : Plugin() {
                         jsNote.put("tags", JSONArray())
                     }
                     
+                    try {
+                        jsNote.put("images", JSONArray(note.images))
+                    } catch (e: Exception) {
+                        jsNote.put("images", JSONArray())
+                    }
+                    
                     jsArray.put(jsNote)
                 }
 
@@ -78,6 +84,9 @@ class NoteStoragePlugin : Plugin() {
             try {
                 val tagsArray = noteObj.optJSONArray("tags") ?: JSONArray()
                 val tagsString = tagsArray.toString()
+                
+                val imagesArray = noteObj.optJSONArray("images") ?: JSONArray()
+                val imagesString = imagesArray.toString()
 
                 val note = NoteEntity(
                     id = noteObj.getString("id") ?: "",
@@ -90,7 +99,8 @@ class NoteStoragePlugin : Plugin() {
                     isArchived = noteObj.optBoolean("isArchived", false),
                     deleted = noteObj.optBoolean("isDeleted", false),
                     tags = tagsString,
-                    syncState = "PENDING"
+                    syncState = "PENDING",
+                    images = imagesString
                 )
                 repository.saveNote(note)
                 call.resolve()

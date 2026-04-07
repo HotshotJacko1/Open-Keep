@@ -34,6 +34,7 @@ class NoteRepository(context: Context) {
                         "open-keep-db"
                     )
                     .openHelperFactory(factory)
+                    .addMigrations(AppDatabase.MIGRATION_1_2)
 //                    .fallbackToDestructiveMigration() // Should likely remove this for prod
                     .build()
                     INSTANCE = instance

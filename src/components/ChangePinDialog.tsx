@@ -208,6 +208,11 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
                             pattern="[0-9]*"
                             value={confirmPin}
                             onChange={(e) => setConfirmPin(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" && !isLoading && currentPin && newPin && confirmPin) {
+                                    handleChangePin();
+                                }
+                            }}
                             placeholder="Retype new PIN"
                             disabled={isLoading}
                             maxLength={6}

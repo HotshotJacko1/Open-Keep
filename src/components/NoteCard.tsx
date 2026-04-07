@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { isChecklist, parseChecklist } from "@/utils/markdown";
 
 import useLongPress from "@/hooks/use-long-press";
+import { useState, useEffect } from "react";
+import { getImageSrc } from "@/lib/image-storage";
 
 interface NoteCardProps {
   note: Note;
@@ -66,6 +68,16 @@ const NoteCard: React.FC<NoteCardProps> = ({
   // Parse content for display
   const displayContent = isList ? parseChecklist(note.content).items.slice(0, 8) : null; // Show first 8 items max
 
+  const [bannerSrc, setBannerSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (note.images && note.images.length > 0) {
+      getImageSrc(note.images[0]).then(setBannerSrc).catch(() => setBannerSrc(null));
+    } else {
+      setBannerSrc(null);
+    }
+  }, [note.images]);
+
   return (
     <Card
       className={cn(
@@ -97,7 +109,19 @@ const NoteCard: React.FC<NoteCardProps> = ({
       </div>
 
       <CardHeader className="pb-2 flex flex-row items-start justify-between p-4 gap-2 min-w-0 w-full max-w-full">
-        <CardTitle className="text-base sm:text-lg font-semibold break-words flex-1 leading-snug min-w-0 max-w-full overflow-hidden [overflow-wrap:anywhere]">{note.title}</CardTitle>
+        <div className="flex flex-col w-full gap-2 min-w-0">
+          {bannerSrc && (
+            <div className="w-full h-40 overflow-hidden rounded-lg mb-2">
+              <img
+                src={bannerSrc}
+                alt=""
+                className="w-full h-full object-cover"
+                draggable={false}
+              />
+            </div>
+          )}
+          <div className="flex flex-row items-start justify-between gap-2 min-w-0 w-full max-w-full">
+            <CardTitle className="text-base sm:text-lg font-semibold break-words flex-1 leading-snug min-w-0 max-w-full overflow-hidden [overflow-wrap:anywhere]">{note.title}</CardTitle>
         <div className={cn("hidden md:flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0", isSelectionMode && "opacity-0 pointer-events-none")}>
           {note.isDeleted ? (
             <>
@@ -159,6 +183,8 @@ const NoteCard: React.FC<NoteCardProps> = ({
               </Button>
             </>
           )}
+        </div>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="px-4 pb-4 pt-0">
