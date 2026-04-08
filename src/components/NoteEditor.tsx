@@ -71,6 +71,7 @@ interface SortableListItemProps {
     onToggleItem: (id: string) => void;
     onEnter: (id: string) => void;
     autoFocus?: boolean;
+    disabled?: boolean;
 }
 
 const SortableListItem: React.FC<SortableListItemProps> = ({
@@ -79,7 +80,8 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
     onRemoveItem,
     onToggleItem,
     onEnter,
-    autoFocus
+    autoFocus,
+    disabled
 }) => {
     const {
         attributes,
@@ -133,6 +135,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
                 variant="ghost"
                 size="icon"
                 className="cursor-grab text-black dark:text-white mt-1 h-6 w-6 shrink-0"
+                disabled={disabled}
                 {...listeners}
                 {...attributes}
             >
@@ -141,11 +144,13 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
             <Checkbox
                 checked={item.checked}
                 onCheckedChange={() => onToggleItem(item.id)}
+                disabled={disabled}
                 className="mt-2 h-4 w-4 bg-transparent border-gray-400 data-[state=checked]:bg-transparent data-[state=checked]:text-black dark:data-[state=checked]:text-white shrink-0"
             />
             <textarea
                 ref={textareaRef}
                 value={item.content}
+                readOnly={disabled}
                 onChange={(e) => {
                     onUpdateItem(item.id, e.target.value);
                     adjustHeight();
@@ -164,6 +169,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
                 variant="ghost"
                 size="icon"
                 onClick={() => onRemoveItem(item.id)}
+                disabled={disabled}
                 className="text-black dark:text-white mt-1 h-6 w-6 shrink-0"
             >
                 <X className="h-4 w-4" />
@@ -182,6 +188,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     autoFocus = true,
 }) => {
     const isMobile = useIsMobile();
+    const isDeleted = initialNote?.isDeleted === true;
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
     const [tags, setTags] = useState("");
@@ -191,6 +198,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const [showFormatting, setShowFormatting] = useState(false);
     const [images, setImages] = useState<string[]>([]);
     const [imageSrcs, setImageSrcs] = useState<string[]>([]);
+    const [fullscreenImageSrc, setFullscreenImageSrc] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Checklist Mode State
@@ -247,6 +255,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             }),
         ],
         content: content,
+        editable: !isDeleted,
         editorProps: {
             attributes: {
                 class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none h-full min-h-[300px] text-black dark:text-white',
@@ -389,6 +398,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 isArchived,
                 createdAt: initialNote?.createdAt || Date.now(),
                 updatedAt: Date.now(),
+                images,
             };
             onSave(newNote);
         }, 500);
@@ -397,7 +407,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [title, content, tags, isPinned, isArchived]);
+    }, [title, content, tags, isPinned, isArchived, images]);
 
     // Toggle Mode Logic
     const handleToggleMode = () => {
@@ -649,6 +659,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 isArchived: newState,
                 createdAt: initialNote?.createdAt || Date.now(),
                 updatedAt: Date.now(),
+                images,
             };
             onSave(finalNote);
         }
@@ -658,6 +669,15 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
     return (
         <>
+            {fullscreenImageSrc && (
+                <div 
+                    className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center cursor-zoom-out p-4"
+                    onClick={() => setFullscreenImageSrc(null)}
+                >
+                    <img src={fullscreenImageSrc} alt="" className="max-w-full max-h-full object-contain" />
+                </div>
+            )}
+
             <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseEditor()}>
                 <DialogContent
                     className="fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-[80vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-lg flex flex-col p-0 gap-0 bg-white dark:bg-[#202124] text-black dark:text-white pt-[env(safe-area-inset-top)] outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0"
@@ -683,6 +703,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                     <Button
                                         variant="ghost"
                                         size="icon"
+                                        disabled={isDeleted}
                                         onClick={() => setIsPinned(!isPinned)}
                                         className={isPinned ? "text-yellow-400" : "text-secondary"}
                                     >
@@ -698,6 +719,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                     <Button
                                         variant="ghost"
                                         size="icon"
+                                        disabled={isDeleted}
                                         onClick={handleArchiveToggle}
                                         className={isArchived ? "text-blue-400" : "text-secondary"}
                                     >
@@ -738,21 +760,43 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         />
 
                         {/* Image strip */}
-                        {imageSrcs.length > 0 && (
-                            <div className="flex gap-2 overflow-x-auto mb-4 -mx-4 px-4">
+                        {imageSrcs.length === 1 && (
+                            <div className="relative w-full mb-4 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 max-h-64 sm:max-h-96 cursor-zoom-in" onClick={() => setFullscreenImageSrc(imageSrcs[0])}>
+                                <img src={imageSrcs[0]} alt="" className="w-full h-full object-contain bg-gray-100 dark:bg-[#202124]" />
+                                {!isDeleted && (
+                                    <button
+                                        onClick={async (e) => {
+                                            e.stopPropagation();
+                                            await deleteImage(images[0]);
+                                            setImages([]);
+                                            setImageSrcs([]);
+                                        }}
+                                        className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 rounded-full p-1.5 text-white transition-colors"
+                                    >
+                                        <X className="h-5 w-5" />
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
+                        {imageSrcs.length > 1 && (
+                            <div className="flex gap-2 overflow-x-auto mb-4 -mx-4 px-4 pb-2">
                                 {imageSrcs.map((src, i) => (
-                                    <div key={i} className="relative flex-shrink-0 w-40 h-32 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                                    <div key={i} className="relative flex-shrink-0 w-40 h-32 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 cursor-zoom-in" onClick={() => setFullscreenImageSrc(src)}>
                                         <img src={src} alt="" className="w-full h-full object-cover" />
-                                        <button
-                                            onClick={async () => {
-                                                await deleteImage(images[i]);
-                                                setImages(prev => prev.filter((_, idx) => idx !== i));
-                                                setImageSrcs(prev => prev.filter((_, idx) => idx !== i));
-                                            }}
-                                            className="absolute top-1 right-1 bg-black/50 rounded-full p-0.5 text-white"
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </button>
+                                        {!isDeleted && (
+                                            <button
+                                                onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    await deleteImage(images[i]);
+                                                    setImages(prev => prev.filter((_, idx) => idx !== i));
+                                                    setImageSrcs(prev => prev.filter((_, idx) => idx !== i));
+                                                }}
+                                                className="absolute top-1 right-1 bg-black/50 hover:bg-black/70 rounded-full p-1 text-white transition-colors"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -768,6 +812,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                 adjustTitleHeight();
                             }}
                             rows={1}
+                            readOnly={isDeleted}
                             className="w-full bg-white dark:bg-[#202124] text-black dark:text-white border-0 focus:outline-none text-xl font-semibold px-0 mb-4 placeholder:text-gray-400 resize-none overflow-hidden h-auto"
                             placeholder="Title"
                         />
@@ -793,6 +838,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                                 onToggleItem={handleToggleItem}
                                                 onEnter={handleInsertItemAfter}
                                                 autoFocus={item.id === focusItemId}
+                                                disabled={isDeleted}
                                             />
                                         ))}
                                     </SortableContext>
@@ -832,6 +878,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                             }
                                         }}
                                         rows={1}
+                                        readOnly={isDeleted}
                                         placeholder="List item"
                                         className="bg-transparent border-none focus:outline-none resize-none overflow-hidden min-h-[24px] flex-1 py-1"
                                     />
@@ -849,7 +896,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         <div className="flex gap-2">
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="text-secondary">
+                                    <Button variant="ghost" size="icon" disabled={isDeleted} onClick={() => fileInputRef.current?.click()} className="text-secondary">
                                         <ImageIcon className="h-5 w-5" />
                                         <span className="sr-only">Add Photo</span>
                                     </Button>
@@ -859,7 +906,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" onClick={handleToggleMode} className="text-secondary">
+                                    <Button variant="ghost" size="icon" disabled={isDeleted} onClick={handleToggleMode} className="text-secondary">
                                         <ListChecks className={`h-5 w-5 ${isChecklistMode ? "text-primary" : ""}`} />
                                         <span className="sr-only">{isChecklistMode ? "Hide Checkboxes" : "Show Checkboxes"}</span>
                                     </Button>
@@ -872,6 +919,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                     <Button
                                         variant="ghost"
                                         size="icon"
+                                        disabled={isDeleted}
                                         className="text-secondary"
                                         onClick={() => setIsLabelsOpen(true)}
                                     >
@@ -887,6 +935,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                     <Button
                                         variant="ghost"
                                         size="icon"
+                                        disabled={isDeleted}
                                         className={`text-secondary ${showFormatting ? "bg-accent" : ""}`}
                                         onClick={() => setShowFormatting(!showFormatting)}
                                     >
@@ -950,7 +999,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         <div className="flex gap-2">
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" onClick={handleExport} className="text-secondary">
+                                    <Button variant="ghost" size="icon" disabled={isDeleted} onClick={handleExport} className="text-secondary">
                                         <Upload className="h-5 w-5" />
                                         <span className="sr-only">Export Note</span>
                                     </Button>

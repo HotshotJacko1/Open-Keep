@@ -36,7 +36,6 @@ const NoteCard: React.FC<NoteCardProps> = ({
   onSelect,
 }) => {
   const handleCardClick = () => {
-    if (note.isDeleted) return; // Prevent editing deleted notes
     if (isSelectionMode) {
       onSelect(note.id, !isSelected);
     } else {
@@ -45,11 +44,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
   };
 
   const handleLongPress = (e: React.TouchEvent | React.MouseEvent) => {
-    if (note.isDeleted) return;
-    // If already in selection mode, long press could just toggle or do nothing.
-    // User requested: "long pressing... should select it".
-    // If not in selection mode, this should enter selection mode (which selecting a note implies if the parent handles it).
-    // The parent presumably enters selection mode if at least one note is selected.
+    // Allow selection even if the note is deleted
     onSelect(note.id, !isSelected);
   };
 
