@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Note } from "@/types/note";
 import { toast } from "sonner";
 import {
     Dialog,
     DialogContent,
     DialogFooter,
+    DialogTitle,
+    DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -669,13 +672,24 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
     return (
         <>
-            {fullscreenImageSrc && (
+            {fullscreenImageSrc && createPortal(
                 <div 
                     className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center cursor-zoom-out p-4"
                     onClick={() => setFullscreenImageSrc(null)}
                 >
+                    <button
+                        className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 rounded-full p-2 text-white transition-colors z-10"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setFullscreenImageSrc(null);
+                        }}
+                    >
+                        <X className="h-6 w-6" />
+                        <span className="sr-only">Close</span>
+                    </button>
                     <img src={fullscreenImageSrc} alt="" className="max-w-full max-h-full object-contain" />
-                </div>
+                </div>,
+                document.body
             )}
 
             <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseEditor()}>
@@ -683,6 +697,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     className="fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-[80vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-lg flex flex-col p-0 gap-0 bg-white dark:bg-[#202124] text-black dark:text-white pt-[env(safe-area-inset-top)] outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0"
                     onOpenAutoFocus={(e) => e.preventDefault()}
                 >
+                    <DialogTitle className="sr-only">Edit Note</DialogTitle>
+                    <DialogDescription className="sr-only">Note editor modal</DialogDescription>
 
                     {/* Header */}
                     <div className="flex justify-between items-center p-2 border-b border-gray-200 dark:border-gray-700 shrink-0">
