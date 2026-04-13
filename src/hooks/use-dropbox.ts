@@ -57,7 +57,10 @@ export const useDropbox = () => {
                         initDropbox(token);
                         showSuccess("Connected to Dropbox!");
                         
-                        await doInternalSync();
+                        const syncResult = await doInternalSync();
+                        if (syncResult.status === "conflict") {
+                            showError("Cloud sync conflict detected. Please open Settings > Sync to resolve.");
+                        }
                     } catch (error) {
                         console.error("Dropbox auth error from deep link:", error);
                         showError("Failed to finalize Dropbox login.");
@@ -84,7 +87,10 @@ export const useDropbox = () => {
                     initDropbox(token);
                     showSuccess("Connected to Dropbox!");
                     
-                    await doInternalSync();
+                    const syncResult = await doInternalSync();
+                    if (syncResult.status === "conflict") {
+                        showError("Cloud sync conflict detected. Please open Settings > Sync to resolve.");
+                    }
                 } catch (error) {
                     console.error("Dropbox auth error:", error);
                 }

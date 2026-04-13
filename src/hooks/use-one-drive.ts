@@ -39,7 +39,10 @@ export const useOneDrive = () => {
                         setUserEmail(response.account.username);
                         localStorage.setItem("onedrive-user-email", response.account.username);
                         showSuccess(`Connected to OneDrive as ${response.account.username}`);
-                        await doInternalSync();
+                        const syncResult = await doInternalSync();
+                        if (syncResult.status === "conflict") {
+                            showError("Cloud sync conflict detected. Please open Settings > Sync to resolve.");
+                        }
                     }
                 } catch (e) {
                     console.error("handleRedirectPromise deep link error:", e);
@@ -60,7 +63,10 @@ export const useOneDrive = () => {
                 if (isNewLogin) {
                     showSuccess(`Connected to OneDrive as ${account.username}`);
                     // Trigger sync on first successful connection
-                    await doInternalSync();
+                    const result = await doInternalSync();
+                    if (result.status === "conflict") {
+                        showError("Cloud sync conflict detected. Please open Settings > Sync to resolve.");
+                    }
                 }
             }
 

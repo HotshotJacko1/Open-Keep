@@ -149,6 +149,8 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                     <p className="text-xs text-red-500/90 mb-1">To keep cloud data, enter the PIN it was encrypted with.</p>
                     <input 
                       type="password" 
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={providedPin}
                       onChange={e => setProvidedPin(e.target.value)}
                       placeholder="Previous PIN"
