@@ -20,6 +20,14 @@ export const useOneDrive = () => {
         return () => window.removeEventListener("notes-updated", handleNotesUpdated);
     }, []);
 
+    useEffect(() => {
+        const handleUserUpdated = () => {
+            setUserEmail(localStorage.getItem("onedrive-user-email"));
+        };
+        window.addEventListener("onedrive-user-updated", handleUserUpdated);
+        return () => window.removeEventListener("onedrive-user-updated", handleUserUpdated);
+    }, []);
+
     // Check for active account on load and setup Deep Link Listener
     useEffect(() => {
         let listenerHandle: any = null;
@@ -183,6 +191,7 @@ export const useOneDrive = () => {
         localStorage.removeItem("onedrive-user-email");
         localStorage.removeItem("onedrive-last-synced");
         setLastSynced(null);
+        window.dispatchEvent(new Event("onedrive-user-updated"));
         showSuccess("Disconnected from OneDrive.");
     }, []);
 

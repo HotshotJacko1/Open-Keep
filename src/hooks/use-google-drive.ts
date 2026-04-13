@@ -19,6 +19,14 @@ export const useGoogleDrive = () => {
         return () => window.removeEventListener("notes-updated", handleNotesUpdated);
     }, []);
 
+    useEffect(() => {
+        const handleUserUpdated = () => {
+            setUserEmail(localStorage.getItem("google-user-email"));
+        };
+        window.addEventListener("google-user-updated", handleUserUpdated);
+        return () => window.removeEventListener("google-user-updated", handleUserUpdated);
+    }, []);
+
     const webLogin = useGoogleLogin({
         onSuccess: async (tokenResponse) => {
             try {
@@ -200,6 +208,7 @@ export const useGoogleDrive = () => {
         setLastSynced(null);
         // We can't really 'logout' the token on server without revocation, but we clear client state
         setAccessToken("");
+        window.dispatchEvent(new Event("google-user-updated"));
         showSuccess("Disconnected from Google Drive.");
     };
 

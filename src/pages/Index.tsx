@@ -126,10 +126,12 @@ const Index = () => {
       setIsRefreshing(true);
       setPullChange(60); // Hold position
       try {
-        await activeService.sync();
-        const loadedNotes = await loadNotes(); // Reload local notes after sync
-        setNotes(loadedNotes);
-        showSuccess(`Synced with ${activeService.name}`);
+        const syncResult = await activeService.sync();
+        if (syncResult && syncResult.status === "success") {
+          const loadedNotes = await loadNotes(); // Reload local notes after sync
+          setNotes(loadedNotes);
+          showSuccess(`Synced with ${activeService.name}`);
+        }
       } catch (error) {
         console.error("Sync failed", error);
       } finally {
