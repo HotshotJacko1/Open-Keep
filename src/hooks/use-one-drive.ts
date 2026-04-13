@@ -41,7 +41,7 @@ export const useOneDrive = () => {
                         showSuccess(`Connected to OneDrive as ${response.account.username}`);
                         const syncResult = await doInternalSync();
                         if (syncResult.status === "conflict") {
-                            showError("Cloud sync conflict detected. Please open Settings > Sync to resolve.");
+                            window.dispatchEvent(new CustomEvent("open-sync-conflict", { detail: { service: "onedrive", payload: (syncResult as any).cloudPayload, reason: (syncResult as any).reason } }));
                         }
                     }
                 } catch (e) {
@@ -65,7 +65,7 @@ export const useOneDrive = () => {
                     // Trigger sync on first successful connection
                     const result = await doInternalSync();
                     if (result.status === "conflict") {
-                        showError("Cloud sync conflict detected. Please open Settings > Sync to resolve.");
+                        window.dispatchEvent(new CustomEvent("open-sync-conflict", { detail: { service: "onedrive", payload: (result as any).cloudPayload, reason: (result as any).reason } }));
                     }
                 }
             }

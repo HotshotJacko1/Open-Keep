@@ -28,8 +28,20 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
   const [conflictData, setConflictData] = useState<{ activeService: any, cloudPayload: string, reason?: "key_mismatch" | "first_connect" } | null>(null);
   const [providedPin, setProvidedPin] = useState("");
 
+  React.useEffect(() => {
+    const handleGlobalConflict = ((e: CustomEvent) => {
+      const { service, payload, reason } = e.detail;
+      let activeSvc;
+      if (service === 'onedrive') activeSvc = { ...oneDrive, name: "OneDrive" };
+      else if (service === 'dropbox') activeSvc = { ...dropbox, name: "Dropbox" };
+      else activeSvc = { ...googleDrive, name: "Google Drive" };
+      
+      setConflictData({ activeService: activeSvc, cloudPayload: payload, reason });
+    }) as EventListener;
 
-
+    window.addEventListener('open-sync-conflict', handleGlobalConflict);
+    return () => window.removeEventListener('open-sync-conflict', handleGlobalConflict);
+  }, [oneDrive, dropbox, googleDrive]);
   React.useEffect(() => {
     if (!isOpen) return;
 

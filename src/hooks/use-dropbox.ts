@@ -59,7 +59,7 @@ export const useDropbox = () => {
                         
                         const syncResult = await doInternalSync();
                         if (syncResult.status === "conflict") {
-                            showError("Cloud sync conflict detected. Please open Settings > Sync to resolve.");
+                            window.dispatchEvent(new CustomEvent("open-sync-conflict", { detail: { service: "dropbox", payload: (syncResult as any).cloudPayload, reason: (syncResult as any).reason } }));
                         }
                     } catch (error) {
                         console.error("Dropbox auth error from deep link:", error);
@@ -89,7 +89,7 @@ export const useDropbox = () => {
                     
                     const syncResult = await doInternalSync();
                     if (syncResult.status === "conflict") {
-                        showError("Cloud sync conflict detected. Please open Settings > Sync to resolve.");
+                        window.dispatchEvent(new CustomEvent("open-sync-conflict", { detail: { service: "dropbox", payload: (syncResult as any).cloudPayload, reason: (syncResult as any).reason } }));
                     }
                 } catch (error) {
                     console.error("Dropbox auth error:", error);

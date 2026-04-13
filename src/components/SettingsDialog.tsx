@@ -67,6 +67,14 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
+  React.useEffect(() => {
+    const handleGlobalConflict = () => {
+      setIsSyncDialogOpen(true);
+    };
+    window.addEventListener('open-sync-conflict', handleGlobalConflict);
+    return () => window.removeEventListener('open-sync-conflict', handleGlobalConflict);
+  }, []);
+
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };
