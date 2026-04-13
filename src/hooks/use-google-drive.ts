@@ -82,7 +82,7 @@ export const useGoogleDrive = () => {
         }
     };
 
-    const doInternalSync = async (forceResolution?: "local" | "cloud", cloudPayload?: string): Promise<SyncResult> => {
+    const doInternalSync = async (forceResolution?: "local" | "cloud", cloudPayload?: string, providedPin?: string): Promise<SyncResult> => {
         setIsSyncing(true);
         try {
             await initGoogleDrive();
@@ -109,8 +109,12 @@ export const useGoogleDrive = () => {
             }
 
             if (forceResolution === "cloud" && cloudPayload && pin) {
+                const importPin = providedPin || pin;
                 await wipeDatabaseButKeepKeys();
-                await importMasterKey(cloudPayload, pin);
+                await importMasterKey(cloudPayload, importPin);
+                if (providedPin && providedPin !== pin) {
+                    localStorage.setItem("app-passcode", providedPin);
+                }
             }
 
             let masterKeyPayload: string | undefined;
@@ -125,20 +129,21 @@ export const useGoogleDrive = () => {
                     if (cloudKey.exists && cloudKey.payload) {
                         const localNotes = await loadNotes();
                         const isFirstConnect = !localStorage.getItem("last-synced-time");
+                        const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, pin);
+                        
+                        if (!isMatch) {
+                            // Keys differ — conflict resolution required
+                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
+                        }
+                        
                         if (localNotes.length === 0) {
-                            // Local is empty — auto-restore from cloud
+                            // Local is empty and keys match — auto-restore from cloud
                             await wipeDatabaseButKeepKeys();
                             await importMasterKey(cloudKey.payload, pin);
                             masterKeyPayload = undefined;
-                        } else {
-                            const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, pin);
-                            if (!isMatch) {
-                                // Keys differ — conflict resolution required
-                                return { status: "conflict", cloudPayload: cloudKey.payload };
-                            } else if (isFirstConnect) {
-                                // Keys match but this is first connect — ask user which data to keep
-                                return { status: "conflict", cloudPayload: cloudKey.payload };
-                            }
+                        } else if (isFirstConnect) {
+                            // Keys match but this is first connect — ask user which data to keep
+                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
                         }
                     }
                 }
@@ -164,7 +169,7 @@ export const useGoogleDrive = () => {
                 showError("Cloud notes could not be decrypted. They may be locked with an old, unknown key.");
                 const cloudKey = await checkGoogleDriveMasterKey();
                 if (cloudKey.payload) {
-                    return { status: "conflict", cloudPayload: cloudKey.payload };
+                    return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
                 }
             }
             showError("Sync failed. Please reconnect Google Drive.");
@@ -174,8 +179,8 @@ export const useGoogleDrive = () => {
         }
     };
 
-    const sync = useCallback(async (forceResolution?: "local" | "cloud", cloudPayload?: string) => {
-        return await doInternalSync(forceResolution, cloudPayload);
+    const sync = useCallback(async (forceResolution?: "local" | "cloud", cloudPayload?: string, providedPin?: string) => {
+        return await doInternalSync(forceResolution, cloudPayload, providedPin);
     }, []);
 
     const disconnect = async () => {

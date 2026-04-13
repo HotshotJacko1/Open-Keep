@@ -88,7 +88,7 @@ export const useOneDrive = () => {
         }
     }, []);
 
-    const doInternalSync = async (forceResolution?: "local" | "cloud", cloudPayload?: string): Promise<SyncResult> => {
+    const doInternalSync = async (forceResolution?: "local" | "cloud", cloudPayload?: string, providedPin?: string): Promise<SyncResult> => {
         setIsSyncing(true);
         try {
             await initOneDrive();
@@ -98,8 +98,12 @@ export const useOneDrive = () => {
             }
 
             if (forceResolution === "cloud" && cloudPayload && pin) {
+                const importPin = providedPin || pin;
                 await wipeDatabaseButKeepKeys();
-                await importMasterKey(cloudPayload, pin);
+                await importMasterKey(cloudPayload, importPin);
+                if (providedPin && providedPin !== pin) {
+                    localStorage.setItem("app-passcode", providedPin);
+                }
             }
 
             let masterKeyPayload: string | undefined;
@@ -113,15 +117,18 @@ export const useOneDrive = () => {
                     const cloudKey = await checkOneDriveMasterKey();
                     if (cloudKey.exists && cloudKey.payload) {
                         const localNotes = await loadNotes();
+                        const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, pin);
+                        
+                        if (!isMatch) {
+                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
+                        }
+                        
                         if (localNotes.length === 0) {
                             await wipeDatabaseButKeepKeys();
                             await importMasterKey(cloudKey.payload, pin);
                             masterKeyPayload = undefined;
                         } else {
-                            const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, pin);
-                            if (!isMatch) {
-                                return { status: "conflict", cloudPayload: cloudKey.payload };
-                            }
+                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
                         }
                     }
                 }
@@ -146,7 +153,7 @@ export const useOneDrive = () => {
                 showError("Cloud notes could not be decrypted. They may be locked with an old, unknown key.");
                 const cloudKey = await checkOneDriveMasterKey();
                 if (cloudKey.payload) {
-                    return { status: "conflict", cloudPayload: cloudKey.payload };
+                    return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
                 }
             }
             showError("OneDrive sync failed. Please reconnect.");
@@ -156,12 +163,12 @@ export const useOneDrive = () => {
         }
     };
 
-    const sync = useCallback(async (forceResolution?: "local" | "cloud", cloudPayload?: string) => {
+    const sync = useCallback(async (forceResolution?: "local" | "cloud", cloudPayload?: string, providedPin?: string) => {
         if (!userEmail) {
             showError("Please connect to OneDrive first.");
             return { status: "error", message: "Not connected" };
         }
-        return await doInternalSync(forceResolution, cloudPayload);
+        return await doInternalSync(forceResolution, cloudPayload, providedPin);
     }, [userEmail]);
 
     const disconnect = useCallback(async () => {

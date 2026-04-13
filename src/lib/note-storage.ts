@@ -247,7 +247,7 @@ export const wipeDatabaseButKeepKeys = async (): Promise<void> => {
 
 export type SyncResult = 
     | { status: "success" }
-    | { status: "conflict", cloudPayload: string }
+    | { status: "conflict", cloudPayload: string, reason?: "key_mismatch" | "first_connect" }
     | { status: "error", message: string };
 
 // Legacy LocalStorage helpers

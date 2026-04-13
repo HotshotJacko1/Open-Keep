@@ -694,7 +694,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
             <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseEditor()}>
                 <DialogContent
-                    className="fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-[80vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-lg flex flex-col p-0 gap-0 bg-white dark:bg-[#202124] text-black dark:text-white pt-[env(safe-area-inset-top)] outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0"
+                    className="fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-[80vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-lg flex flex-col p-0 gap-0 bg-white dark:bg-[#202124] text-black dark:text-white pt-[env(safe-area-inset-top)] outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-50 data-[state=open]:zoom-in-50 duration-200"
                     onOpenAutoFocus={(e) => e.preventDefault()}
                 >
                     <DialogTitle className="sr-only">Edit Note</DialogTitle>
@@ -826,6 +826,21 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                             onChange={(e) => {
                                 setTitle(e.target.value);
                                 adjustTitleHeight();
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    if (isChecklistMode) {
+                                        const bodyTextareas = document.querySelectorAll<HTMLTextAreaElement>('div[role="dialog"] textarea:not(#title)');
+                                        if (bodyTextareas.length > 0) {
+                                            const target = bodyTextareas[0];
+                                            target.focus();
+                                            target.setSelectionRange(target.value.length, target.value.length);
+                                        }
+                                    } else if (editor) {
+                                        editor.commands.focus();
+                                    }
+                                }
                             }}
                             rows={1}
                             readOnly={isDeleted}

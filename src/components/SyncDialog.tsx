@@ -25,7 +25,8 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
   const oneDrive = useOneDrive();
   const dropbox = useDropbox();
 
-  const [conflictData, setConflictData] = useState<{ activeService: any, cloudPayload: string } | null>(null);
+  const [conflictData, setConflictData] = useState<{ activeService: any, cloudPayload: string, reason?: "key_mismatch" | "first_connect" } | null>(null);
+  const [providedPin, setProvidedPin] = useState("");
 
 
 
@@ -70,14 +71,15 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
     if (!activeService) return;
     const result = await activeService.sync();
     if (result && result.status === "conflict" && 'cloudPayload' in result) {
-      setConflictData({ activeService, cloudPayload: (result as any).cloudPayload });
+      setConflictData({ activeService, cloudPayload: (result as any).cloudPayload, reason: (result as any).reason });
     }
   };
 
   const resolveConflict = async (resolution: "local" | "cloud") => {
     if (!conflictData) return;
-    await conflictData.activeService.sync(resolution, conflictData.cloudPayload);
+    await conflictData.activeService.sync(resolution, conflictData.cloudPayload, providedPin.trim() || undefined);
     setConflictData(null);
+    setProvidedPin("");
   };
 
   return (
@@ -112,7 +114,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                     showSuccess("Initiating Google Login...");
                     const result = await googleDrive.login();
                     if (result && result.status === "conflict" && 'cloudPayload' in result) {
-                      setConflictData({ activeService: googleDrive, cloudPayload: (result as any).cloudPayload });
+                      setConflictData({ activeService: googleDrive, cloudPayload: (result as any).cloudPayload, reason: (result as any).reason });
                     }
                   }}
                   className="w-full justify-start"
@@ -141,11 +143,25 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                 </p>
                 <p className="text-sm font-medium text-primary-foreground">How would you like to resolve this?</p>
                 
+                {conflictData.reason === "key_mismatch" && (
+                  <div className="flex flex-col gap-2 mt-2 p-3 bg-red-500/10 border border-red-500/50 rounded-md">
+                    <Label className="text-red-500">Cloud Data was encrypted with a different PIN.</Label>
+                    <p className="text-xs text-red-500/90 mb-1">To keep cloud data, enter the PIN it was encrypted with.</p>
+                    <input 
+                      type="password" 
+                      value={providedPin}
+                      onChange={e => setProvidedPin(e.target.value)}
+                      placeholder="Previous PIN"
+                      className="border rounded px-2 py-1 bg-background text-sm"
+                    />
+                  </div>
+                )}
+                
                 <div className="flex flex-col gap-3 mt-2">
                   <Button 
                     variant="destructive" 
                     onClick={() => resolveConflict("cloud")}
-                    disabled={isAnySyncing}
+                    disabled={isAnySyncing || (conflictData.reason === "key_mismatch" && !providedPin)}
                   >
                      {isAnySyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Keep Cloud Data (Deletes Local Notes)
