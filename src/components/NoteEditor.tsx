@@ -214,6 +214,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const titleTextareaRef = useRef<HTMLTextAreaElement>(null);
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const prevIsOpen = useRef(isOpen);
+    const handleCloseEditorRef = useRef<() => void>(() => {});
 
     const adjustTitleHeight = () => {
         const textarea = titleTextareaRef.current;
@@ -232,7 +233,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
         const handlePopState = (event: PopStateEvent) => {
             // If the user presses back, close the editor
-            handleCloseEditor();
+            handleCloseEditorRef.current();
         };
 
         window.addEventListener('popstate', handlePopState);
@@ -570,6 +571,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         }
         onClose();
     };
+    handleCloseEditorRef.current = handleCloseEditor;
 
     const handleDelete = () => {
         onDelete(noteIdRef.current);

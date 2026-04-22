@@ -87,7 +87,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  const resolveConflict = async (resolution: "local" | "cloud") => {
+  const resolveConflict = async (resolution: "local" | "cloud" | "merge") => {
     if (!conflictData) return;
     await conflictData.activeService.sync(resolution, conflictData.cloudPayload, providedPin.trim() || undefined);
     setConflictData(null);
@@ -173,6 +173,14 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                 
                 <div className="flex flex-col gap-3 mt-2">
                   <Button 
+                    variant="default" 
+                    onClick={() => resolveConflict("merge")}
+                    disabled={isAnySyncing || (conflictData.reason === "key_mismatch" && !providedPin)}
+                  >
+                     {isAnySyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Merge Both Together (Keep All Notes)
+                  </Button>
+                  <Button 
                     variant="destructive" 
                     onClick={() => resolveConflict("cloud")}
                     disabled={isAnySyncing || (conflictData.reason === "key_mismatch" && !providedPin)}
@@ -181,7 +189,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                     Keep Cloud Data (Deletes Local Notes)
                   </Button>
                   <Button 
-                    variant="default" 
+                    variant="outline" 
                     onClick={() => resolveConflict("local")}
                     disabled={isAnySyncing}
                   >
@@ -189,7 +197,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                     Keep Local Data (Overwrites Cloud)
                   </Button>
                   <Button 
-                    variant="outline" 
+                    variant="ghost" 
                     onClick={() => setConflictData(null)}
                     disabled={isAnySyncing}
                   >

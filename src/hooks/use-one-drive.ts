@@ -1,7 +1,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { initOneDrive, loginToOneDrive, syncNotesWithOneDrive, logoutFromOneDrive, msalInstance, checkOneDriveMasterKey } from "@/lib/one-drive";
-import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, wipeDatabaseButKeepKeys, SyncResult } from "@/lib/note-storage";
+import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, wipeDatabaseButKeepKeys, changeEncryptionKey, SyncResult } from "@/lib/note-storage";
 import { showSuccess, showError } from "@/utils/toast";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
@@ -102,7 +102,7 @@ export const useOneDrive = () => {
         }
     }, []);
 
-    const doInternalSync = async (forceResolution?: "local" | "cloud", cloudPayload?: string, providedPin?: string): Promise<SyncResult> => {
+    const doInternalSync = async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string): Promise<SyncResult> => {
         setIsSyncing(true);
         try {
             await initOneDrive();
@@ -118,6 +118,12 @@ export const useOneDrive = () => {
                 if (providedPin && providedPin !== pin) {
                     localStorage.setItem("app-passcode", providedPin);
                 }
+            }
+
+            if (forceResolution === "merge" && cloudPayload && pin && providedPin && providedPin !== pin) {
+                await changeEncryptionKey(pin, providedPin);
+                await importMasterKey(cloudPayload, providedPin);
+                localStorage.setItem("app-passcode", providedPin);
             }
 
             let masterKeyPayload: string | undefined;
@@ -177,7 +183,7 @@ export const useOneDrive = () => {
         }
     };
 
-    const sync = useCallback(async (forceResolution?: "local" | "cloud", cloudPayload?: string, providedPin?: string) => {
+    const sync = useCallback(async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string) => {
         if (!userEmail) {
             showError("Please connect to OneDrive first.");
             return { status: "error", message: "Not connected" };

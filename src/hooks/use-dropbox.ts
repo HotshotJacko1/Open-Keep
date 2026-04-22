@@ -1,7 +1,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { initDropbox, getAuthenticationUrl, handleAuthRedirect, syncNotesWithDropbox, checkDropboxMasterKey } from "@/lib/dropbox";
-import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, wipeDatabaseButKeepKeys, SyncResult } from "@/lib/note-storage";
+import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, wipeDatabaseButKeepKeys, changeEncryptionKey, SyncResult } from "@/lib/note-storage";
 import { showSuccess, showError } from "@/utils/toast";
 import { Browser } from "@capacitor/browser";
 import { App as CapacitorApp } from "@capacitor/app";
@@ -124,7 +124,7 @@ export const useDropbox = () => {
         }
     }, []);
 
-    const doInternalSync = async (forceResolution?: "local" | "cloud", cloudPayload?: string, providedPin?: string): Promise<SyncResult> => {
+    const doInternalSync = async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string): Promise<SyncResult> => {
         setIsSyncing(true);
         try {
             const pin = localStorage.getItem("app-passcode");
@@ -139,6 +139,12 @@ export const useDropbox = () => {
                 if (providedPin && providedPin !== pin) {
                     localStorage.setItem("app-passcode", providedPin);
                 }
+            }
+
+            if (forceResolution === "merge" && cloudPayload && pin && providedPin && providedPin !== pin) {
+                await changeEncryptionKey(pin, providedPin);
+                await importMasterKey(cloudPayload, providedPin);
+                localStorage.setItem("app-passcode", providedPin);
             }
 
             let masterKeyPayload: string | undefined;
@@ -203,7 +209,7 @@ export const useDropbox = () => {
         }
     };
 
-    const sync = useCallback(async (forceResolution?: "local" | "cloud", cloudPayload?: string, providedPin?: string) => {
+    const sync = useCallback(async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string) => {
         if (!accessToken) {
             showError("Please connect to Dropbox first.");
             return { status: "error", message: "Not connected" };
