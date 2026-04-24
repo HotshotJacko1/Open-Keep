@@ -32,15 +32,20 @@
   @layer base {
     :root {
       --background: 24 83% 93%;
+      /* In use */
       --foreground: 18 100% 98%;
 
       --note-editor-background: 18 100% 98%;
+      /* In use */
       --note-editor-foreground: 18 13% 9%;
 
       --sidebar-background: 18 100% 98%;
+      /* In use */
       --sidebar-foreground: 26 94% 75%;
+      /* In use */
 
       --card: 255 248 245%;
+      /* In use */
       --card-foreground: 222.2 84% 4.9%;
 
       --popover: 0 0% 100%;
@@ -87,16 +92,20 @@
 
     .dark {
       --background: 26 32% 10%;
-      /* This is the default dark background, but we're overriding it in Index.tsx */
+      /* In use */
       --foreground: 27 33% 5%;
 
       --note-editor-background: 23 29% 5%;
+      /* In use */
       --note-editor-foreground: 18 13% 9%;
 
       --sidebar-background: 23 29% 5%;
+      /* In use */
       --sidebar-foreground: 25 46% 30%;
+      /* In use */
 
       --card: 18 13 9%;
+      /* In use */
       --card-foreground: 210 40% 98%;
 
       --popover: 222.2 84% 4.9%;
