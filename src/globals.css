@@ -31,11 +31,16 @@
 
   @layer base {
     :root {
-      --background: 0 0% 96%;
-      --foreground: 0 0% 100%;
-      /* HSL for #202124 */
+      --background: 252 234 222%;
+      --foreground: 255 248 245%;
 
-      --card: 0 0% 100%;
+      --note-editor-background: 255 248 245%;
+      --note-editor-foreground: 18 13 9%;
+
+      --sidebar-background: #fff8f5;
+      --sidebar-foreground: #fbb884;
+
+      --card: 255 248 245%;
       --card-foreground: 222.2 84% 4.9%;
 
       --popover: 0 0% 100%;
@@ -84,11 +89,17 @@
     }
 
     .dark {
-      --background: 0 0% 0%;
+      --background: 33 24 17%;
       /* This is the default dark background, but we're overriding it in Index.tsx */
-      --foreground: 225 6% 13%;
+      --foreground: 18 13 9%;
 
-      --card: 222.2 84% 4.9%;
+      --note-editor-background: 18 13 10%;
+      --note-editor-foreground: 18 13 9%;
+
+      --sidebar-background: 18 13 10%;
+      --sidebar-foreground: 113 72 42%;
+
+      --card: 18 13 9%;
       --card-foreground: 210 40% 98%;
 
       --popover: 222.2 84% 4.9%;

@@ -7,6 +7,8 @@ import { App as CapacitorApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 
+let isAuthenticating = false;
+
 export const useOneDrive = () => {
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSynced, setLastSynced] = useState<string | null>(localStorage.getItem("onedrive-last-synced"));
@@ -41,15 +43,22 @@ export const useOneDrive = () => {
                     const hashIndex = event.url.indexOf("#");
                     const hash = hashIndex !== -1 ? event.url.substring(hashIndex) : "";
 
-                    const response = await msalInstance.handleRedirectPromise(hash);
-                    if (response && response.account) {
-                        msalInstance.setActiveAccount(response.account);
-                        setUserEmail(response.account.username);
-                        localStorage.setItem("onedrive-user-email", response.account.username);
-                        showSuccess(`Connected to OneDrive as ${response.account.username}`);
-                        const syncResult = await doInternalSync();
-                        if (syncResult.status === "conflict") {
-                            window.dispatchEvent(new CustomEvent("open-sync-conflict", { detail: { service: "onedrive", payload: (syncResult as any).cloudPayload, reason: (syncResult as any).reason } }));
+                    if (!isAuthenticating) {
+                        isAuthenticating = true;
+                        try {
+                            const response = await msalInstance.handleRedirectPromise(hash);
+                            if (response && response.account) {
+                                msalInstance.setActiveAccount(response.account);
+                                setUserEmail(response.account.username);
+                                localStorage.setItem("onedrive-user-email", response.account.username);
+                                showSuccess(`Connected to OneDrive as ${response.account.username}`);
+                                const syncResult = await doInternalSync();
+                                if (syncResult.status === "conflict") {
+                                    window.dispatchEvent(new CustomEvent("open-sync-conflict", { detail: { service: "onedrive", payload: (syncResult as any).cloudPayload, reason: (syncResult as any).reason } }));
+                                }
+                            }
+                        } finally {
+                            isAuthenticating = false;
                         }
                     }
                 } catch (e) {
@@ -138,6 +147,7 @@ export const useOneDrive = () => {
                     if (cloudKey.exists && cloudKey.payload) {
                         const localNotes = await loadNotes();
                         const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, pin);
+                        const isFirstConnect = !localStorage.getItem("onedrive-last-synced");
                         
                         if (!isMatch) {
                             return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
@@ -147,7 +157,7 @@ export const useOneDrive = () => {
                             await wipeDatabaseButKeepKeys();
                             await importMasterKey(cloudKey.payload, pin);
                             masterKeyPayload = undefined;
-                        } else {
+                        } else if (isFirstConnect) {
                             return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
                         }
                     }

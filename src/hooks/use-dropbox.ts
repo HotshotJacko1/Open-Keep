@@ -159,6 +159,7 @@ export const useDropbox = () => {
                     if (cloudKey.exists && cloudKey.payload) {
                         const localNotes = await loadNotes();
                         const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, pin);
+                        const isFirstConnect = !localStorage.getItem("dropbox-last-synced");
                         
                         if (!isMatch) {
                             return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
@@ -168,7 +169,7 @@ export const useDropbox = () => {
                             await wipeDatabaseButKeepKeys();
                             await importMasterKey(cloudKey.payload, pin);
                             masterKeyPayload = undefined;
-                        } else {
+                        } else if (isFirstConnect) {
                             return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
                         }
                     }

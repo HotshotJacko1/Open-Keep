@@ -26,7 +26,7 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
         variant="ghost"
         className={cn(
           "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg w-full whitespace-nowrap overflow-hidden transition-all h-auto select-none",
-          !selectedTag && "bg-sidebar-accent hover:bg-sidebar-accent/90"
+          !selectedTag && "bg-sidebar-foreground dark:bg-sidebar-foreground hover:bg-sidebar-foreground/90 dark:hover:bg-sidebar-foreground/90"
         )}
         asChild
         onClick={handleNavigation}
@@ -47,7 +47,7 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
             variant="ghost"
             className={cn(
               "text-black dark:text-white justify-start px-4 py-2 rounded-3xl text-lg w-full h-auto whitespace-normal break-words text-left transition-all select-none",
-              selectedTag === tag && "bg-sidebar-accent hover:bg-sidebar-accent/90"
+              selectedTag === tag && "bg-sidebar-foreground dark:bg-sidebar-foreground hover:bg-sidebar-foreground/90 dark:hover:bg-sidebar-foreground/90"
             )}
             asChild
             onClick={handleNavigation}
@@ -75,7 +75,7 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
           variant="ghost"
           className={cn(
             "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg w-full whitespace-nowrap overflow-hidden transition-all h-auto select-none",
-            selectedTag === "archive" && "bg-sidebar-accent hover:bg-sidebar-accent/90"
+            selectedTag === "archive" && "bg-sidebar-foreground dark:bg-sidebar-foreground hover:bg-sidebar-foreground/90 dark:hover:bg-sidebar-foreground/90"
           )}
           asChild
           onClick={handleNavigation}
@@ -89,7 +89,7 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
           variant="ghost"
           className={cn(
             "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg w-full whitespace-nowrap overflow-hidden transition-all h-auto select-none",
-            selectedTag === "bin" && "bg-sidebar-accent hover:bg-sidebar-accent/90"
+            selectedTag === "bin" && "bg-sidebar-foreground dark:bg-sidebar-foreground hover:bg-sidebar-foreground/90 dark:hover:bg-sidebar-foreground/90"
           )}
           asChild
           onClick={handleNavigation}
