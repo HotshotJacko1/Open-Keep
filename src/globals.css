@@ -31,14 +31,14 @@
 
   @layer base {
     :root {
-      --background: 252 234 222%;
-      --foreground: 255 248 245%;
+      --background: 24 83% 93%;
+      --foreground: 18 100% 98%;
 
       --note-editor-background: 255 248 245%;
       --note-editor-foreground: 18 13 9%;
 
-      --sidebar-background: #fff8f5;
-      --sidebar-foreground: #fbb884;
+      --sidebar-background: 18 100% 98%;
+      --sidebar-foreground: 26 94% 75%;
 
       --card: 255 248 245%;
       --card-foreground: 222.2 84% 4.9%;
@@ -71,10 +71,7 @@
 
       --radius: 0.5rem;
 
-      --sidebar-background: 0 0% 96%;
-      /* Light mode sidebar background */
-      --sidebar-foreground: 0 0% 100%;
-      /* Light mode sidebar text */
+
       --sidebar-primary: 225 6% 13%;
       /* Light mode sidebar primary text */
       --sidebar-primary-foreground: 225 6% 13%;
@@ -89,15 +86,15 @@
     }
 
     .dark {
-      --background: 33 24 17%;
+      --background: 26 32% 10%;
       /* This is the default dark background, but we're overriding it in Index.tsx */
-      --foreground: 18 13 9%;
+      --foreground: 27 33% 5%;
 
-      --note-editor-background: 18 13 10%;
+      --note-editor-background: 23 29% 5%;
       --note-editor-foreground: 18 13 9%;
 
-      --sidebar-background: 18 13 10%;
-      --sidebar-foreground: 113 72 42%;
+      --sidebar-background: 23 29% 5%;
+      --sidebar-foreground: 25 46% 30%;
 
       --card: 18 13 9%;
       --card-foreground: 210 40% 98%;
@@ -128,10 +125,7 @@
       --input: 240 0% 60%;
       --ring: 212.7 26.8% 83.9%;
 
-      --sidebar-background: 225 6% 13%;
-      /* Dark mode sidebar background */
-      --sidebar-foreground: 210 40% 98%;
-      /* Dark mode sidebar text */
+
       --sidebar-primary: 224.3 76.3% 48%;
       /* Dark mode sidebar primary text */
       --sidebar-primary-foreground: 0 0% 100%;
