@@ -780,7 +780,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         {/* Image strip */}
                         {imageSrcs.length === 1 && (
                             <div className="relative w-full mb-4 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 max-h-64 sm:max-h-96 cursor-zoom-in" onClick={() => setFullscreenImageSrc(imageSrcs[0])}>
-                                <img src={imageSrcs[0]} alt="" className="w-full h-full object-contain bg-gray-100 dark:bg-note-editor-background" />
+                                <img src={imageSrcs[0]} alt="" className="w-full h-full object-contain bg-note-editor-background dark:bg-note-editor-background" />
                                 {!isDeleted && (
                                     <button
                                         onClick={async (e) => {

@@ -22,6 +22,8 @@ export default {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
+        "note-editor-background": "hsl(var(--note-editor-background))",
+        "note-editor-foreground": "hsl(var(--note-editor-foreground))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         primary: {
