@@ -132,7 +132,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
         <div
             ref={setNodeRef}
             style={style}
-            className="flex items-start gap-2 bg-white dark:bg-[#202124] rounded-md mb-1 py-1"
+            className="flex items-start gap-2 bg-transparent rounded-md mb-1 py-1"
         >
             <Button
                 variant="ghost"
@@ -166,7 +166,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
                 }}
                 rows={1}
                 placeholder="List item"
-                className={`flex-1 bg-white dark:bg-[#202124] text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] py-1 ${item.checked ? 'line-through text-gray-500' : ''}`}
+                className={`flex-1 bg-transparent text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] py-1 ${item.checked ? 'line-through text-gray-500' : ''}`}
             />
             <Button
                 variant="ghost"
@@ -214,7 +214,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const titleTextareaRef = useRef<HTMLTextAreaElement>(null);
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const prevIsOpen = useRef(isOpen);
-    const handleCloseEditorRef = useRef<() => void>(() => {});
+    const handleCloseEditorRef = useRef<() => void>(() => { });
 
     const adjustTitleHeight = () => {
         const textarea = titleTextareaRef.current;
@@ -280,7 +280,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 setTags(initialNote.tags.join(", "));
                 setIsPinned(initialNote.isPinned);
                 setIsArchived(initialNote.isArchived);
-                
+
                 const initialImages = initialNote.images || [];
                 setImages(initialImages);
                 Promise.all(initialImages.map(getImageSrc)).then(setImageSrcs);
@@ -645,7 +645,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const handleArchiveToggle = () => {
         const newState = !isArchived;
         setIsArchived(newState);
-        
+
         if (saveTimeoutRef.current) {
             clearTimeout(saveTimeoutRef.current);
         }
@@ -675,7 +675,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     return (
         <>
             {fullscreenImageSrc && createPortal(
-                <div 
+                <div
                     className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center cursor-zoom-out p-4"
                     onClick={() => setFullscreenImageSrc(null)}
                 >
@@ -696,7 +696,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
             <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseEditor()}>
                 <DialogContent
-                    className="fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-[80vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-lg flex flex-col p-0 gap-0 bg-white dark:bg-[#202124] text-black dark:text-white pt-[env(safe-area-inset-top)] outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-50 data-[state=open]:zoom-in-50 duration-200"
+                    className="fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-[80vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-lg flex flex-col p-0 gap-0 bg-note-editor-background dark:bg-note-editor-background text-black dark:text-white pt-[env(safe-area-inset-top)] outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-50 data-[state=open]:zoom-in-50 duration-200"
                     onOpenAutoFocus={(e) => e.preventDefault()}
                 >
                     <DialogTitle className="sr-only">Edit Note</DialogTitle>
@@ -780,7 +780,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         {/* Image strip */}
                         {imageSrcs.length === 1 && (
                             <div className="relative w-full mb-4 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 max-h-64 sm:max-h-96 cursor-zoom-in" onClick={() => setFullscreenImageSrc(imageSrcs[0])}>
-                                <img src={imageSrcs[0]} alt="" className="w-full h-full object-contain bg-gray-100 dark:bg-[#202124]" />
+                                <img src={imageSrcs[0]} alt="" className="w-full h-full object-contain bg-gray-100 dark:bg-note-editor-background" />
                                 {!isDeleted && (
                                     <button
                                         onClick={async (e) => {
@@ -846,7 +846,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                             }}
                             rows={1}
                             readOnly={isDeleted}
-                            className="w-full bg-white dark:bg-[#202124] text-black dark:text-white border-0 focus:outline-none text-xl font-semibold px-0 mb-4 placeholder:text-gray-400 resize-none overflow-hidden h-auto"
+                            className="w-full bg-transparent text-black dark:text-white border-0 focus:outline-none text-xl font-semibold px-0 mb-4 placeholder:text-gray-400 resize-none overflow-hidden h-auto"
                             placeholder="Title"
                         />
 

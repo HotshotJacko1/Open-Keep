@@ -34,8 +34,8 @@
       --background: 24 83% 93%;
       --foreground: 18 100% 98%;
 
-      --note-editor-background: 255 248 245%;
-      --note-editor-foreground: 18 13 9%;
+      --note-editor-background: 18 100% 98%;
+      --note-editor-foreground: 18 13% 9%;
 
       --sidebar-background: 18 100% 98%;
       --sidebar-foreground: 26 94% 75%;
@@ -91,7 +91,7 @@
       --foreground: 27 33% 5%;
 
       --note-editor-background: 23 29% 5%;
-      --note-editor-foreground: 18 13 9%;
+      --note-editor-foreground: 18 13% 9%;
 
       --sidebar-background: 23 29% 5%;
       --sidebar-foreground: 25 46% 30%;
