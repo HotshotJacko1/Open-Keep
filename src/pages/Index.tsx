@@ -14,6 +14,7 @@ import SettingsDialog from "@/components/SettingsDialog";
 import EditLabels from "@/components/EditLabels";
 import AddNoteOptions from "@/components/AddNoteOptions";
 import InitialAskToMigrate from "@/components/InitialAskToMigrate";
+import InitialEarlyAccessDialog from "@/components/InitialEarlyAccessDialog";
 import GoogleKeepMigrationGuide from "@/components/GoogleKeepMigrationGuide";
 import { Button } from "@/components/ui/button";
 import { Menu, Lightbulb, Settings } from "lucide-react";
@@ -50,6 +51,7 @@ const Index = () => {
     return saved ? JSON.parse(saved) : [];
   });
   const [showInitialMigrationAsk, setShowInitialMigrationAsk] = useState(false);
+  const [showEarlyAccessDialog, setShowEarlyAccessDialog] = useState(false);
   const [showMigrationGuide, setShowMigrationGuide] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -162,10 +164,16 @@ const Index = () => {
         localStorage.setItem(MIGRATION_KEY, 'true');
       }
 
-      // Check for first launch / Keep Migration prompt
-      const HAS_SEEN_MIGRATION_PROMPT = 'has_seen_keep_migration_prompt';
-      if (!localStorage.getItem(HAS_SEEN_MIGRATION_PROMPT)) {
-        setShowInitialMigrationAsk(true);
+      // Check for first launch / Keep Migration prompt (disabled — kept for future use)
+      // const HAS_SEEN_MIGRATION_PROMPT = 'has_seen_keep_migration_prompt';
+      // if (!localStorage.getItem(HAS_SEEN_MIGRATION_PROMPT)) {
+      //   setShowInitialMigrationAsk(true);
+      // }
+
+      // Early Access welcome dialog — show once per user
+      const HAS_SEEN_EARLY_ACCESS = 'has_seen_early_access_dialog_v1';
+      if (!localStorage.getItem(HAS_SEEN_EARLY_ACCESS)) {
+        setShowEarlyAccessDialog(true);
       }
 
       const loadedNotes = await loadNotes();
@@ -862,7 +870,8 @@ const Index = () => {
         onDeleteTag={handleDeleteTag}
       />
 
-      <InitialAskToMigrate
+      {/* InitialAskToMigrate disabled — kept for future use */}
+      {/* <InitialAskToMigrate
         isOpen={showInitialMigrationAsk}
         onAccept={() => {
           localStorage.setItem('has_seen_keep_migration_prompt', 'true');
@@ -872,6 +881,14 @@ const Index = () => {
         onDecline={() => {
           localStorage.setItem('has_seen_keep_migration_prompt', 'true');
           setShowInitialMigrationAsk(false);
+        }}
+      /> */}
+
+      <InitialEarlyAccessDialog
+        isOpen={showEarlyAccessDialog}
+        onClose={() => {
+          localStorage.setItem('has_seen_early_access_dialog_v1', 'true');
+          setShowEarlyAccessDialog(false);
         }}
       />
 

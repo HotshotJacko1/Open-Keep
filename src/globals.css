@@ -35,6 +35,7 @@
       /* In use */
       --foreground: 18 100% 98%;
 
+      --text-primary: 0 0% 100%;
       --note-editor-background: 18 100% 98%;
       /* In use */
       --note-editor-foreground: 18 13% 9%;
@@ -44,7 +45,7 @@
       --sidebar-foreground: 26 94% 75%;
       /* In use */
 
-      --card: 255 248 245%;
+      --card: 18 100% 98%;
       /* In use */
       --card-foreground: 222.2 84% 4.9%;
 
@@ -95,6 +96,7 @@
       /* In use */
       --foreground: 27 33% 5%;
 
+      --text-primary: 0 0% 0%;
       --note-editor-background: 23 29% 5%;
       /* In use */
       --note-editor-foreground: 18 13% 9%;
@@ -104,7 +106,7 @@
       --sidebar-foreground: 25 46% 30%;
       /* In use */
 
-      --card: 18 13 9%;
+      --card: 18 13% 9%;
       /* In use */
       --card-foreground: 210 40% 98%;
 

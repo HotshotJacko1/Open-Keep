@@ -9,11 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/theme-provider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText, Mail, ArrowLeft } from "lucide-react";
+import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText, Mail, ArrowLeft, Sparkles } from "lucide-react";
 import SyncDialog from "./SyncDialog";
 import ChangePinDialog from "./ChangePinDialog";
 import AppLockDialog from "./AppLockDialog";
 import GoogleKeepMigrationGuide from "./GoogleKeepMigrationGuide";
+import ChangelogDialog from "./ChangelogDialog";
 import { useSession } from "@/context/session-provider";
 import { Note } from "@/types/note";
 import JSZip from "jszip";
@@ -340,39 +341,40 @@ App version: ${appInfo.version}`;
               </Button>
             </div>
 
-            {/* Supabase User ID */}
-            {user?.id && (
-              <div className="flex items-center justify-between mt-4">
-                <Label className="text-sm text-primary-foreground font-medium">User ID</Label>
-                <span className="text-xs text-primary-foreground max-w-[60%] truncate">
-                  {user.id}
-                </span>
-              </div>
-            )}
-
             <div className="flex flex-col gap-2 mt-4">
               <Button
                 variant="outline"
                 onClick={handleFeedbackEmail}
-                className="w-full"
+                className="w-full justify-start"
               >
                 <Mail className="h-4 w-4 mr-2" /> Feedback, Suggestions, & Support
               </Button>
+              <ChangelogDialog />
               <Button
                 variant="outline"
                 onClick={() => window.open("https://jorvikwebdesigns.com/open-keep-privacy-policy/", "_blank")}
-                className="w-full"
+                className="w-full justify-start"
               >
                 <Shield className="h-4 w-4 mr-2" /> Privacy Policy
               </Button>
               <Button
                 variant="outline"
                 onClick={() => window.open("https://jorvikwebdesigns.com/open-keep-terms-of-service/", "_blank")}
-                className="w-full"
+                className="w-full justify-start"
               >
                 <FileText className="h-4 w-4 mr-2" /> Terms of Service
               </Button>
             </div>
+
+            {/* Supabase User ID */}
+            {user?.id && (
+              <div className="flex items-center justify-between mt-2">
+                <Label className="text-sm text-primary-foreground font-medium">User ID</Label>
+                <span className="text-xs text-primary-foreground max-w-[60%] truncate">
+                  {user.id}
+                </span>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

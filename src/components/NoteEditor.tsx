@@ -378,6 +378,18 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     }, [isChecklistMode, editor]);
 
 
+    // Helper: is the note empty?
+    const isNoteEmpty = () => {
+        if (title.trim() !== "") return false;
+        if (images.length > 0) return false;
+        if (isChecklistMode) {
+            // Empty list = no items, or every item has blank content
+            return checklistItems.every(item => item.content.trim() === "");
+        }
+        const plainText = content.replace(/<[^>]+>/g, '').trim();
+        return plainText === "";
+    };
+
     // Auto-save logic
     useEffect(() => {
         if (!isOpen) {
@@ -386,9 +398,13 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         }
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
-        // Don't save if completely empty (stripped HTML check?)
+        // Don't save if completely empty
         const plainText = content.replace(/<[^>]+>/g, '').trim();
-        if (title.trim() === "" && plainText === "") {
+        const checklistEmpty = isChecklistMode && checklistItems.every(item => item.content.trim() === "");
+        if (title.trim() === "" && plainText === "" && images.length === 0) {
+            return;
+        }
+        if (isChecklistMode && checklistEmpty && title.trim() === "") {
             return;
         }
 
@@ -550,9 +566,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         }
 
         const plainText = content.replace(/<[^>]+>/g, '').trim();
+        const checklistIsEmpty = isChecklistMode && checklistItems.every(item => item.content.trim() === "");
 
         // Cleanup empty note if needed (but save if it has images)
-        if (title.trim() === "" && plainText === "" && images.length === 0) {
+        if (title.trim() === "" && images.length === 0 && (plainText === "" || checklistIsEmpty)) {
             onDelete(noteIdRef.current);
         } else {
             // Force immediate save on close
