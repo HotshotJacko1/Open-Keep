@@ -22,19 +22,19 @@ const InitialEarlyAccessDialog: React.FC<InitialEarlyAccessDialogProps> = ({ isO
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
             <Sparkles className="h-5 w-5 text-yellow-500" />
-            <DialogTitle className="text-black dark:text-white text-xl">
+            <DialogTitle className="text-primary dark:text-primary text-xl">
               Welcome to Open Keep!
             </DialogTitle>
           </div>
           <DialogDescription asChild>
-            <div className="pt-2 text-sm text-black dark:text-white space-y-3">
+            <div className="pt-2 text-sm text-primary dark:text-primary space-y-3">
               <p>
                 Thank you so much for testing the app — it really means a lot! 🎉
               </p>
               <p>
                 Open Keep is currently in <strong>early access</strong>, so you may encounter the occasional rough edge. If you run into any issues or have feedback, please let me know by going to:
               </p>
-              <p className="font-medium text-center py-1 rounded-md bg-muted text-textprimary dark:text-textprimary">
+              <p className="font-medium text-center py-1 rounded-md bg-muted text-primary dark:text-primary">
                 Settings → Feedback
               </p>
               <p>

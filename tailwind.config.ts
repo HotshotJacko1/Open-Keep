@@ -70,6 +70,11 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      transitionTimingFunction: {
+        'md3-decelerate': 'cubic-bezier(0.05, 0.7, 0.1, 1.0)',
+        'md3-accelerate': 'cubic-bezier(0.3, 0.0, 0.8, 0.15)',
+        'md3-standard': 'cubic-bezier(0.2, 0.0, 0, 1.0)',
+      },
       keyframes: {
         "accordion-down": {
           from: {

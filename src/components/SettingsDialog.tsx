@@ -375,6 +375,12 @@ App version: ${appInfo.version}`;
                 </span>
               </div>
             )}
+
+            {/* App Version */}
+            <div className="flex items-center justify-between mt-2">
+              <Label className="text-sm text-primary-foreground font-medium">App Version</Label>
+              <span className="text-xs text-primary-foreground">1.0.1</span>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

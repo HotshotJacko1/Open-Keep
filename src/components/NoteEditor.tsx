@@ -18,7 +18,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Plus, X, GripVertical, ArrowLeft, Pin, Archive, Type, Tag, Trash2, FileDown, ListChecks, Bold, Italic, Underline, Upload } from "lucide-react";
+import { Plus, X, GripVertical, ArrowLeft, Pin, Archive, Type, Tag, Trash2, FileDown, ListChecks, Bold, Italic, Underline, Upload, ChevronDown, ChevronRight } from "lucide-react";
 import NoteLabels from "@/components/NoteLabels";
 import {
     DndContext,
@@ -73,6 +73,7 @@ interface SortableListItemProps {
     onRemoveItem: (id: string) => void;
     onToggleItem: (id: string) => void;
     onEnter: (id: string) => void;
+    onBackspace?: (id: string) => void;
     autoFocus?: boolean;
     disabled?: boolean;
 }
@@ -83,6 +84,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
     onRemoveItem,
     onToggleItem,
     onEnter,
+    onBackspace,
     autoFocus,
     disabled
 }) => {
@@ -151,6 +153,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
                 className="mt-2 h-4 w-4 bg-transparent border-gray-400 data-[state=checked]:bg-transparent data-[state=checked]:text-black dark:data-[state=checked]:text-white shrink-0"
             />
             <textarea
+                id={`list-item-${item.id}`}
                 ref={textareaRef}
                 value={item.content}
                 readOnly={disabled}
@@ -162,6 +165,87 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
                     if (e.key === "Enter") {
                         e.preventDefault();
                         onEnter(item.id);
+                    } else if (e.key === "Backspace" && e.currentTarget.value === "") {
+                        e.preventDefault();
+                        if (onBackspace) onBackspace(item.id);
+                    }
+                }}
+                rows={1}
+                placeholder="List item"
+                className={`flex-1 bg-transparent text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] py-1 ${item.checked ? 'line-through text-gray-500' : ''}`}
+            />
+            <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onRemoveItem(item.id)}
+                disabled={disabled}
+                className="text-black dark:text-white mt-1 h-6 w-6 shrink-0"
+            >
+                <X className="h-4 w-4" />
+            </Button>
+        </div>
+    );
+};
+
+const CheckedListItem: React.FC<SortableListItemProps> = ({
+    item,
+    onUpdateItem,
+    onRemoveItem,
+    onToggleItem,
+    onEnter,
+    onBackspace,
+    autoFocus,
+    disabled
+}) => {
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const adjustHeight = () => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = `${textarea.scrollHeight}px`;
+        }
+    };
+
+    useEffect(() => {
+        adjustHeight();
+    }, [item.content]);
+
+    useEffect(() => {
+        if (autoFocus && textareaRef.current) {
+            textareaRef.current.focus();
+            textareaRef.current.setSelectionRange(
+                textareaRef.current.value.length,
+                textareaRef.current.value.length
+            );
+        }
+    }, [autoFocus]);
+
+    return (
+        <div className="flex items-start gap-2 bg-transparent rounded-md mb-1 py-1">
+            <div className="mt-1 h-6 w-6 shrink-0" />
+            <Checkbox
+                checked={item.checked}
+                onCheckedChange={() => onToggleItem(item.id)}
+                disabled={disabled}
+                className="mt-2 h-4 w-4 bg-transparent border-gray-400 data-[state=checked]:bg-transparent data-[state=checked]:text-black dark:data-[state=checked]:text-white shrink-0"
+            />
+            <textarea
+                id={`list-item-${item.id}`}
+                ref={textareaRef}
+                value={item.content}
+                readOnly={disabled}
+                onChange={(e) => {
+                    onUpdateItem(item.id, e.target.value);
+                    adjustHeight();
+                }}
+                onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                        e.preventDefault();
+                        onEnter(item.id);
+                    } else if (e.key === "Backspace" && e.currentTarget.value === "") {
+                        e.preventDefault();
+                        if (onBackspace) onBackspace(item.id);
                     }
                 }}
                 rows={1}
@@ -209,6 +293,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
     const [newItemContent, setNewItemContent] = useState("");
     const [focusItemId, setFocusItemId] = useState<string | null>(null);
+    const [showCheckedItems, setShowCheckedItems] = useState(false);
 
     const noteIdRef = useRef<string>(initialNote?.id || crypto.randomUUID());
     const titleTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -307,6 +392,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 setIsArchived(false);
                 setIsChecklistMode(false);
                 setChecklistItems([]);
+                setShowCheckedItems(false);
                 setImages([]);
                 setImageSrcs([]);
 
@@ -486,11 +572,16 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
-        if (active.id !== over?.id) {
+        if (active.id !== over?.id && over) {
             setChecklistItems((items) => {
-                const oldIndex = items.findIndex((item) => item.id === active.id);
-                const newIndex = items.findIndex((item) => item.id === over?.id);
-                return arrayMove(items, oldIndex, newIndex);
+                const unchecked = items.filter(i => !i.checked);
+                const checked = items.filter(i => i.checked);
+                
+                const oldIndex = unchecked.findIndex((item) => item.id === active.id);
+                const newIndex = unchecked.findIndex((item) => item.id === over.id);
+                
+                const reorderedUnchecked = arrayMove(unchecked, oldIndex, newIndex);
+                return [...reorderedUnchecked, ...checked];
             });
         }
     };
@@ -510,6 +601,22 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         newItems.splice(index + 1, 0, newItem);
         setChecklistItems(newItems);
         setFocusItemId(newItem.id);
+    };
+
+    const handleBackspaceItem = (id: string) => {
+        const index = checklistItems.findIndex(i => i.id === id);
+        if (index > 0) {
+            const previousItem = checklistItems[index - 1];
+            setFocusItemId(previousItem.id);
+            setChecklistItems(prev => prev.filter(i => i.id !== id));
+            setTimeout(() => {
+                const el = document.getElementById(`list-item-${previousItem.id}`) as HTMLTextAreaElement;
+                if (el) {
+                    el.focus();
+                    el.setSelectionRange(el.value.length, el.value.length);
+                }
+            }, 0);
+        }
     };
 
     const handleAddItem = () => {
@@ -565,8 +672,25 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             clearTimeout(saveTimeoutRef.current);
         }
 
-        const plainText = content.replace(/<[^>]+>/g, '').trim();
-        const checklistIsEmpty = isChecklistMode && checklistItems.every(item => item.content.trim() === "");
+        let currentChecklistItems = checklistItems;
+        let currentContent = content;
+
+        if (isChecklistMode) {
+            const untickedItems = currentChecklistItems.filter(i => !i.checked);
+            if (untickedItems.length > 0) {
+                const lastUnticked = untickedItems[untickedItems.length - 1];
+                if (lastUnticked.content.trim() === "") {
+                    currentChecklistItems = currentChecklistItems.filter(i => i.id !== lastUnticked.id);
+                    setChecklistItems(currentChecklistItems);
+                    currentContent = currentChecklistItems
+                        .map(item => `- [${item.checked ? 'x' : ' '}] ${item.content}`)
+                        .join('\n');
+                }
+            }
+        }
+
+        const plainText = currentContent.replace(/<[^>]+>/g, '').trim();
+        const checklistIsEmpty = isChecklistMode && currentChecklistItems.every(item => item.content.trim() === "");
 
         // Cleanup empty note if needed (but save if it has images)
         if (title.trim() === "" && images.length === 0 && (plainText === "" || checklistIsEmpty)) {
@@ -576,7 +700,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             const finalNote: Note = {
                 id: noteIdRef.current,
                 title,
-                content,
+                content: currentContent,
                 tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
                 isPinned,
                 isArchived,
@@ -713,7 +837,13 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
             <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseEditor()}>
                 <DialogContent
-                    className="fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-[80vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-lg flex flex-col p-0 gap-0 bg-note-editor-background dark:bg-note-editor-background text-black dark:text-white pt-[env(safe-area-inset-top)] outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-50 data-[state=open]:zoom-in-50 duration-200"
+                    className="fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-[80vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-lg flex flex-col p-0 gap-0 bg-note-editor-background dark:bg-note-editor-background text-black dark:text-white pt-[env(safe-area-inset-top)] outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 origin-center data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-300 data-[state=open]:ease-md3-decelerate data-[state=closed]:ease-md3-accelerate"
+                    style={isMobile ? {
+                        '--tw-enter-translate-x': '0',
+                        '--tw-enter-translate-y': '0',
+                        '--tw-exit-translate-x': '0',
+                        '--tw-exit-translate-y': '0'
+                    } as React.CSSProperties : undefined}
                     onOpenAutoFocus={(e) => e.preventDefault()}
                 >
                     <DialogTitle className="sr-only">Edit Note</DialogTitle>
@@ -876,10 +1006,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                     onDragEnd={handleDragEnd}
                                 >
                                     <SortableContext
-                                        items={checklistItems.map(item => item.id)}
+                                        items={checklistItems.filter(i => !i.checked).map(item => item.id)}
                                         strategy={verticalListSortingStrategy}
                                     >
-                                        {checklistItems.map((item) => (
+                                        {checklistItems.filter(i => !i.checked).map((item) => (
                                             <SortableListItem
                                                 key={item.id}
                                                 item={item}
@@ -887,6 +1017,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                                 onRemoveItem={handleRemoveItem}
                                                 onToggleItem={handleToggleItem}
                                                 onEnter={handleInsertItemAfter}
+                                                onBackspace={handleBackspaceItem}
                                                 autoFocus={item.id === focusItemId}
                                                 disabled={isDeleted}
                                             />
@@ -925,6 +1056,17 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                                     const target = e.target as HTMLTextAreaElement;
                                                     target.style.height = 'auto';
                                                 }, 0);
+                                            } else if (e.key === "Backspace" && e.currentTarget.value === "" && checklistItems.length > 0) {
+                                                e.preventDefault();
+                                                const previousItem = checklistItems[checklistItems.length - 1];
+                                                setFocusItemId(previousItem.id);
+                                                setTimeout(() => {
+                                                    const el = document.getElementById(`list-item-${previousItem.id}`) as HTMLTextAreaElement;
+                                                    if (el) {
+                                                        el.focus();
+                                                        el.setSelectionRange(el.value.length, el.value.length);
+                                                    }
+                                                }, 0);
                                             }
                                         }}
                                         rows={1}
@@ -933,6 +1075,36 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                         className="bg-transparent border-none focus:outline-none resize-none overflow-hidden min-h-[24px] flex-1 py-1"
                                     />
                                 </div>
+                                {checklistItems.some(i => i.checked) && (
+                                    <div className="mt-4 flex flex-col gap-2">
+                                        <Button
+                                            variant="ghost"
+                                            className="flex items-center gap-2 p-0 h-auto text-sm text-gray-500 hover:bg-transparent hover:text-gray-700 dark:hover:text-gray-300 transition-colors w-fit pl-2"
+                                            onClick={() => setShowCheckedItems(!showCheckedItems)}
+                                        >
+                                            {showCheckedItems ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                            {checklistItems.filter(i => i.checked).length} checked items
+                                        </Button>
+                                        
+                                        {showCheckedItems && (
+                                            <div className="flex flex-col">
+                                                {checklistItems.filter(i => i.checked).map((item) => (
+                                                    <CheckedListItem
+                                                        key={item.id}
+                                                        item={item}
+                                                        onUpdateItem={handleUpdateItem}
+                                                        onRemoveItem={handleRemoveItem}
+                                                        onToggleItem={handleToggleItem}
+                                                        onEnter={handleInsertItemAfter}
+                                                        onBackspace={handleBackspaceItem}
+                                                        autoFocus={item.id === focusItemId}
+                                                        disabled={isDeleted}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div onClick={() => editor?.chain().focus().run()} className="w-full h-full min-h-[300px] cursor-text">
