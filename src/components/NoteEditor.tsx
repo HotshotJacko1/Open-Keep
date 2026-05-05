@@ -347,7 +347,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         editable: !isDeleted,
         editorProps: {
             attributes: {
-                class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none h-full min-h-[300px] text-black dark:text-white',
+                class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl max-w-none focus:outline-none h-full min-h-[300px] text-black dark:text-white',
             },
         },
         onUpdate: ({ editor }) => {

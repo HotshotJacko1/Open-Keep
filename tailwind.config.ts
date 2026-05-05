@@ -26,6 +26,7 @@ export default {
         "note-editor-foreground": "hsl(var(--note-editor-foreground))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        textprimary: "hsl(var(--text-primary))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",

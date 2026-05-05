@@ -35,7 +35,7 @@
       /* In use */
       --foreground: 18 100% 98%;
 
-      --text-primary: 0 0% 100%;
+      --text-primary: 0 0% 0%;
       --note-editor-background: 18 100% 98%;
       /* In use */
       --note-editor-foreground: 18 13% 9%;
@@ -96,7 +96,7 @@
       /* In use */
       --foreground: 27 33% 5%;
 
-      --text-primary: 0 0% 0%;
+      --text-primary: 0 0% 100%;
       --note-editor-background: 23 29% 5%;
       /* In use */
       --note-editor-foreground: 18 13% 9%;
