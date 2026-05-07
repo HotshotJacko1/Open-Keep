@@ -75,6 +75,8 @@ interface SortableListItemProps {
     onRemoveItem: (id: string) => void;
     onToggleItem: (id: string) => void;
     onEnter: (id: string) => void;
+    onIndent?: (id: string) => void;
+    onOutdent?: (id: string) => void;
     onBackspace?: (id: string) => void;
     autoFocus?: boolean;
     disabled?: boolean;
@@ -86,6 +88,8 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
     onRemoveItem,
     onToggleItem,
     onEnter,
+    onIndent,
+    onOutdent,
     onBackspace,
     autoFocus,
     disabled
@@ -100,6 +104,42 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
     } = useSortable({ id: item.id });
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const touchStartRef = useRef<{ x: number, y: number } | null>(null);
+    const [swipeX, setSwipeX] = useState(0);
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        touchStartRef.current = {
+            x: e.touches[0].clientX,
+            y: e.touches[0].clientY
+        };
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (!touchStartRef.current) return;
+        const dx = e.touches[0].clientX - touchStartRef.current.x;
+        const dy = e.touches[0].clientY - touchStartRef.current.y;
+        
+        if (Math.abs(dx) > Math.abs(dy)) {
+            setSwipeX(dx);
+        }
+    };
+
+    const handleTouchEnd = (e: React.TouchEvent) => {
+        if (!touchStartRef.current) return;
+        const dx = e.changedTouches[0].clientX - touchStartRef.current.x;
+        const dy = e.changedTouches[0].clientY - touchStartRef.current.y;
+        
+        const threshold = 50;
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > threshold) {
+            if (dx > 0) {
+                if (onIndent) onIndent(item.id);
+            } else {
+                if (onOutdent) onOutdent(item.id);
+            }
+        }
+        setSwipeX(0);
+        touchStartRef.current = null;
+    };
 
     const adjustHeight = () => {
         const textarea = textareaRef.current;
@@ -136,55 +176,70 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
         <div
             ref={setNodeRef}
             style={style}
-            className="flex items-start gap-2 bg-transparent rounded-md mb-1 py-1"
+            className={`flex items-start bg-transparent rounded-md mb-1 overflow-hidden ${item.indentation ? 'ml-8' : ''}`}
         >
-            <Button
-                variant="ghost"
-                size="icon"
-                className="cursor-grab text-black dark:text-white mt-1 h-6 w-6 shrink-0"
-                disabled={disabled}
-                {...listeners}
-                {...attributes}
+            <div 
+                className="flex items-start gap-2 w-full py-1 transition-transform duration-75"
+                style={{ transform: `translateX(${swipeX}px)` }}
             >
-                <GripVertical className="h-4 w-4" />
-            </Button>
-            <Checkbox
-                checked={item.checked}
-                onCheckedChange={() => onToggleItem(item.id)}
-                disabled={disabled}
-                className="mt-2 h-4 w-4 bg-transparent border-gray-400 data-[state=checked]:bg-transparent data-[state=checked]:text-black dark:data-[state=checked]:text-white shrink-0"
-            />
-            <textarea
-                id={`list-item-${item.id}`}
-                ref={textareaRef}
-                value={item.content}
-                readOnly={disabled}
-                onChange={(e) => {
-                    onUpdateItem(item.id, e.target.value);
-                    adjustHeight();
-                }}
-                onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                        e.preventDefault();
-                        onEnter(item.id);
-                    } else if (e.key === "Backspace" && e.currentTarget.value === "") {
-                        e.preventDefault();
-                        if (onBackspace) onBackspace(item.id);
-                    }
-                }}
-                rows={1}
-                placeholder="List item"
-                className={`flex-1 bg-transparent text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] py-1 ${item.checked ? 'line-through text-gray-500' : ''}`}
-            />
-            <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onRemoveItem(item.id)}
-                disabled={disabled}
-                className="text-black dark:text-white mt-1 h-6 w-6 shrink-0"
-            >
-                <X className="h-4 w-4" />
-            </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="cursor-grab text-black dark:text-white mt-1 h-6 w-6 shrink-0"
+                    disabled={disabled}
+                    {...listeners}
+                    {...attributes}
+                >
+                    <GripVertical className="h-4 w-4" />
+                </Button>
+                <Checkbox
+                    checked={item.checked}
+                    onCheckedChange={() => onToggleItem(item.id)}
+                    disabled={disabled}
+                    className="mt-2 h-4 w-4 bg-transparent border-gray-400 data-[state=checked]:bg-transparent data-[state=checked]:text-black dark:data-[state=checked]:text-white shrink-0"
+                />
+                <textarea
+                    id={`list-item-${item.id}`}
+                    ref={textareaRef}
+                    value={item.content}
+                    readOnly={disabled}
+                    onChange={(e) => {
+                        onUpdateItem(item.id, e.target.value);
+                        adjustHeight();
+                    }}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                            e.preventDefault();
+                            onEnter(item.id);
+                        } else if (e.key === "Backspace" && e.currentTarget.value === "") {
+                            e.preventDefault();
+                            if (onBackspace) onBackspace(item.id);
+                        } else if (e.key === "Tab") {
+                            e.preventDefault();
+                            if (e.shiftKey) {
+                                if (onOutdent) onOutdent(item.id);
+                            } else {
+                                if (onIndent) onIndent(item.id);
+                            }
+                        }
+                    }}
+                    rows={1}
+                    placeholder="List item"
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    className={`flex-1 bg-transparent text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] py-1 ${item.checked ? 'line-through text-gray-500' : ''}`}
+                />
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onRemoveItem(item.id)}
+                    disabled={disabled}
+                    className="text-black dark:text-white mt-1 h-6 w-6 shrink-0"
+                >
+                    <X className="h-4 w-4" />
+                </Button>
+            </div>
         </div>
     );
 };
@@ -195,11 +250,49 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
     onRemoveItem,
     onToggleItem,
     onEnter,
+    onIndent,
+    onOutdent,
     onBackspace,
     autoFocus,
     disabled
 }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const touchStartRef = useRef<{ x: number, y: number } | null>(null);
+    const [swipeX, setSwipeX] = useState(0);
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        touchStartRef.current = {
+            x: e.touches[0].clientX,
+            y: e.touches[0].clientY
+        };
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (!touchStartRef.current) return;
+        const dx = e.touches[0].clientX - touchStartRef.current.x;
+        const dy = e.touches[0].clientY - touchStartRef.current.y;
+        
+        if (Math.abs(dx) > Math.abs(dy)) {
+            setSwipeX(dx);
+        }
+    };
+
+    const handleTouchEnd = (e: React.TouchEvent) => {
+        if (!touchStartRef.current) return;
+        const dx = e.changedTouches[0].clientX - touchStartRef.current.x;
+        const dy = e.changedTouches[0].clientY - touchStartRef.current.y;
+        
+        const threshold = 50;
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > threshold) {
+            if (dx > 0) {
+                if (onIndent) onIndent(item.id);
+            } else {
+                if (onOutdent) onOutdent(item.id);
+            }
+        }
+        setSwipeX(0);
+        touchStartRef.current = null;
+    };
 
     const adjustHeight = () => {
         const textarea = textareaRef.current;
@@ -224,45 +317,60 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
     }, [autoFocus]);
 
     return (
-        <div className="flex items-start gap-2 bg-transparent rounded-md mb-1 py-1">
-            <div className="mt-1 h-6 w-6 shrink-0" />
-            <Checkbox
-                checked={item.checked}
-                onCheckedChange={() => onToggleItem(item.id)}
-                disabled={disabled}
-                className="mt-2 h-4 w-4 bg-transparent border-gray-400 data-[state=checked]:bg-transparent data-[state=checked]:text-black dark:data-[state=checked]:text-white shrink-0"
-            />
-            <textarea
-                id={`list-item-${item.id}`}
-                ref={textareaRef}
-                value={item.content}
-                readOnly={disabled}
-                onChange={(e) => {
-                    onUpdateItem(item.id, e.target.value);
-                    adjustHeight();
-                }}
-                onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                        e.preventDefault();
-                        onEnter(item.id);
-                    } else if (e.key === "Backspace" && e.currentTarget.value === "") {
-                        e.preventDefault();
-                        if (onBackspace) onBackspace(item.id);
-                    }
-                }}
-                rows={1}
-                placeholder="List item"
-                className={`flex-1 bg-transparent text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] py-1 ${item.checked ? 'line-through text-gray-500' : ''}`}
-            />
-            <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onRemoveItem(item.id)}
-                disabled={disabled}
-                className="text-black dark:text-white mt-1 h-6 w-6 shrink-0"
+        <div className={`flex items-start bg-transparent rounded-md mb-1 overflow-hidden ${item.indentation ? 'ml-8' : ''}`}>
+            <div 
+                className="flex items-start gap-2 w-full py-1 transition-transform duration-75"
+                style={{ transform: `translateX(${swipeX}px)` }}
             >
-                <X className="h-4 w-4" />
-            </Button>
+                <div className="mt-1 h-6 w-6 shrink-0" />
+                <Checkbox
+                    checked={item.checked}
+                    onCheckedChange={() => onToggleItem(item.id)}
+                    disabled={disabled}
+                    className="mt-2 h-4 w-4 bg-transparent border-gray-400 data-[state=checked]:bg-transparent data-[state=checked]:text-black dark:data-[state=checked]:text-white shrink-0"
+                />
+                <textarea
+                    id={`list-item-${item.id}`}
+                    ref={textareaRef}
+                    value={item.content}
+                    readOnly={disabled}
+                    onChange={(e) => {
+                        onUpdateItem(item.id, e.target.value);
+                        adjustHeight();
+                    }}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                            e.preventDefault();
+                            onEnter(item.id);
+                        } else if (e.key === "Backspace" && e.currentTarget.value === "") {
+                            e.preventDefault();
+                            if (onBackspace) onBackspace(item.id);
+                        } else if (e.key === "Tab") {
+                            e.preventDefault();
+                            if (e.shiftKey) {
+                                if (onOutdent) onOutdent(item.id);
+                            } else {
+                                if (onIndent) onIndent(item.id);
+                            }
+                        }
+                    }}
+                    rows={1}
+                    placeholder="List item"
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    className={`flex-1 bg-transparent text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] py-1 ${item.checked ? 'line-through text-gray-500' : ''}`}
+                />
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onRemoveItem(item.id)}
+                    disabled={disabled}
+                    className="text-black dark:text-white mt-1 h-6 w-6 shrink-0"
+                >
+                    <X className="h-4 w-4" />
+                </Button>
+            </div>
         </div>
     );
 };
@@ -295,8 +403,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
     const [newItemContent, setNewItemContent] = useState("");
     const [focusItemId, setFocusItemId] = useState<string | null>(null);
-    const [showCheckedItems, setShowCheckedItems] = useState(false);
+    const [showCheckedItems, setShowCheckedItems] = useState(true);
     const [reminder, setReminder] = useState<number | undefined>(undefined);
+    const [recurrence, setRecurrence] = useState<Note['recurrence'] | undefined>(undefined);
     const [isReminderSheetOpen, setIsReminderSheetOpen] = useState(false);
 
     const noteIdRef = useRef<string>(initialNote?.id || crypto.randomUUID());
@@ -370,6 +479,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 setIsPinned(initialNote.isPinned);
                 setIsArchived(initialNote.isArchived);
                 setReminder(initialNote.reminder);
+                setRecurrence(initialNote.recurrence);
 
                 const initialImages = initialNote.images || [];
                 setImages(initialImages);
@@ -397,10 +507,11 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 setIsArchived(false);
                 setIsChecklistMode(false);
                 setChecklistItems([]);
-                setShowCheckedItems(false);
+                setShowCheckedItems(true);
                 setImages([]);
                 setImageSrcs([]);
                 setReminder(undefined);
+                setRecurrence(undefined);
 
                 if (editor) {
                     editor.commands.setContent('');
@@ -444,7 +555,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     useEffect(() => {
         if (isChecklistMode && isOpen) {
             const newContent = checklistItems
-                .map(item => `- [${item.checked ? 'x' : ' '}] ${item.content}`)
+                .map(item => `${item.indentation}- [${item.checked ? 'x' : ' '}] ${item.content}`)
                 .join('\n');
 
             // Avoid infinite loop if content is already same (though comparison might be expensive)
@@ -512,6 +623,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 updatedAt: Date.now(),
                 images,
                 reminder,
+                recurrence,
             };
             onSave(newNote);
         }, 500);
@@ -520,7 +632,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [title, content, tags, isPinned, isArchived, images, reminder]);
+    }, [title, content, tags, isPinned, isArchived, images, reminder, recurrence]);
 
     // Toggle Mode Logic
     const handleToggleMode = () => {
@@ -578,7 +690,17 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     );
 
     const handleDragEnd = (event: DragEndEvent) => {
-        const { active, over } = event;
+        const { active, over, delta } = event;
+
+        // Handle horizontal indentation
+        if (Math.abs(delta.x) > 40) {
+            if (delta.x > 40) {
+                handleIndent(active.id as string);
+            } else if (delta.x < -40) {
+                handleOutdent(active.id as string);
+            }
+        }
+
         if (active.id !== over?.id && over) {
             setChecklistItems((items) => {
                 const unchecked = items.filter(i => !i.checked);
@@ -587,10 +709,63 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 const oldIndex = unchecked.findIndex((item) => item.id === active.id);
                 const newIndex = unchecked.findIndex((item) => item.id === over.id);
                 
-                const reorderedUnchecked = arrayMove(unchecked, oldIndex, newIndex);
-                return [...reorderedUnchecked, ...checked];
+                if (oldIndex === -1 || newIndex === -1) return items;
+
+                const movedItem = unchecked[oldIndex];
+                const children: ChecklistItem[] = [];
+                
+                // If moving a parent, find its children
+                if (movedItem.indentation === "") {
+                    for (let i = oldIndex + 1; i < unchecked.length; i++) {
+                        if (unchecked[i].indentation !== "") {
+                            children.push(unchecked[i]);
+                        } else {
+                            break;
+                        }
+                    }
+                }
+
+                const newUnchecked = [...unchecked];
+                // Remove the group
+                newUnchecked.splice(oldIndex, 1 + children.length);
+                
+                // Find where the 'over' item is now
+                const overItem = unchecked[newIndex];
+                let insertIndex = newUnchecked.findIndex(i => i.id === overItem.id);
+                
+                // If we are moving down (oldIndex < newIndex), we might want to insert AFTER the over item
+                // especially if the over item also has children. 
+                // But for now, let's just insert at the found index.
+                if (oldIndex < newIndex) {
+                    insertIndex += 1;
+                }
+
+                newUnchecked.splice(insertIndex, 0, movedItem, ...children);
+                
+                return [...newUnchecked, ...checked];
             });
         }
+    };
+
+    const handleIndent = (id: string) => {
+        setChecklistItems(prev => prev.map(item => {
+            if (item.id === id) {
+                const index = prev.findIndex(i => i.id === id);
+                // Can't indent the first item
+                if (index === 0) return item;
+                return { ...item, indentation: "    " };
+            }
+            return item;
+        }));
+    };
+
+    const handleOutdent = (id: string) => {
+        setChecklistItems(prev => prev.map(item => {
+            if (item.id === id) {
+                return { ...item, indentation: "" };
+            }
+            return item;
+        }));
     };
 
     const handleInsertItemAfter = (currentId: string) => {
@@ -601,7 +776,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             id: crypto.randomUUID(),
             content: "",
             checked: false,
-            indentation: ""
+            indentation: checklistItems[index].indentation
         };
 
         const newItems = [...checklistItems];
@@ -653,23 +828,30 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             const itemIndex = prev.findIndex(i => i.id === id);
             if (itemIndex === -1) return prev;
 
-            const newItems = [...prev];
-            const item = newItems[itemIndex];
+            const item = prev[itemIndex];
             const isChecked = !item.checked;
 
-            // Remove current item
-            newItems.splice(itemIndex, 1);
-            const updatedItem = { ...item, checked: isChecked };
-
-            if (isChecked) {
-                // Move to bottom if checked
-                newItems.push(updatedItem);
-            } else {
-                // Keep in place (insert back at same index) if unchecked
-                newItems.splice(itemIndex, 0, updatedItem);
+            // If checking or unchecking a parent, also toggle its sub-items
+            const itemsToToggle = [id];
+            if (item.indentation === "") {
+                for (let i = itemIndex + 1; i < prev.length; i++) {
+                    if (prev[i].indentation !== "") {
+                        itemsToToggle.push(prev[i].id);
+                    } else {
+                        break;
+                    }
+                }
             }
 
-            return newItems;
+            const updatedItems = prev.map(i => 
+                itemsToToggle.includes(i.id) ? { ...i, checked: isChecked } : i
+            );
+
+            // Re-sort: unchecked items maintain order, checked items go to bottom
+            const unchecked = updatedItems.filter(i => !i.checked);
+            const checked = updatedItems.filter(i => i.checked);
+
+            return [...unchecked, ...checked];
         });
     };
 
@@ -690,7 +872,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     currentChecklistItems = currentChecklistItems.filter(i => i.id !== lastUnticked.id);
                     setChecklistItems(currentChecklistItems);
                     currentContent = currentChecklistItems
-                        .map(item => `- [${item.checked ? 'x' : ' '}] ${item.content}`)
+                        .map(item => `${item.indentation}- [${item.checked ? 'x' : ' '}] ${item.content}`)
                         .join('\n');
                 }
             }
@@ -715,6 +897,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 updatedAt: Date.now(),
                 images,
                 reminder,
+                recurrence,
             };
             onSave(finalNote);
         }
@@ -815,6 +998,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 updatedAt: Date.now(),
                 images,
                 reminder,
+                recurrence,
             };
             onSave(finalNote);
         }
@@ -1056,6 +1240,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                                 onRemoveItem={handleRemoveItem}
                                                 onToggleItem={handleToggleItem}
                                                 onEnter={handleInsertItemAfter}
+                                                onIndent={handleIndent}
+                                                onOutdent={handleOutdent}
                                                 onBackspace={handleBackspaceItem}
                                                 autoFocus={item.id === focusItemId}
                                                 disabled={isDeleted}
@@ -1135,6 +1321,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                                         onRemoveItem={handleRemoveItem}
                                                         onToggleItem={handleToggleItem}
                                                         onEnter={handleInsertItemAfter}
+                                                        onIndent={handleIndent}
+                                                        onOutdent={handleOutdent}
                                                         onBackspace={handleBackspaceItem}
                                                         autoFocus={item.id === focusItemId}
                                                         disabled={isDeleted}
@@ -1280,43 +1468,58 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         </div>
                     </DialogFooter>
 
+                    <NoteLabels
+                        isOpen={isLabelsOpen}
+                        onClose={() => setIsLabelsOpen(false)}
+                        availableTags={distplayTags}
+                        selectedTags={tagStates}
+                        onTagToggle={handleTagToggle}
+                    />
+
+                    <ReminderSheet
+                        isOpen={isReminderSheetOpen}
+                        onClose={() => setIsReminderSheetOpen(false)}
+                        currentReminder={reminder}
+                        currentRecurrence={recurrence}
+                        onSetReminder={async (ts, rec) => {
+                            // Schedule notification first — if permission is denied, don't save the reminder
+                            const noteForNotif: import("@/types/note").Note = {
+                                id: noteIdRef.current,
+                                title,
+                                content,
+                                tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+                                isPinned,
+                                isArchived,
+                                createdAt: initialNote?.createdAt || Date.now(),
+                                updatedAt: Date.now(),
+                                images,
+                                reminder: ts,
+                                recurrence: rec,
+                            };
+                            const result = await scheduleReminderNotification(noteForNotif);
+                            if (result === true) {
+                                setReminder(ts);
+                                setRecurrence(rec);
+                            } else if (result === 'denied') {
+                                // Permission permanently denied — OS won't show a dialog, must go to Settings
+                                toast.error("Notifications are blocked. Go to Settings → Apps → Open Keep → Notifications to enable reminders.", {
+                                    duration: 6000,
+                                });
+                            } else {
+                                // User declined the permission dialog
+                                toast.error("Reminder not set — notification permission is required.", {
+                                    duration: 4000,
+                                });
+                            }
+                        }}
+                        onRemoveReminder={async () => {
+                            setReminder(undefined);
+                            setRecurrence(undefined);
+                            await cancelReminderNotification(noteIdRef.current);
+                        }}
+                    />
                 </DialogContent>
             </Dialog>
-
-            <NoteLabels
-                isOpen={isLabelsOpen}
-                onClose={() => setIsLabelsOpen(false)}
-                availableTags={distplayTags}
-                selectedTags={tagStates}
-                onTagToggle={handleTagToggle}
-            />
-
-            <ReminderSheet
-                isOpen={isReminderSheetOpen}
-                onClose={() => setIsReminderSheetOpen(false)}
-                currentReminder={reminder}
-                onSetReminder={async (ts) => {
-                    setReminder(ts);
-                    // Schedule notification immediately (note will auto-save with new reminder)
-                    const noteForNotif: import("@/types/note").Note = {
-                        id: noteIdRef.current,
-                        title,
-                        content,
-                        tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
-                        isPinned,
-                        isArchived,
-                        createdAt: initialNote?.createdAt || Date.now(),
-                        updatedAt: Date.now(),
-                        images,
-                        reminder: ts,
-                    };
-                    await scheduleReminderNotification(noteForNotif);
-                }}
-                onRemoveReminder={async () => {
-                    setReminder(undefined);
-                    await cancelReminderNotification(noteIdRef.current);
-                }}
-            />
         </>
     );
 };

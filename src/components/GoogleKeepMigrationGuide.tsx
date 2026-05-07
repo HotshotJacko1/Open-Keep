@@ -14,6 +14,28 @@ interface GoogleKeepMigrationGuideProps {
 }
 
 const GoogleKeepMigrationGuide: React.FC<GoogleKeepMigrationGuideProps> = ({ isOpen, onClose }) => {
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    window.history.pushState({ dialog: 'migration-guide' }, "");
+
+    const handlePopState = (event: PopStateEvent) => {
+      // If we popped back to something else, close this
+      if (event.state?.dialog === 'migration-guide') return;
+      onClose();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (window.history.state?.dialog === 'migration-guide') {
+        window.history.back();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent

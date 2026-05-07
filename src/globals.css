@@ -36,6 +36,9 @@
       --foreground: 18 100% 98%;
 
       --text-primary: 0 0% 0%;
+
+      --yellow: 45 98% 50%;
+
       --note-editor-background: 18 100% 98%;
       /* In use */
       --note-editor-foreground: 18 13% 9%;

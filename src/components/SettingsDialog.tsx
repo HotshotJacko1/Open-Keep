@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/theme-provider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText, Mail, ArrowLeft, Sparkles } from "lucide-react";
+import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText, Mail, ArrowLeft, Sparkles, MessageSquare } from "lucide-react";
 import SyncDialog from "./SyncDialog";
 import ChangePinDialog from "./ChangePinDialog";
 import AppLockDialog from "./AppLockDialog";
@@ -45,6 +45,20 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { session } = useSession();
   const user = session?.user;
+  const [appVersion, setAppVersion] = useState<string>("...");
+
+  useEffect(() => {
+    const getAppInfo = async () => {
+      try {
+        const info = await App.getInfo();
+        setAppVersion(info.version);
+      } catch (error) {
+        console.error("Failed to get app info:", error);
+        setAppVersion("1.0.2"); // Fallback
+      }
+    };
+    getAppInfo();
+  }, []);
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -364,6 +378,13 @@ App version: ${appInfo.version}`;
               >
                 <FileText className="h-4 w-4 mr-2" /> Terms of Service
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => window.open("https://www.reddit.com/r/OpenKeep/", "_blank")}
+                className="w-full justify-start"
+              >
+                <MessageSquare className="h-4 w-4 mr-2" /> Join the Reddit Community
+              </Button>
             </div>
 
             {/* Supabase User ID */}
@@ -379,7 +400,7 @@ App version: ${appInfo.version}`;
             {/* App Version */}
             <div className="flex items-center justify-between mt-2">
               <Label className="text-sm text-primary-foreground font-medium">App Version</Label>
-              <span className="text-xs text-primary-foreground">1.0.1</span>
+              <span className="text-xs text-primary-foreground">{appVersion}</span>
             </div>
           </div>
         </DialogContent>

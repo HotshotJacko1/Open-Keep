@@ -47,7 +47,7 @@ const InitialEarlyAccessDialog: React.FC<InitialEarlyAccessDialogProps> = ({ isO
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="pt-4">
-          <Button className="w-full" onClick={onClose}>
+          <Button className="w-full text-white dark:text-text-primary" onClick={onClose}>
             Get Started
           </Button>
         </DialogFooter>

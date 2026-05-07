@@ -11,4 +11,9 @@ export interface Note {
   updatedAt: number;
   images?: string[];
   reminder?: number; // Unix timestamp (ms) when the reminder notification should fire
+  recurrence?: {
+    type: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+    interval?: number;
+    unit?: 'day' | 'week' | 'month' | 'year';
+  };
 }

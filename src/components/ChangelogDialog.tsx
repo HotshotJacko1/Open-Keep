@@ -15,6 +15,28 @@ const ChangelogDialog: React.FC = () => {
   const [changelogContent, setChangelogContent] = useState<string>('Loading...');
 
   useEffect(() => {
+    if (!isOpen) return;
+
+    window.history.pushState({ dialog: 'changelog' }, "");
+
+    const handlePopState = (event: PopStateEvent) => {
+      // If we popped back to something else, close this
+      if (event.state?.dialog === 'changelog') return;
+      setIsOpen(false);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (window.history.state?.dialog === 'changelog') {
+        window.history.back();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  useEffect(() => {
     if (isOpen) {
       fetch('/CHANGELOG.md')
         .then((response) => response.text())
@@ -35,7 +57,13 @@ const ChangelogDialog: React.FC = () => {
       </DialogTrigger>
       <DialogContent 
         aria-describedby={undefined}
-        className="fixed inset-0 w-screen h-[100dvh] max-w-none max-h-none m-0 rounded-none bg-background text-primary-foreground border-0 p-0 flex flex-col translate-x-0 translate-y-0"
+        className="fixed inset-0 w-screen h-[100dvh] max-w-none max-h-none m-0 rounded-none bg-background text-primary-foreground border-0 p-0 flex flex-col translate-x-0 translate-y-0 origin-center"
+        style={{
+          '--tw-enter-translate-x': '0',
+          '--tw-enter-translate-y': '0',
+          '--tw-exit-translate-x': '0',
+          '--tw-exit-translate-y': '0',
+        } as React.CSSProperties}
       >
         <div className="flex flex-col h-full">
           <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left px-6 pt-[max(env(safe-area-inset-top),1.5rem)] pb-4 border-b">

@@ -101,17 +101,66 @@ export function formatReminderLabel(ts: number): string {
   }) + `, ${timeStr}`;
 }
 
-/** Schedule (or reschedule) a local notification for a note reminder */
-export async function scheduleReminderNotification(note: Note): Promise<void> {
-  if (!note.reminder) return;
+/** Schedule (or reschedule) a local notification for a note reminder.
+ *  Returns:
+ *    true    — scheduled successfully
+ *    false   — scheduling failed (non-permission error)
+ *    'denied' — permission is permanently denied; user must go to Settings */
+export async function scheduleReminderNotification(note: Note): Promise<boolean | 'denied'> {
+  if (!note.reminder) return true;
 
   if (Capacitor.isNativePlatform()) {
+    // --- Permission gate ---
+    try {
+      let { display } = await LocalNotifications.checkPermissions();
+
+      if (display === 'denied') {
+        // Android will not show a dialog once permission has been explicitly denied.
+        // The user must re-enable in system Settings manually.
+        console.warn('Notification permission permanently denied — user must open Settings.');
+        return 'denied';
+      }
+
+      if (display !== 'granted') {
+        // 'prompt' or 'prompt-with-rationale' — OS can still show the dialog
+        const result = await LocalNotifications.requestPermissions();
+        display = result.display;
+      }
+
+      if (display !== 'granted') {
+        // User declined the dialog
+        return false;
+      }
+    } catch (e) {
+      console.warn('Failed to check/request notification permissions:', e);
+      return false;
+    }
+
     try {
       // Cancel any existing notification for this note first
       await cancelReminderNotification(note.id);
 
       // Numeric ID derived from note ID (hash to int)
       const notifId = hashNoteId(note.id);
+      
+      const scheduleOptions: any = { at: new Date(note.reminder) };
+      
+      if (note.recurrence && note.recurrence.type !== 'none') {
+        scheduleOptions.repeats = true;
+        
+        if (note.recurrence.type === 'daily') scheduleOptions.every = 'day';
+        else if (note.recurrence.type === 'weekly') scheduleOptions.every = 'week';
+        else if (note.recurrence.type === 'monthly') scheduleOptions.every = 'month';
+        else if (note.recurrence.type === 'yearly') scheduleOptions.every = 'year';
+        else if (note.recurrence.type === 'custom') {
+          const { interval, unit } = note.recurrence;
+          if (interval === 1) {
+            scheduleOptions.every = unit;
+          } else if (interval === 2 && unit === 'week') {
+            scheduleOptions.every = 'two-weeks';
+          }
+        }
+      }
 
       await LocalNotifications.schedule({
         notifications: [
@@ -119,7 +168,7 @@ export async function scheduleReminderNotification(note: Note): Promise<void> {
             id: notifId,
             title: note.title || "Reminder",
             body: "You have a note reminder.",
-            schedule: { at: new Date(note.reminder) },
+            schedule: scheduleOptions,
             sound: undefined,
             attachments: undefined,
             actionTypeId: "",
@@ -127,22 +176,33 @@ export async function scheduleReminderNotification(note: Note): Promise<void> {
           },
         ],
       });
+
+      return true;
     } catch (e) {
       console.warn("Failed to schedule notification:", e);
+      return false;
     }
   } else {
     // Web fallback via browser Notifications API
-    if ("Notification" in window && Notification.permission === "granted") {
-      const delay = note.reminder - Date.now();
-      if (delay > 0) {
-        setTimeout(() => {
-          new Notification(note.title || "Reminder", {
-            body: "You have a note reminder.",
-          });
-        }, delay);
+    if ("Notification" in window) {
+      if (Notification.permission === 'default') {
+        await Notification.requestPermission();
       }
+      if (Notification.permission === 'granted') {
+        const delay = note.reminder - Date.now();
+        if (delay > 0) {
+          setTimeout(() => {
+            new Notification(note.title || "Reminder", {
+              body: "You have a note reminder.",
+            });
+          }, delay);
+        }
+        return true;
+      }
+      return false;
     }
   }
+  return true;
 }
 
 /** Cancel a previously scheduled notification for a note */

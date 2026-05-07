@@ -7,7 +7,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 - N/A
 
-## [1.0.2] - 2024-05-05
+## [2.0.0] - 2026-05-09
+
+### Added
+- Reminders. Users can now set reminders for their notes. There is also an option to set recurring reminders - e.g. daily, weekly, monthly, yearly.
+- List item indenting.
+- Reddit link.
+
+### Changed
+- Checked/ticked list items will now be expanded by default, so that they are visible until collapsed.
+
+### Fixed
+- Open & close animations on changelog dialog.
+- App version not updating in settings.
+
+## [1.0.2] - 2026-05-05
 
 ### Added
 - Checked/ticked items in list notes are now collapsible.
@@ -17,7 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Pressing backspace on an empty list item will now delete it and move focus to the previous list item.
 - When closing a list note, if the last item is empty/blank, it will be deleted.
 
-## [1.0.1] - 2024-05-01
+## [1.0.1] - 2026-05-01
 ### Added
 - Welcome dialog on first launch to welcome feedback and notify that the app is still in early access.
 
@@ -27,6 +41,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 - Empty list notes won't be saved anymore.
 
-## [1.0.0] - 2024-04-29
+## [1.0.0] - 2026-04-29
 ### Added
 - Initial release of Open Keep on Google Play Store.

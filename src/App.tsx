@@ -81,7 +81,7 @@ const App = () => {
   };
 
   if (appState === 'loading') {
-    return <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>;
+    return <div className="min-h-screen bg-background flex items-center justify-center text-text-primary">Loading...</div>;
   }
 
   if (appState === 'setup') {

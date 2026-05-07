@@ -59,6 +59,13 @@ class NoteStoragePlugin : Plugin() {
                     } catch (e: Exception) {
                         jsNote.put("images", JSONArray())
                     }
+
+                    jsNote.put("reminder", note.reminder)
+                    if (note.recurrence != null) {
+                        try {
+                            jsNote.put("recurrence", JSONObject(note.recurrence))
+                        } catch (e: Exception) {}
+                    }
                     
                     jsArray.put(jsNote)
                 }
@@ -100,7 +107,9 @@ class NoteStoragePlugin : Plugin() {
                     deleted = noteObj.optBoolean("isDeleted", false),
                     tags = tagsString,
                     syncState = "PENDING",
-                    images = imagesString
+                    images = imagesString,
+                    reminder = if (noteObj.has("reminder") && !noteObj.isNull("reminder")) noteObj.getLong("reminder") else null,
+                    recurrence = noteObj.optJSONObject("recurrence")?.toString()
                 )
                 repository.saveNote(note)
                 call.resolve()
@@ -432,7 +441,9 @@ class NoteStoragePlugin : Plugin() {
                         isArchived = noteObj.optBoolean("isArchived", false),
                         deleted = noteObj.optBoolean("isDeleted", false),
                         tags = tagsArray.toString(),
-                        syncState = "SYNCED"
+                        syncState = "SYNCED",
+                        reminder = if (noteObj.has("reminder") && !noteObj.isNull("reminder")) noteObj.getLong("reminder") else null,
+                        recurrence = noteObj.optJSONObject("recurrence")?.toString()
                     ))
                 }
                 repository.bulkInsert(notesList)

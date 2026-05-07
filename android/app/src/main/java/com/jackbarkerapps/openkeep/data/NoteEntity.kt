@@ -17,5 +17,7 @@ data class NoteEntity(
     val deleted: Boolean,
     val tags: String, // Serialized JSON array
     val syncState: String, // SYNCED, PENDING, FAILED
-    val images: String = "[]" // Serialized JSON array
+    val images: String = "[]", // Serialized JSON array
+    val reminder: Long? = null,
+    val recurrence: String? = null // Serialized JSON object
 )
