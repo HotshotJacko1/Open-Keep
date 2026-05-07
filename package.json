@@ -22,6 +22,7 @@
     "@capacitor/device": "^8.0.2",
     "@capacitor/filesystem": "^8.1.0",
     "@capacitor/ios": "^8.0.0",
+    "@capacitor/local-notifications": "^8.0.2",
     "@capacitor/share": "^8.0.0",
     "@capgo/capacitor-native-biometric": "^8.3.7",
     "@codetrix-studio/capacitor-google-auth": "^3.4.0-rc.4",

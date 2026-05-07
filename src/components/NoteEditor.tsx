@@ -18,8 +18,10 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Plus, X, GripVertical, ArrowLeft, Pin, Archive, Type, Tag, Trash2, FileDown, ListChecks, Bold, Italic, Underline, Upload, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, X, GripVertical, ArrowLeft, Pin, Archive, Type, Tag, Trash2, FileDown, ListChecks, Bold, Italic, Underline, Upload, ChevronDown, ChevronRight, Bell } from "lucide-react";
 import NoteLabels from "@/components/NoteLabels";
+import ReminderSheet from "@/components/ReminderSheet";
+import { scheduleReminderNotification, cancelReminderNotification, formatReminderLabel } from "@/utils/reminder";
 import {
     DndContext,
     closestCenter,
@@ -294,6 +296,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const [newItemContent, setNewItemContent] = useState("");
     const [focusItemId, setFocusItemId] = useState<string | null>(null);
     const [showCheckedItems, setShowCheckedItems] = useState(false);
+    const [reminder, setReminder] = useState<number | undefined>(undefined);
+    const [isReminderSheetOpen, setIsReminderSheetOpen] = useState(false);
 
     const noteIdRef = useRef<string>(initialNote?.id || crypto.randomUUID());
     const titleTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -365,6 +369,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 setTags(initialNote.tags.join(", "));
                 setIsPinned(initialNote.isPinned);
                 setIsArchived(initialNote.isArchived);
+                setReminder(initialNote.reminder);
 
                 const initialImages = initialNote.images || [];
                 setImages(initialImages);
@@ -395,6 +400,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 setShowCheckedItems(false);
                 setImages([]);
                 setImageSrcs([]);
+                setReminder(undefined);
 
                 if (editor) {
                     editor.commands.setContent('');
@@ -505,6 +511,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 createdAt: initialNote?.createdAt || Date.now(),
                 updatedAt: Date.now(),
                 images,
+                reminder,
             };
             onSave(newNote);
         }, 500);
@@ -513,7 +520,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [title, content, tags, isPinned, isArchived, images]);
+    }, [title, content, tags, isPinned, isArchived, images, reminder]);
 
     // Toggle Mode Logic
     const handleToggleMode = () => {
@@ -707,6 +714,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 createdAt: initialNote?.createdAt || Date.now(),
                 updatedAt: Date.now(),
                 images,
+                reminder,
             };
             onSave(finalNote);
         }
@@ -806,6 +814,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 createdAt: initialNote?.createdAt || Date.now(),
                 updatedAt: Date.now(),
                 images,
+                reminder,
             };
             onSave(finalNote);
         }
@@ -877,6 +886,23 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                     </Button>
                                 </TooltipTrigger>
                                 <TooltipContent><p>{isPinned ? "Unpin" : "Pin"}</p></TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        id="reminder-bell-button"
+                                        variant="ghost"
+                                        size="icon"
+                                        disabled={isDeleted}
+                                        onClick={() => setIsReminderSheetOpen(true)}
+                                        className={reminder ? "text-amber-500" : "text-secondary"}
+                                    >
+                                        <Bell className="h-5 w-5" />
+                                        <span className="sr-only">{reminder ? "Edit reminder" : "Set reminder"}</span>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>{reminder ? "Edit reminder" : "Set reminder"}</p></TooltipContent>
                             </Tooltip>
 
                             <Tooltip>
@@ -993,9 +1019,22 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                             }}
                             rows={1}
                             readOnly={isDeleted}
-                            className="w-full bg-transparent text-black dark:text-white border-0 focus:outline-none text-xl font-semibold px-0 mb-4 placeholder:text-gray-400 resize-none overflow-hidden h-auto"
+                            className="w-full bg-transparent text-black dark:text-white border-0 focus:outline-none text-xl font-semibold px-0 mb-2 placeholder:text-gray-400 resize-none overflow-hidden h-auto"
                             placeholder="Title"
                         />
+
+                        {/* Reminder chip */}
+                        {reminder && (
+                            <button
+                                id="reminder-chip"
+                                className="inline-flex items-center gap-1.5 mb-3 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
+                                onClick={() => setIsReminderSheetOpen(true)}
+                                disabled={isDeleted}
+                            >
+                                <Bell className="h-3 w-3" />
+                                {formatReminderLabel(reminder)}
+                            </button>
+                        )}
 
                         {/* Editor Content */}
                         {isChecklistMode ? (
@@ -1250,6 +1289,33 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 availableTags={distplayTags}
                 selectedTags={tagStates}
                 onTagToggle={handleTagToggle}
+            />
+
+            <ReminderSheet
+                isOpen={isReminderSheetOpen}
+                onClose={() => setIsReminderSheetOpen(false)}
+                currentReminder={reminder}
+                onSetReminder={async (ts) => {
+                    setReminder(ts);
+                    // Schedule notification immediately (note will auto-save with new reminder)
+                    const noteForNotif: import("@/types/note").Note = {
+                        id: noteIdRef.current,
+                        title,
+                        content,
+                        tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+                        isPinned,
+                        isArchived,
+                        createdAt: initialNote?.createdAt || Date.now(),
+                        updatedAt: Date.now(),
+                        images,
+                        reminder: ts,
+                    };
+                    await scheduleReminderNotification(noteForNotif);
+                }}
+                onRemoveReminder={async () => {
+                    setReminder(undefined);
+                    await cancelReminderNotification(noteIdRef.current);
+                }}
             />
         </>
     );

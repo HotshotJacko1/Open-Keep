@@ -30,6 +30,7 @@ import { SelectionActionBar } from "@/components/SelectionActionBar";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { toggleCheckboxInContent } from "@/utils/markdown";
+import { requestNotificationPermission, rescheduleAllReminders } from "@/utils/reminder";
 import { App as CapacitorApp } from "@capacitor/app";
 
 const Index = () => {
@@ -177,6 +178,10 @@ const Index = () => {
       }
 
       const loadedNotes = await loadNotes();
+
+      // Request notification permissions (once) and reschedule any pending reminders
+      await requestNotificationPermission();
+      await rescheduleAllReminders(loadedNotes);
 
       // AUTO-DELETE CLEANUP (30 days)
       const now = Date.now();

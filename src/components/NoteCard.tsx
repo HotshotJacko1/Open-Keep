@@ -2,7 +2,8 @@ import React from "react";
 import { Note } from "@/types/note";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Pin, Archive, Trash2, Square, Check, RotateCcw } from "lucide-react";
+import { Pin, Archive, Trash2, Square, Check, RotateCcw, Bell } from "lucide-react";
+import { formatReminderLabel } from "@/utils/reminder";
 import { cn } from "@/lib/utils";
 import { isChecklist, parseChecklist } from "@/utils/markdown";
 
@@ -239,6 +240,17 @@ const NoteCard: React.FC<NoteCardProps> = ({
                 {tag}
               </span>
             ))}
+          </div>
+        )}
+        {note.reminder && (
+          <div className={cn(
+            "mt-2 inline-flex items-center gap-1 text-xs rounded-full px-2 py-0.5",
+            note.reminder > Date.now()
+              ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+              : "bg-muted text-muted-foreground line-through"
+          )}>
+            <Bell className="h-3 w-3" />
+            {formatReminderLabel(note.reminder)}
           </div>
         )}
       </CardContent>

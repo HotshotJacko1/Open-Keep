@@ -79,7 +79,8 @@ const parseNote = (n: any): Note => {
     deletedAt: n.deletedAt ? Number(n.deletedAt) : undefined,
     // Ensure numbers are numbers
     createdAt: Number(n.createdAt) || Date.now(),
-    updatedAt: Number(n.updatedAt) || Date.now()
+    updatedAt: Number(n.updatedAt) || Date.now(),
+    reminder: n.reminder ? Number(n.reminder) : undefined,
   };
 };
 
