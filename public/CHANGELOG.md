@@ -7,7 +7,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 - N/A
 
-## [2.0.0] - 2026-05-09
+## [2.0.1] - 2026-05-09
+
+### Changed
+- Passcode dialog now opens on-screen keyboard automatically.
+
+### Fixed
+- Fixed biometric not working when passcode is disabled. Enabling biometrics now also enables passcode as a backup.
+- Fixed swipe down from the top to cloud sync not updating the last synced time in cloud sync dialog.
+
+## [2.0.0] - 2026-05-08
 
 ### Added
 - Reminders. Users can now set reminders for their notes. There is also an option to set recurring reminders - e.g. daily, weekly, monthly, yearly.

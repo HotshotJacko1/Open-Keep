@@ -79,6 +79,12 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
 
                 setIsBiometricsEnabled(true);
                 showSuccess("Biometrics enabled");
+
+                // Also enable launch lock if biometrics is enabled
+                if (!isLaunchLockEnabled) {
+                    localStorage.setItem("app-lock-enabled", "true");
+                    setIsLaunchLockEnabled(true);
+                }
             } catch (error) {
                 console.error("Biometric verification failed", error);
                 showError("Failed to enable biometrics");
@@ -105,6 +111,12 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
         } else {
             localStorage.removeItem("app-lock-enabled");
             showSuccess("Launch lock disabled");
+
+            // Also disable biometrics if launch lock is disabled
+            if (isBiometricsEnabled) {
+                localStorage.removeItem("app-biometrics-enabled");
+                setIsBiometricsEnabled(false);
+            }
         }
         setIsLaunchLockEnabled(checked);
     };

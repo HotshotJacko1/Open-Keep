@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Fingerprint, Lock, AlertTriangle } from "lucide-react";
 import { NativeBiometric } from "@capgo/capacitor-native-biometric";
+import { Keyboard } from "@capacitor/keyboard";
 import { showSuccess, showError } from "@/utils/toast";
 import { clearAllData } from "@/lib/note-storage";
 import { deleteRemoteData } from "@/lib/google-drive";
@@ -48,9 +49,15 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
                 handleBiometricUnlock();
             }, 300);
         } else {
+            // Use a longer delay to ensure the WebView is fully settled before
+            // requesting focus and showing the keyboard. Android's WebView
+            // actively hides the IME after launch; Keyboard.show() forces it open.
             setTimeout(() => {
                 inputRef.current?.focus();
-            }, 300);
+                Keyboard.show().catch(() => {
+                    // Keyboard plugin not available on this platform (web/iOS), ignore
+                });
+            }, 500);
         }
     }, [isNativeEncryption]);
 
@@ -189,7 +196,6 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
                             onChange={(e) => setPasscode(e.target.value)}
                             placeholder="PIN"
                             maxLength={6}
-                            autoFocus
                         />
                     </div>
                     <Button type="submit" className="w-full" disabled={isLoading || passcode.length < 4}>

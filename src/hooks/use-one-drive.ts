@@ -170,11 +170,10 @@ export const useOneDrive = () => {
 
             await Promise.all(mergedNotes.map(note => saveNote(note)));
             localStorage.setItem("custom-tags", JSON.stringify(mergedTags));
-            window.dispatchEvent(new Event("notes-updated"));
-
             const now = new Date().toLocaleString();
-            setLastSynced(now);
             localStorage.setItem("onedrive-last-synced", now);
+            setLastSynced(now);
+            window.dispatchEvent(new Event("notes-updated"));
             showSuccess("Notes synced with OneDrive!");
             return { status: "success" };
         } catch (error) {

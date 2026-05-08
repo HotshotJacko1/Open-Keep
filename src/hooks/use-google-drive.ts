@@ -171,11 +171,10 @@ export const useGoogleDrive = () => {
             await Promise.all(mergedNotes.map(note => saveNote(note)));
             localStorage.setItem("custom-tags", JSON.stringify(mergedTags));
 
-            window.dispatchEvent(new Event("notes-updated"));
-
             const now = new Date().toLocaleString();
-            setLastSynced(now);
             localStorage.setItem("last-synced-time", now);
+            setLastSynced(now);
+            window.dispatchEvent(new Event("notes-updated"));
             showSuccess("Notes synced successfully!");
             return { status: "success" };
         } catch (error) {

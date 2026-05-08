@@ -33,8 +33,8 @@ const AddNoteOptions: React.FC<AddNoteOptionsProps> = ({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="bg-transparent border-none shadow-none flex flex-col items-end gap-2 p-0">
-        <DropdownMenuItem onClick={onNewTextNote} className="w-fit text-lg py-3 px-6 bg-white dark:bg-slate-900 border rounded-xl shadow-md cursor-pointer">Text</DropdownMenuItem>
-        <DropdownMenuItem onClick={onNewListNote} className="w-fit text-lg py-3 px-6 bg-white dark:bg-slate-900 border rounded-xl shadow-md cursor-pointer">List</DropdownMenuItem>
+        <DropdownMenuItem onClick={onNewTextNote} className="w-fit text-lg py-3 px-6 bg-foreground dark:bg-foreground border rounded-xl shadow-md cursor-pointer">Text</DropdownMenuItem>
+        <DropdownMenuItem onClick={onNewListNote} className="w-fit text-lg py-3 px-6 bg-foreground dark:bg-foreground border rounded-xl shadow-md cursor-pointer">List</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -134,6 +134,16 @@ const Index = () => {
           const loadedNotes = await loadNotes(); // Reload local notes after sync
           setNotes(loadedNotes);
           showSuccess(`Synced with ${activeService.name}`);
+        } else if (syncResult && syncResult.status === "conflict") {
+          // Open Sync Dialog to handle conflict
+          window.dispatchEvent(new CustomEvent("open-sync-conflict", { 
+            detail: { 
+              service: activeService.name.toLowerCase().replace(" ", ""), 
+              payload: (syncResult as any).cloudPayload, 
+              reason: (syncResult as any).reason 
+            } 
+          }));
+          setIsSettingsOpen(true); // Ensure settings is open so sync dialog can show
         }
       } catch (error) {
         console.error("Sync failed", error);

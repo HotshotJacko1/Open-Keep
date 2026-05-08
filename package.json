@@ -22,6 +22,7 @@
     "@capacitor/device": "^8.0.2",
     "@capacitor/filesystem": "^8.1.0",
     "@capacitor/ios": "^8.0.0",
+    "@capacitor/keyboard": "^8.0.3",
     "@capacitor/local-notifications": "^8.0.2",
     "@capacitor/share": "^8.0.0",
     "@capgo/capacitor-native-biometric": "^8.3.7",
