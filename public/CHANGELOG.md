@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 - N/A
 
+## [2.0.2] - 2026-05-18
+### Fixed
+- In lists, parent items cannot be indented.
+- Fixed an issue with Google Drive sync setup.
+
 ## [2.0.1] - 2026-05-09
 
 ### Changed

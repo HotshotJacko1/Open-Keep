@@ -68,6 +68,7 @@ export const useGoogleDrive = () => {
             try {
                 // Initialize plugin before sign in (required for capacitor-google-auth v3.2.0+)
                 await GoogleAuth.initialize({
+                    clientId: '889284625804-5prnhudcoalopvn0ad0au449lo1bn8f8.apps.googleusercontent.com',
                     scopes: ["profile", "email", "https://www.googleapis.com/auth/drive.file"]
                 });
                 const user = await GoogleAuth.signIn();
@@ -97,6 +98,7 @@ export const useGoogleDrive = () => {
 
             if (Capacitor.isNativePlatform()) {
                 await GoogleAuth.initialize({
+                    clientId: '889284625804-5prnhudcoalopvn0ad0au449lo1bn8f8.apps.googleusercontent.com',
                     scopes: ["profile", "email", "https://www.googleapis.com/auth/drive.file"]
                 });
                 try {
@@ -201,6 +203,7 @@ export const useGoogleDrive = () => {
         if (Capacitor.isNativePlatform()) {
             try {
                 await GoogleAuth.initialize({
+                    clientId: '889284625804-5prnhudcoalopvn0ad0au449lo1bn8f8.apps.googleusercontent.com',
                     scopes: ["profile", "email", "https://www.googleapis.com/auth/drive.file"]
                 });
                 await GoogleAuth.signOut();

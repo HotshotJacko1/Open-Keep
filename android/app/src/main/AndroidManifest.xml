@@ -50,4 +50,10 @@
 
     <!-- Photo support (camera only; images stored in app-private storage via Capacitor Filesystem) -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <queries>
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
+    </queries>
+
 </manifest>

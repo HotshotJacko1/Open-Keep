@@ -753,6 +753,12 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 const index = prev.findIndex(i => i.id === id);
                 // Can't indent the first item
                 if (index === 0) return item;
+                
+                // Prevent indenting if it has nested items below it
+                if (index < prev.length - 1 && item.indentation === "" && prev[index + 1].indentation !== "") {
+                    return item;
+                }
+
                 return { ...item, indentation: "    " };
             }
             return item;
