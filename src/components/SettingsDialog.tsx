@@ -25,7 +25,7 @@ import {
   MessageSquare,
   Fingerprint,
   Hash,
-  RefreshCw
+  CloudSync
 } from "lucide-react";
 import SyncDialog from "./SyncDialog";
 import ChangePinDialog from "./ChangePinDialog";
@@ -394,7 +394,7 @@ PIN code: ${pinCode || 'Not set'}`;
             <div className="flex flex-col gap-2 mt-4">
               <Label>Sync</Label>
               <Button variant="outline" onClick={() => setIsSyncDialogOpen(true)} className="w-full justify-start text-left">
-                <RefreshCw className="h-4 w-4 mr-2" />
+                <CloudSync className="h-4 w-4 mr-2" />
                 Open Sync Options
               </Button>
             </div>

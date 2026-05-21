@@ -7,8 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 - N/A
 
-## [2.1.0] - 2026-05-21
+## [2.1.1] - 2026-05-XX
+### Added
+- Added missing icons to buttons in settings.
 
+## [2.1.0] - 2026-05-21
 ### Added
 - Made the app open source AGPLv3.
 - Prepped for release onto F-Droid.
