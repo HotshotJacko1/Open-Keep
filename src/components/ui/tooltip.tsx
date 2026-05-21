@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 

@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import * as React from "react";
 import * as LabelPrimitive from "@radix-ui/react-label";
 import { cva, type VariantProps } from "class-variance-authority";

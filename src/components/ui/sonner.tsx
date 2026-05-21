@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import { useTheme } from "next-themes";
 import { Toaster as Sonner } from "sonner";
 

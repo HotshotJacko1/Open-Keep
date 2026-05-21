@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import { Importer, ImportInput, ImportNote, ImportReport } from "../types/import";
 import { GoogleKeepImporter } from "./importers/google-keep";
 

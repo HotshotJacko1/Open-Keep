@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import { Note } from "@/types/note";
 import { encryptData, decryptData } from "@/lib/note-storage";
 import { resolveImagesToBase64, restoreImagesFromBase64 } from "@/lib/image-storage";

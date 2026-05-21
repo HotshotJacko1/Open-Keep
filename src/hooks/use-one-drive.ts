@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 
 import { useState, useCallback, useEffect } from "react";
 import { initOneDrive, loginToOneDrive, syncNotesWithOneDrive, logoutFromOneDrive, msalInstance, checkOneDriveMasterKey } from "@/lib/one-drive";

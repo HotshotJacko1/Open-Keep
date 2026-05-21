@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import { useCallback, useRef, useState } from 'react';
 
 interface UseLongPressOptions {

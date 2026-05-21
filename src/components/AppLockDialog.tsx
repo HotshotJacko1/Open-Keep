@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import React, { useState, useEffect } from "react";
 import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 import {

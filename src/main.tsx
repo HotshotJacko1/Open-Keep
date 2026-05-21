@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";

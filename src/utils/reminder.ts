@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import { Capacitor } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { Note } from "@/types/note";
@@ -103,9 +104,9 @@ export function formatReminderLabel(ts: number): string {
 
 /** Schedule (or reschedule) a local notification for a note reminder.
  *  Returns:
- *    true    — scheduled successfully
- *    false   — scheduling failed (non-permission error)
- *    'denied' — permission is permanently denied; user must go to Settings */
+ *    true    â€” scheduled successfully
+ *    false   â€” scheduling failed (non-permission error)
+ *    'denied' â€” permission is permanently denied; user must go to Settings */
 export async function scheduleReminderNotification(note: Note): Promise<boolean | 'denied'> {
   if (!note.reminder) return true;
 
@@ -117,12 +118,12 @@ export async function scheduleReminderNotification(note: Note): Promise<boolean 
       if (display === 'denied') {
         // Android will not show a dialog once permission has been explicitly denied.
         // The user must re-enable in system Settings manually.
-        console.warn('Notification permission permanently denied — user must open Settings.');
+        console.warn('Notification permission permanently denied â€” user must open Settings.');
         return 'denied';
       }
 
       if (display !== 'granted') {
-        // 'prompt' or 'prompt-with-rationale' — OS can still show the dialog
+        // 'prompt' or 'prompt-with-rationale' â€” OS can still show the dialog
         const result = await LocalNotifications.requestPermissions();
         display = result.display;
       }

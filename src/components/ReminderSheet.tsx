@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import React, { useRef, useState, useEffect } from "react";
 import { Bell, Clock, Calendar, X, RotateCcw } from "lucide-react";
 import { getReminderOptions, ReminderOption } from "@/utils/reminder";

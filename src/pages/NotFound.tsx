@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
 

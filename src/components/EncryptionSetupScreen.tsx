@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import React, { useState, useEffect } from 'react';
 import { App } from "@capacitor/app";
 import { Button } from "@/components/ui/button";

@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import React from "react";
 import { X, Pin, Archive, Trash2, Upload, Tag, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";

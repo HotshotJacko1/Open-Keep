@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 export const CHECKBOX_REGEX = /^(\s*)-\s\[([ xX])\]\s(.*)$/;
 
 export interface ChecklistItem {

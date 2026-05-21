@@ -1,7 +1,9 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 export interface Note {
   id: string;
   title: string;
   content: string;
+  type?: 'text' | 'list'; // Explicit note type so list notes survive an empty body
   tags: string[];
   isPinned: boolean;
   isArchived: boolean;

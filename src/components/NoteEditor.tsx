@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Note } from "@/types/note";
@@ -422,6 +423,22 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         }
     };
 
+    const isLabelsOpenRef = useRef(isLabelsOpen);
+    const isReminderSheetOpenRef = useRef(isReminderSheetOpen);
+    const fullscreenImageSrcRef = useRef(fullscreenImageSrc);
+
+    useEffect(() => {
+        isLabelsOpenRef.current = isLabelsOpen;
+    }, [isLabelsOpen]);
+
+    useEffect(() => {
+        isReminderSheetOpenRef.current = isReminderSheetOpen;
+    }, [isReminderSheetOpen]);
+
+    useEffect(() => {
+        fullscreenImageSrcRef.current = fullscreenImageSrc;
+    }, [fullscreenImageSrc]);
+
     // Mobile Back Button Handling
     useEffect(() => {
         if (!isMobile || !isOpen) return;
@@ -430,8 +447,19 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         window.history.pushState({ dialog: 'note-editor' }, "");
 
         const handlePopState = (event: PopStateEvent) => {
-            // If the user presses back, close the editor
-            handleCloseEditorRef.current();
+            if (fullscreenImageSrcRef.current) {
+                setFullscreenImageSrc(null);
+                window.history.pushState({ dialog: 'note-editor' }, "");
+            } else if (isLabelsOpenRef.current) {
+                setIsLabelsOpen(false);
+                window.history.pushState({ dialog: 'note-editor' }, "");
+            } else if (isReminderSheetOpenRef.current) {
+                setIsReminderSheetOpen(false);
+                window.history.pushState({ dialog: 'note-editor' }, "");
+            } else {
+                // If the user presses back, close the editor
+                handleCloseEditorRef.current();
+            }
         };
 
         window.addEventListener('popstate', handlePopState);
@@ -490,8 +518,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     editor.commands.setContent(initialNote.content);
                 }
 
-                // Detect mode
-                const isList = isChecklist(initialNote.content);
+                // Detect mode: prefer explicit 'type' field so empty-body list notes
+                // are not misclassified as text notes on reopen.
+                const isList = initialNote.type === 'list' || isChecklist(initialNote.content);
                 setIsChecklistMode(isList);
                 if (isList) {
                     const { items } = parseChecklist(initialNote.content);
@@ -616,6 +645,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 id: noteIdRef.current,
                 title,
                 content, // Saves HTML now
+                type: isChecklistMode ? 'list' : 'text',
                 tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
                 isPinned,
                 isArchived,
@@ -896,6 +926,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 id: noteIdRef.current,
                 title,
                 content: currentContent,
+                type: isChecklistMode ? 'list' : 'text',
                 tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
                 isPinned,
                 isArchived,
@@ -1488,7 +1519,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         currentReminder={reminder}
                         currentRecurrence={recurrence}
                         onSetReminder={async (ts, rec) => {
-                            // Schedule notification first — if permission is denied, don't save the reminder
+                            // Schedule notification first â€” if permission is denied, don't save the reminder
                             const noteForNotif: import("@/types/note").Note = {
                                 id: noteIdRef.current,
                                 title,
@@ -1507,13 +1538,13 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                 setReminder(ts);
                                 setRecurrence(rec);
                             } else if (result === 'denied') {
-                                // Permission permanently denied — OS won't show a dialog, must go to Settings
-                                toast.error("Notifications are blocked. Go to Settings → Apps → Open Keep → Notifications to enable reminders.", {
+                                // Permission permanently denied â€” OS won't show a dialog, must go to Settings
+                                toast.error("Notifications are blocked. Go to Settings â†’ Apps â†’ Open Keep â†’ Notifications to enable reminders.", {
                                     duration: 6000,
                                 });
                             } else {
                                 // User declined the permission dialog
-                                toast.error("Reminder not set — notification permission is required.", {
+                                toast.error("Reminder not set â€” notification permission is required.", {
                                     duration: 4000,
                                 });
                             }

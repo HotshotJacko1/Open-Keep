@@ -1,0 +1,1 @@
+Open source notes app with exporting, cloud sync, app lock, & encryption.

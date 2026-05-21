@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 
 import { useState, useCallback, useEffect } from "react";
 import { initDropbox, getAuthenticationUrl, handleAuthRedirect, syncNotesWithDropbox, checkDropboxMasterKey } from "@/lib/dropbox";

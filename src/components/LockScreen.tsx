@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import React, { useState, useEffect, useRef } from "react";
 
 import { Input } from "@/components/ui/input";

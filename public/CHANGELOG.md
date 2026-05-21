@@ -7,9 +7,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 - N/A
 
+## [2.1.0] - 2026-05-21
+
+### Added
+- Made the app open source AGPLv3.
+- Prepped for release onto F-Droid.
+- Added feedback component which will appear occasionally to ask for feedback.
+- Added Supabase as anonymous auth to count how many users are using the app and determine when to ask for feedback. No personal data is collected.
+
+### Fixed
+- Fixed issue with empty note lists changing to text lists.
+- Fixed issue with closing the label dialog when a note is open.
+
 ## [2.0.2] - 2026-05-18
 ### Fixed
-- In lists, parent items cannot be indented.
+- In lists, parent items can no longer be indented.
 - Fixed an issue with Google Drive sync setup.
 
 ## [2.0.1] - 2026-05-09

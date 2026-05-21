@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import { toast } from "sonner";
 
 export const showSuccess = (message: string) => {

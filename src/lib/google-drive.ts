@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import { Note } from "@/types/note";
 import { gapi } from "gapi-script";
 import { Capacitor } from "@capacitor/core";

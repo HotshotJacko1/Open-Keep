@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import React, { useState, useRef, useEffect } from "react";
 import {
   Dialog,
@@ -27,6 +28,7 @@ import { ImportManager } from "@/utils/import-manager";
 import { ImportInput, ImportInputFile } from "@/types/import";
 import { App } from "@capacitor/app";
 import { Device } from "@capacitor/device";
+import { supabase } from "@/integrations/supabase/client";
 interface SettingsDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -46,6 +48,27 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
   const { session } = useSession();
   const user = session?.user;
   const [appVersion, setAppVersion] = useState<string>("...");
+  const [pinCode, setPinCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchPin = async () => {
+      if (user?.id) {
+        const { data, error } = await supabase
+          .from('user_entitlements')
+          .select('pin_code')
+          .eq('user_id', user.id)
+          .single();
+        if (data && data.pin_code) {
+          setPinCode(data.pin_code.toString());
+        } else if (error && error.code !== 'PGRST116') {
+          console.error('Error fetching pin:', error);
+        }
+      }
+    };
+    if (isOpen) {
+      fetchPin();
+    }
+  }, [user?.id, isOpen]);
 
   useEffect(() => {
     const getAppInfo = async () => {
@@ -387,6 +410,23 @@ App version: ${appInfo.version}`;
               </Button>
             </div>
 
+            {/* Supabase User PIN */}
+            {pinCode && (
+              <div className="flex items-center justify-between mt-4">
+                <Label className="text-sm font-medium">PIN Code</Label>
+                <span className="text-sm font-mono font-semibold tracking-widest text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded">
+                  {pinCode}
+                </span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between mt-2">
+              <Label className="text-sm text-primary-foreground font-medium">App Version</Label>
+              <span className="text-xs text-primary-foreground max-w-[60%] truncate">
+                {appVersion}
+              </span>
+            </div>
+
             {/* Supabase User ID */}
             {user?.id && (
               <div className="flex items-center justify-between mt-2">
@@ -396,12 +436,6 @@ App version: ${appInfo.version}`;
                 </span>
               </div>
             )}
-
-            {/* App Version */}
-            <div className="flex items-center justify-between mt-2">
-              <Label className="text-sm text-primary-foreground font-medium">App Version</Label>
-              <span className="text-xs text-primary-foreground">{appVersion}</span>
-            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import { cn } from "@/lib/utils";
 
 function Skeleton({

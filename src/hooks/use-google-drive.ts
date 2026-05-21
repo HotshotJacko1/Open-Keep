@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import { useState, useCallback, useEffect } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
 import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
@@ -149,17 +150,17 @@ export const useGoogleDrive = () => {
                         const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, pin);
                         
                         if (!isMatch) {
-                            // Keys differ — conflict resolution required
+                            // Keys differ â€” conflict resolution required
                             return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
                         }
                         
                         if (localNotes.length === 0) {
-                            // Local is empty and keys match — auto-restore from cloud
+                            // Local is empty and keys match â€” auto-restore from cloud
                             await wipeDatabaseButKeepKeys();
                             await importMasterKey(cloudKey.payload, pin);
                             masterKeyPayload = undefined;
                         } else if (isFirstConnect) {
-                            // Keys match but this is first connect — ask user which data to keep
+                            // Keys match but this is first connect â€” ask user which data to keep
                             return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
                         }
                     }

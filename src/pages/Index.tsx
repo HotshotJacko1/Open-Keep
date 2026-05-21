@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Note } from "@/types/note";
 import { loadNotes, saveNote, deleteNote, getLegacyWebNotes, migrateWebNotes, clearLegacyWebNotes } from "@/lib/note-storage";
@@ -175,13 +176,13 @@ const Index = () => {
         localStorage.setItem(MIGRATION_KEY, 'true');
       }
 
-      // Check for first launch / Keep Migration prompt (disabled — kept for future use)
+      // Check for first launch / Keep Migration prompt (disabled â€” kept for future use)
       // const HAS_SEEN_MIGRATION_PROMPT = 'has_seen_keep_migration_prompt';
       // if (!localStorage.getItem(HAS_SEEN_MIGRATION_PROMPT)) {
       //   setShowInitialMigrationAsk(true);
       // }
 
-      // Early Access welcome dialog — show once per user
+      // Early Access welcome dialog â€” show once per user
       const HAS_SEEN_EARLY_ACCESS = 'has_seen_early_access_dialog_v1';
       if (!localStorage.getItem(HAS_SEEN_EARLY_ACCESS)) {
         setShowEarlyAccessDialog(true);
@@ -885,7 +886,7 @@ const Index = () => {
         onDeleteTag={handleDeleteTag}
       />
 
-      {/* InitialAskToMigrate disabled — kept for future use */}
+      {/* InitialAskToMigrate disabled â€” kept for future use */}
       {/* <InitialAskToMigrate
         isOpen={showInitialMigrationAsk}
         onAccept={() => {

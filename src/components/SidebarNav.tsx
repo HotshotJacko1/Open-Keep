@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import React from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Lightbulb, Tag, Archive, Pencil, Trash2 } from "lucide-react";

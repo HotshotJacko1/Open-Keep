@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 
 import { Note } from "@/types/note";
 import { PublicClientApplication, Configuration, PopupRequest, NavigationClient, NavigationOptions } from "@azure/msal-browser";

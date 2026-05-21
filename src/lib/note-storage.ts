@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import { registerPlugin } from "@capacitor/core";
 import { Note } from "@/types/note";
 

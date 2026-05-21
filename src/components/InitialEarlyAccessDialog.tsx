@@ -1,3 +1,4 @@
+// Copyright (c) 2026. Licensed under AGPLv3.
 import React from "react";
 import {
   Dialog,
@@ -29,19 +30,19 @@ const InitialEarlyAccessDialog: React.FC<InitialEarlyAccessDialogProps> = ({ isO
           <DialogDescription asChild>
             <div className="pt-2 text-sm text-text-primary dark:text-text-primary space-y-3">
               <p>
-                Thank you so much for testing the app — it really means a lot! 🎉
+                Thank you so much for testing the app â€” it really means a lot! ðŸŽ‰
               </p>
               <p>
                 Open Keep is currently in <strong>early access</strong>, so you may encounter the occasional rough edge. If you run into any issues or have feedback, please let me know by going to:
               </p>
               <p className="font-medium text-center py-1 rounded-md bg-muted text-text-primary dark:text-text-primary">
-                Settings → Feedback
+                Settings â†’ Feedback
               </p>
               <p>
                 I read every message and will work to fix things as quickly as I can.
               </p>
               <p>
-                And don't worry — <strong>Open Keep is free forever</strong>. 💛
+                And don't worry â€” <strong>Open Keep is free forever</strong>. ðŸ’›
               </p>
             </div>
           </DialogDescription>

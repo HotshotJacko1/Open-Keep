@@ -1,0 +1,28 @@
+Open Keep is a simple, privacy-focused note-taking app designed for users who want full control over their data. No Google dependency, no personal data collection - just your notes, stored how and where you choose.
+
+Write notes using clean and powerful Markdown (.md), protect sensitive content with passcode protection/biometrics, and keep everything in sync across your devices using your preferred cloud storage provider.
+
+Features:
+
+- DeGoogled – No reliance on Google services
+- Cloud sync (Dropbox, Google Drive, OneDrive)
+- Markdown Support (.md) – Write and edit notes in a standard, portable format
+- Password Protection – Secure your notes with passcode/biometrics
+- Import & Export Notes – Easily move your data in or out at any time
+- Encrypted – 256-bit AES encryption, which is an industry standard (often referred to as military-grade encryption).
+
+Open Keep is ideal for users who value privacy, data ownership, and open formats - whether you’re taking quick notes, writing documentation, or managing personal knowledge.
+
+Your notes. Your storage. Your control.
+
+Privacy:
+
+- 256-bit AES encryption
+- No personal data collection, no logins
+- I cannot see your notes
+- Notes can be kept locally on device, or optionally synced to the cloud.
+- Supabase anonymous auth is used purely to 1) count how many users are using the app, and 2) to ask users for feedback occasionally.
+
+Licence:
+
+This project is licensed under the GNU Affero General Public License v3.0 (AGPLv3) - see the [LICENSE](LICENSE) file for details.
