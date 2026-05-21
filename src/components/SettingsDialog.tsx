@@ -10,22 +10,22 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/theme-provider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { 
-  Sun, 
-  Moon, 
-  Monitor, 
-  Upload, 
-  Download, 
-  Loader2, 
-  Shield, 
-  FileText, 
-  Mail, 
-  ArrowLeft, 
-  Sparkles, 
+import {
+  Sun,
+  Moon,
+  Monitor,
+  Upload,
+  Download,
+  Loader2,
+  Shield,
+  FileText,
+  Mail,
+  ArrowLeft,
+  Sparkles,
   MessageSquare,
   Fingerprint,
   Hash,
-  CloudSync
+  Sync
 } from "lucide-react";
 import SyncDialog from "./SyncDialog";
 import ChangePinDialog from "./ChangePinDialog";
@@ -394,9 +394,9 @@ PIN code: ${pinCode || 'Not set'}`;
             <div className="flex flex-col gap-2 mt-4">
               <Label>Sync</Label>
               <Button variant="outline" onClick={() => setIsSyncDialogOpen(true)} className="w-full justify-start text-left">
-                <CloudSync className="h-4 w-4 mr-2" />
-                Open Sync Options
-              </Button>
+                              <Sync className="h-4 w-4 mr-2" />
+                              Open Sync Options
+                            </Button>
             </div>
 
             <div className="flex flex-col gap-2 mt-4">
