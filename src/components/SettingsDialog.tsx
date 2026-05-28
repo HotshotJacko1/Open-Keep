@@ -410,7 +410,7 @@ PIN code: ${pinCode || 'Not set'}`;
               <ChangelogDialog />
               <Button
                 variant="outline"
-                onClick={() => window.open("https://jorvikwebdesigns.com/open-keep-privacy-policy/", "_blank")}
+                onClick={() => window.open("https://openkeep.net/privacy-policy/", "_blank")}
                 className="w-full justify-start"
               >
                 <Shield className="h-4 w-4 mr-2" /> Privacy Policy
