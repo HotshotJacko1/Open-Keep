@@ -38,7 +38,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
       <DialogContent
         hideCloseButton
-        className="sm:max-w-md bg-background text-primary-foreground border"
+        className="sm:max-w-md bg-background text-text-primary dark:text-text-primary border"
       >
         <DialogHeader className="flex flex-row items-center justify-between">
           <DialogTitle className="text-xl font-semibold">Would you recommend the app?</DialogTitle>
@@ -71,8 +71,8 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
           {feedback && (
             <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2">
               <label htmlFor="comments" className="text-sm font-medium">
-                {feedback === "happy" 
-                  ? "What do you like about it? (Optional)" 
+                {feedback === "happy"
+                  ? "What do you like about it? (Optional)"
                   : "What could we improve? (Optional)"}
               </label>
               <Textarea

@@ -1,6 +1,5 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import { Note } from "@/types/note";
-import { gapi } from "gapi-script";
 import { Capacitor } from "@capacitor/core";
 import { encryptData, decryptData } from "@/lib/note-storage";
 import { resolveImagesToBase64, restoreImagesFromBase64 } from "@/lib/image-storage";
@@ -8,47 +7,38 @@ import { resolveImagesToBase64, restoreImagesFromBase64 } from "@/lib/image-stor
 const FOLDER_NAME = "Open Keep Notes";
 const NOTES_FILE_NAME = "notes.json";
 const ENCRYPTED_KEY_FILE_NAME = "encrypted_master_key.json";
-const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
 
 let isInitialized = false;
+let globalAccessToken: string | null = null;
 
 export const initGoogleDrive = async () => {
-    if (isInitialized) return;
-
-    try {
-        await new Promise<void>((resolve, reject) => {
-            gapi.load("client", {
-                callback: resolve,
-                onerror: reject,
-            });
-        });
-
-        await gapi.client.init({
-            apiKey: import.meta.env.VITE_GOOGLE_API_KEY,
-            discoveryDocs: DISCOVERY_DOCS,
-        });
-
-        isInitialized = true;
-    } catch (error) {
-        console.error("Error initializing Google Drive API:", error);
-        throw error;
-    }
+    isInitialized = true;
 };
 
 export const setAccessToken = (token: string) => {
-    gapi.client.setToken({ access_token: token });
+    globalAccessToken = token;
+};
+
+const getHeaders = () => {
+    if (!globalAccessToken) throw new Error("No access token found");
+    return {
+        Authorization: `Bearer ${globalAccessToken}`,
+        "Content-Type": "application/json",
+    };
 };
 
 const findFolder = async (): Promise<string | null> => {
     try {
-        const response = await gapi.client.drive.files.list({
-            q: `mimeType='application/vnd.google-apps.folder' and name='${FOLDER_NAME}' and trashed=false`,
-            fields: "files(id, name)",
+        const q = encodeURIComponent(`mimeType='application/vnd.google-apps.folder' and name='${FOLDER_NAME}' and trashed=false`);
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+            headers: getHeaders(),
         });
-        const files = response.result.files;
+        if (!response.ok) throw new Error(await response.text());
+        const result = await response.json();
+        const files = result.files;
         return files && files.length > 0 ? files[0].id : null;
     } catch (error: any) {
-        console.error("Error finding folder:", error?.result?.error?.message || JSON.stringify(error));
+        console.error("Error finding folder:", error);
         return null;
     }
 };
@@ -59,41 +49,48 @@ const createFolder = async (): Promise<string> => {
             name: FOLDER_NAME,
             mimeType: "application/vnd.google-apps.folder",
         };
-        const response = await gapi.client.drive.files.create({
-            resource: fileMetadata,
-            fields: "id",
+        const response = await fetch("https://www.googleapis.com/drive/v3/files?fields=id", {
+            method: "POST",
+            headers: getHeaders(),
+            body: JSON.stringify(fileMetadata),
         });
-        return response.result.id;
+        if (!response.ok) throw new Error(await response.text());
+        const result = await response.json();
+        return result.id;
     } catch (error: any) {
-        console.error("Error creating folder:", error?.result?.error?.message || JSON.stringify(error));
+        console.error("Error creating folder:", error);
         throw error;
     }
 };
 
 const findNotesFile = async (folderId: string): Promise<string | null> => {
     try {
-        const response = await gapi.client.drive.files.list({
-            q: `name='${NOTES_FILE_NAME}' and '${folderId}' in parents and trashed=false`,
-            fields: "files(id, name)",
+        const q = encodeURIComponent(`name='${NOTES_FILE_NAME}' and '${folderId}' in parents and trashed=false`);
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+            headers: getHeaders(),
         });
-        const files = response.result.files;
+        if (!response.ok) throw new Error(await response.text());
+        const result = await response.json();
+        const files = result.files;
         return files && files.length > 0 ? files[0].id : null;
     } catch (error: any) {
-        console.error("Error finding notes file:", error?.result?.error?.message || JSON.stringify(error));
+        console.error("Error finding notes file:", error);
         return null;
     }
 };
 
 const findKeyFile = async (folderId: string): Promise<string | null> => {
     try {
-        const response = await gapi.client.drive.files.list({
-            q: `name='${ENCRYPTED_KEY_FILE_NAME}' and '${folderId}' in parents and trashed=false`,
-            fields: "files(id, name)",
+        const q = encodeURIComponent(`name='${ENCRYPTED_KEY_FILE_NAME}' and '${folderId}' in parents and trashed=false`);
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+            headers: getHeaders(),
         });
-        const files = response.result.files;
+        if (!response.ok) throw new Error(await response.text());
+        const result = await response.json();
+        const files = result.files;
         return files && files.length > 0 ? files[0].id : null;
     } catch (error: any) {
-        console.error("Error finding master key file:", error?.result?.error?.message || JSON.stringify(error));
+        console.error("Error finding master key file:", error);
         return null;
     }
 };
@@ -112,28 +109,32 @@ export const checkGoogleDriveMasterKey = async (): Promise<{ exists: boolean, fi
 
 const downloadMasterKey = async (fileId: string): Promise<string | null> => {
     try {
-        const response = await gapi.client.drive.files.get({
-            fileId: fileId,
-            alt: "media",
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+            headers: { Authorization: `Bearer ${globalAccessToken}` },
         });
-        
-        // GAPI sets result to false if it attempts to parse application/json and fails
-        const result = response.result === false && response.body ? response.body : response.result;
-        return typeof result === 'string' ? result : JSON.stringify(result);
+        if (!response.ok) throw new Error(await response.text());
+        const text = await response.text();
+        return text;
     } catch (error: any) {
-        console.error("Error downloading master key:", error?.result?.error?.message || JSON.stringify(error));
+        console.error("Error downloading master key:", error);
         return null;
     }
 };
 
 const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTags: string[] }> => {
     try {
-        const response = await gapi.client.drive.files.get({
-            fileId: fileId,
-            alt: "media",
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+            headers: { Authorization: `Bearer ${globalAccessToken}` },
         });
-
-        let result = response.result;
+        if (!response.ok) throw new Error(await response.text());
+        
+        const text = await response.text();
+        let result: any;
+        try {
+            result = JSON.parse(text);
+        } catch {
+            result = text;
+        }
 
         if (Capacitor.isNativePlatform()) {
             try {
@@ -171,7 +172,7 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
 
         return { notes: parsedNotes, customTags: parsedTags };
     } catch (error: any) {
-        console.error("Error downloading notes:", error?.result?.error?.message || JSON.stringify(error));
+        console.error("Error downloading notes:", error);
         return { notes: [], customTags: [] };
     }
 };
@@ -211,7 +212,7 @@ const uploadNotes = async (
         parents: fileId ? undefined : [folderId],
     };
 
-    const accessToken = gapi.client.getToken()?.access_token;
+    const accessToken = globalAccessToken;
     if (!accessToken) throw new Error("No access token found");
 
     const form = new FormData();
@@ -248,7 +249,7 @@ const uploadMasterKey = async (folderId: string, payload: string, fileId: string
         parents: fileId ? undefined : [folderId],
     };
 
-    const accessToken = gapi.client.getToken()?.access_token;
+    const accessToken = globalAccessToken;
     if (!accessToken) throw new Error("No access token found");
 
     const form = new FormData();
@@ -355,14 +356,16 @@ export const syncNotesWithDrive = async (
 export const deleteRemoteData = async (): Promise<void> => {
     if (!isInitialized) await initGoogleDrive();
 
-    // Do not attempt to find or delete remote folder if user is not authenticated
-    const token = gapi.client.getToken();
+    const token = globalAccessToken;
     if (!token) {
         return;
     }
 
     const folderId = await findFolder();
     if (folderId) {
-        await gapi.client.drive.files.delete({ fileId: folderId });
+        await fetch(`https://www.googleapis.com/drive/v3/files/${folderId}`, {
+            method: "DELETE",
+            headers: getHeaders(),
+        });
     }
 };

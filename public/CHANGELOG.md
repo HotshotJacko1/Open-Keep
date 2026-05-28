@@ -7,9 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 - N/A
 
-## [2.1.1] - 2026-05-XX
+## [2.1.1] - 2026-05-29
 ### Added
 - Added missing icons to buttons in settings.
+
+### Fixed
+- Fixed welcome screen visibility when using large font size.
+- Fixed Google Drive sync.
+- Fixed link text colour in dark mode.
+- Fixed long words/URLs not wrapping to the next line on note cards and causing overflow issues.
 
 ## [2.1.0] - 2026-05-21
 ### Added

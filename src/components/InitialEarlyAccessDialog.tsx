@@ -19,7 +19,7 @@ interface InitialEarlyAccessDialogProps {
 const InitialEarlyAccessDialog: React.FC<InitialEarlyAccessDialogProps> = ({ isOpen, onClose }) => {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] max-h-[85dvh] overflow-y-auto px-6 pt-[max(env(safe-area-inset-top),1.5rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)]">
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
             <Sparkles className="h-5 w-5 text-yellow-500" />

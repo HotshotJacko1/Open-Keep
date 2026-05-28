@@ -164,6 +164,11 @@
     }
   }
 
+  /* Tiptap dark mode link color */
+  .dark .ProseMirror a {
+    color: white;
+  }
+
   /* Tiptap Placeholder */
   .ProseMirror p.is-editor-empty:first-child::before {
     @apply text-gray-400 dark:text-gray-500;

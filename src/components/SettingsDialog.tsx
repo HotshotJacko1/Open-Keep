@@ -25,7 +25,8 @@ import {
   MessageSquare,
   Fingerprint,
   Hash,
-  CloudSync
+  CloudSync,
+  Laptop
 } from "lucide-react";
 import SyncDialog from "./SyncDialog";
 import ChangePinDialog from "./ChangePinDialog";
@@ -410,6 +411,20 @@ PIN code: ${pinCode || 'Not set'}`;
               <ChangelogDialog />
               <Button
                 variant="outline"
+                onClick={() => window.open("https://www.reddit.com/r/OpenKeep/", "_blank")}
+                className="w-full justify-start"
+              >
+                <MessageSquare className="h-4 w-4 mr-2" /> Join the Reddit Community
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => window.open("https://openkeep.net/", "_blank")}
+                className="w-full justify-start"
+              >
+                <Laptop className="h-4 w-4 mr-2" /> Website
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => window.open("https://openkeep.net/privacy-policy/", "_blank")}
                 className="w-full justify-start"
               >
@@ -421,13 +436,6 @@ PIN code: ${pinCode || 'Not set'}`;
                 className="w-full justify-start"
               >
                 <FileText className="h-4 w-4 mr-2" /> Terms of Service
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => window.open("https://www.reddit.com/r/OpenKeep/", "_blank")}
-                className="w-full justify-start"
-              >
-                <MessageSquare className="h-4 w-4 mr-2" /> Join the Reddit Community
               </Button>
             </div>
 
