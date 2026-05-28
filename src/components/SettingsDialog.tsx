@@ -417,7 +417,7 @@ PIN code: ${pinCode || 'Not set'}`;
               </Button>
               <Button
                 variant="outline"
-                onClick={() => window.open("https://jorvikwebdesigns.com/open-keep-terms-of-service/", "_blank")}
+                onClick={() => window.open("https://openkeep.net/terms-of-service/", "_blank")}
                 className="w-full justify-start"
               >
                 <FileText className="h-4 w-4 mr-2" /> Terms of Service
