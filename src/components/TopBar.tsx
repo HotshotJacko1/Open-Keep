@@ -68,7 +68,7 @@ const TopBar: React.FC<TopBarProps> = ({
 
             {showSyncButton && (
                 <Button 
-                    variant="outline" 
+                    variant="ghost" 
                     size="sm" 
                     onClick={handleSync} 
                     disabled={activeService.isSyncing} 
