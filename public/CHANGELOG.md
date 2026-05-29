@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [3.0.0] - 2026-06-05
 ### Added
-- PC version released. You can now access Open Keep on a browser at open-keep.vercel.app.
+- PC version released. You can now access Open Keep on a browser at [app.openkeep.net](https://app.openkeep.net).
 
 ## [2.1.1] - 2026-05-29
 ### Added
