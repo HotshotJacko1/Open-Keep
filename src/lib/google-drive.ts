@@ -15,14 +15,38 @@ export const initGoogleDrive = async () => {
     isInitialized = true;
 };
 
-export const setAccessToken = (token: string) => {
+export const setAccessToken = (token: string, expiresIn: number = 3600) => {
     globalAccessToken = token;
+    if (token) {
+        localStorage.setItem("google-access-token", token);
+        localStorage.setItem("google-token-expiry", (Date.now() + expiresIn * 1000).toString());
+    } else {
+        localStorage.removeItem("google-access-token");
+        localStorage.removeItem("google-token-expiry");
+    }
 };
 
-export const hasGoogleAccessToken = () => !!globalAccessToken;
+export const hasGoogleAccessToken = () => {
+    if (globalAccessToken) return true;
+    const token = localStorage.getItem("google-access-token");
+    const expiry = localStorage.getItem("google-token-expiry");
+    if (token && expiry && Date.now() < parseInt(expiry, 10)) {
+        globalAccessToken = token;
+        return true;
+    }
+    return false;
+};
 
 const getHeaders = () => {
-    if (!globalAccessToken) throw new Error("No access token found");
+    if (!globalAccessToken) {
+        const token = localStorage.getItem("google-access-token");
+        const expiry = localStorage.getItem("google-token-expiry");
+        if (token && expiry && Date.now() < parseInt(expiry, 10)) {
+            globalAccessToken = token;
+        } else {
+            throw new Error("No access token found");
+        }
+    }
     return {
         Authorization: `Bearer ${globalAccessToken}`,
         "Content-Type": "application/json",

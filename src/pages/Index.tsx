@@ -331,7 +331,7 @@ const Index = () => {
         isDeleted: true,
         deletedAt: Date.now(),
         isPinned: false, // Unpin when deleting
-        updatedAt: Date.now()
+        updatedAt: Math.max(Date.now(), note.updatedAt + 1)
       };
 
       setNotes((prevNotes) =>
@@ -576,9 +576,9 @@ const Index = () => {
           const updated = {
             ...note,
             isDeleted: true,
-            deletedAt: now,
+            deletedAt: Date.now(),
             isPinned: false,
-            updatedAt: now
+            updatedAt: Math.max(Date.now(), note.updatedAt + 1)
           };
           updates.push(updated);
           return updated;

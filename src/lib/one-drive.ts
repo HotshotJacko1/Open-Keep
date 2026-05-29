@@ -105,30 +105,35 @@ class CustomNavigationClient extends NavigationClient {
 }
 
 let isInitialized = false;
+let initPromise: Promise<void> | null = null;
 
 export const initOneDrive = async () => {
     if (isInitialized) return;
-    try {
-        await msalInstance.initialize();
-        msalInstance.setNavigationClient(new CustomNavigationClient());
-    } catch (e) {
-        console.warn("MSAL Initialize warn:", e);
-    }
-
-    try {
-        const response = await msalInstance.handleRedirectPromise();
-        if (response && response.account) {
-            msalInstance.setActiveAccount(response.account);
-        } else if (!msalInstance.getActiveAccount()) {
-            const accounts = msalInstance.getAllAccounts();
-            if (accounts.length > 0) {
-                msalInstance.setActiveAccount(accounts[0]);
-            }
+    if (initPromise) return initPromise;
+    initPromise = (async () => {
+        try {
+            await msalInstance.initialize();
+            msalInstance.setNavigationClient(new CustomNavigationClient());
+        } catch (e) {
+            console.warn("MSAL Initialize warn:", e);
         }
-    } catch (e) {
-        console.error("handleRedirectPromise error:", e);
-    }
-    isInitialized = true;
+
+        try {
+            const response = await msalInstance.handleRedirectPromise();
+            if (response && response.account) {
+                msalInstance.setActiveAccount(response.account);
+            } else if (!msalInstance.getActiveAccount()) {
+                const accounts = msalInstance.getAllAccounts();
+                if (accounts.length > 0) {
+                    msalInstance.setActiveAccount(accounts[0]);
+                }
+            }
+        } catch (e) {
+            console.error("handleRedirectPromise error:", e);
+        }
+        isInitialized = true;
+    })();
+    return initPromise;
 };
 
 const loginRequest: PopupRequest = {

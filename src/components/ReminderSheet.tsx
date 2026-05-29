@@ -99,9 +99,9 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
         aria-label="Set reminder"
         className={cn(
           "fixed bottom-0 left-0 right-0 z-[110] bg-background dark:bg-[#202124] rounded-t-2xl shadow-2xl",
-          "transition-transform duration-300 ease-out",
+          "transition-all duration-300 ease-out",
           "pb-[env(safe-area-inset-bottom)]",
-          isOpen ? "translate-y-0" : "translate-y-full"
+          isOpen ? "translate-y-0 opacity-100 pointer-events-auto" : "translate-y-full opacity-0 pointer-events-none"
         )}
       >
         {/* Handle */}
