@@ -3,7 +3,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
 import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
 import { Capacitor } from "@capacitor/core";
-import { initGoogleDrive, setAccessToken, syncNotesWithDrive, checkGoogleDriveMasterKey } from "@/lib/google-drive";
+import { initGoogleDrive, setAccessToken, syncNotesWithDrive, checkGoogleDriveMasterKey, hasGoogleAccessToken } from "@/lib/google-drive";
 import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, wipeDatabaseButKeepKeys, changeEncryptionKey, SyncResult } from "@/lib/note-storage";
 import { showSuccess, showError } from "@/utils/toast";
 
@@ -44,7 +44,10 @@ export const useGoogleDrive = () => {
                 localStorage.setItem("google-user-email", userInfo.email);
 
                 showSuccess(`Connected to Google Drive as ${userInfo.email}`);
-                await doInternalSync();
+                const result = await doInternalSync();
+                if (result && result.status === "conflict" && 'cloudPayload' in result) {
+                    window.dispatchEvent(new CustomEvent("open-sync-conflict", { detail: { service: "google", payload: (result as any).cloudPayload, reason: (result as any).reason } }));
+                }
             } catch (error) {
                 console.error("Login setup failed:", error);
                 showError("Failed to connect to Google Drive.");
@@ -112,32 +115,53 @@ export const useGoogleDrive = () => {
                     setUserEmail(user.email);
                     localStorage.setItem("google-user-email", user.email);
                 }
-            }
-
-            const pin = localStorage.getItem("app-passcode");
-            if (!pin && Capacitor.isNativePlatform()) {
-                throw new Error("No PIN found. Please set up a PIN in App Lock settings first.");
-            }
-
-            if (forceResolution === "cloud" && cloudPayload && pin) {
-                const importPin = providedPin || pin;
-                await wipeDatabaseButKeepKeys();
-                await importMasterKey(cloudPayload, importPin);
-                if (providedPin && providedPin !== pin) {
-                    localStorage.setItem("app-passcode", providedPin);
+            } else {
+                if (!hasGoogleAccessToken()) {
+                    setIsSyncing(false);
+                    webLogin();
+                    return { status: "error", message: "Re-authenticating..." };
                 }
             }
 
-            if (forceResolution === "merge" && cloudPayload && pin && providedPin && providedPin !== pin) {
-                // Re-encrypt local DB to the new PIN so it matches cloud before merging
-                await changeEncryptionKey(pin, providedPin);
+            const pin = localStorage.getItem("app-passcode");
+            if (!pin && localStorage.getItem("app-lock-enabled") === "true") {
+                throw new Error("No PIN found. Please set up a PIN in App Lock settings first.");
+            }
+
+            // forceResolution: cloud — import the cloud master key, then sync notes from cloud
+            if (forceResolution === "cloud" && cloudPayload && (pin || providedPin)) {
+                const importPin = providedPin || pin!;
+                await wipeDatabaseButKeepKeys();
+                await importMasterKey(cloudPayload, importPin);
+                // Persist the PIN locally so subsequent syncs can re-use it
+                if (importPin !== pin) {
+                    localStorage.setItem("app-passcode", importPin);
+                    localStorage.setItem("app-lock-enabled", "true");
+                }
+            }
+
+            // forceResolution: merge — re-encrypt with the provided PIN and import cloud key
+            if (forceResolution === "merge" && cloudPayload && providedPin) {
+                if (pin && providedPin !== pin) {
+                    // Re-encrypt local DB to the new PIN so it matches cloud before merging
+                    await changeEncryptionKey(pin, providedPin);
+                }
                 await importMasterKey(cloudPayload, providedPin);
                 localStorage.setItem("app-passcode", providedPin);
+                localStorage.setItem("app-lock-enabled", "true");
             }
 
             let masterKeyPayload: string | undefined;
 
-            if (pin && Capacitor.isNativePlatform()) {
+            // Web with no local PIN: check if cloud has an encrypted master key and prompt for PIN
+            if (!pin && !forceResolution) {
+                const cloudKey = await checkGoogleDriveMasterKey();
+                if (cloudKey.exists && cloudKey.payload) {
+                    return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
+                }
+            }
+
+            if (pin) {
                 if (forceResolution === "local" || (!forceResolution)) {
                     masterKeyPayload = await exportMasterKey(pin);
                 }
@@ -148,19 +172,19 @@ export const useGoogleDrive = () => {
                         const localNotes = await loadNotes();
                         const isFirstConnect = !localStorage.getItem("last-synced-time");
                         const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, pin);
-                        
+
                         if (!isMatch) {
-                            // Keys differ â€” conflict resolution required
+                            // Keys differ — conflict resolution required
                             return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
                         }
-                        
+
                         if (localNotes.length === 0) {
-                            // Local is empty and keys match â€” auto-restore from cloud
+                            // Local is empty and keys match — auto-restore from cloud
                             await wipeDatabaseButKeepKeys();
                             await importMasterKey(cloudKey.payload, pin);
                             masterKeyPayload = undefined;
                         } else if (isFirstConnect) {
-                            // Keys match but this is first connect â€” ask user which data to keep
+                            // Keys match but this is first connect — ask user which data to keep
                             return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
                         }
                     }

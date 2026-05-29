@@ -117,7 +117,7 @@ export const useOneDrive = () => {
         try {
             await initOneDrive();
             const pin = localStorage.getItem("app-passcode");
-            if (!pin && Capacitor.isNativePlatform()) {
+            if (!pin && localStorage.getItem("app-lock-enabled") === "true") {
                 throw new Error("No PIN found. Please set up a PIN in App Lock settings first.");
             }
 
@@ -138,7 +138,7 @@ export const useOneDrive = () => {
 
             let masterKeyPayload: string | undefined;
 
-            if (pin && Capacitor.isNativePlatform()) {
+            if (pin) {
                 if (forceResolution === "local" || (!forceResolution)) {
                     masterKeyPayload = await exportMasterKey(pin);
                 }

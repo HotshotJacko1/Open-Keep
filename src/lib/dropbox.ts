@@ -108,21 +108,17 @@ const downloadNotes = async (): Promise<{ notes: Note[], customTags: string[] }>
         const text = await blob.text();
 
         let result: any;
-        if (Capacitor.isNativePlatform()) {
-            try {
-                if (text.startsWith('"') && text.endsWith('"')) {
-                    const parsedString = JSON.parse(text);
-                    const decryptedText = await decryptData(parsedString);
-                    result = JSON.parse(decryptedText);
-                } else {
-                    result = JSON.parse(text);
-                }
-            } catch (e) {
-                console.warn("Could not decrypt Dropbox payload.", e);
-                throw e;
+        try {
+            if (text.startsWith('"') && text.endsWith('"')) {
+                const parsedString = JSON.parse(text);
+                const decryptedText = await decryptData(parsedString);
+                result = JSON.parse(decryptedText);
+            } else {
+                result = JSON.parse(text);
             }
-        } else {
-            result = JSON.parse(text);
+        } catch (e) {
+            console.warn("Could not decrypt Dropbox payload.", e);
+            throw e;
         }
 
         let parsedNotes: Note[] = [];
@@ -165,17 +161,15 @@ const uploadNotes = async (notes: Note[], customTags: string[]) => {
 
     let fileContent = JSON.stringify({ notes, customTags, noteImages });
 
-    if (Capacitor.isNativePlatform()) {
-        try {
-            const encrypted = await encryptData(fileContent);
-            if (encrypted) {
-                // Wrap in JSON string to ensure valid JSON file format
-                fileContent = JSON.stringify(encrypted);
-            }
-        } catch (e) {
-            console.error("Encryption failed, aborting upload", e);
-            throw e;
+    try {
+        const encrypted = await encryptData(fileContent);
+        if (encrypted && encrypted !== fileContent) {
+            // Wrap in JSON string to ensure valid JSON file format
+            fileContent = JSON.stringify(encrypted);
         }
+    } catch (e) {
+        console.error("Encryption failed, aborting upload", e);
+        throw e;
     }
 
     await dbx.filesUpload({

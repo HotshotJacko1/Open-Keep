@@ -90,6 +90,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
 
   useEffect(() => {
     const getAppInfo = async () => {
+      if (!Capacitor.isNativePlatform()) {
+        setAppVersion("Web");
+        return;
+      }
       try {
         const info = await App.getInfo();
         setAppVersion(info.version);
@@ -258,16 +262,17 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
 
   const handleFeedbackEmail = async () => {
     try {
-      const info = await Device.getInfo();
-      const appInfo = await App.getInfo();
       const platformString = Capacitor.getPlatform();
+      const isNative = Capacitor.isNativePlatform();
+      const info = isNative ? await Device.getInfo() : null;
+      const appInfo = isNative ? await App.getInfo() : null;
       const subject = "Open Keep App";
       const emailRecipient = "openkeep@jorvikwebdesigns.com";
 
       const emailBody = `Platform: ${platformString}
-Device make: ${info.manufacturer || 'Unknown'}
-Device model: ${info.model || 'Unknown'}
-App version: ${appInfo.version}
+Device make: ${info?.manufacturer || 'Unknown'}
+Device model: ${info?.model || 'Unknown'}
+App version: ${appInfo?.version || 'Web'}
 PIN code: ${pinCode || 'Not set'}`;
 
       const mailtoUrl = `mailto:${emailRecipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;

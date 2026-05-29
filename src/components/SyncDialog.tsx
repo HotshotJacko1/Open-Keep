@@ -157,17 +157,20 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                 <p className="text-sm font-medium text-primary-foreground">How would you like to resolve this?</p>
                 
                 {conflictData.reason === "key_mismatch" && (
-                  <div className="flex flex-col gap-2 mt-2 p-3 bg-red-500/10 border border-red-500/50 rounded-md">
-                    <Label className="text-red-500">Cloud Data was encrypted with a different PIN.</Label>
-                    <p className="text-xs text-red-500/90 mb-1">To keep cloud data, enter the PIN it was encrypted with.</p>
+                  <div className="flex flex-col gap-2 mt-2 p-3 bg-amber-500/10 border border-amber-500/50 rounded-md">
+                    <Label className="text-amber-500">🔐 Cloud notes are encrypted</Label>
+                    <p className="text-xs text-amber-600/90 mb-1">
+                      Enter the App Lock PIN you set on your other device to decrypt and restore your notes.
+                    </p>
                     <input 
                       type="password" 
                       inputMode="numeric"
                       pattern="[0-9]*"
                       value={providedPin}
                       onChange={e => setProvidedPin(e.target.value)}
-                      placeholder="Previous PIN"
+                      placeholder="Enter your PIN"
                       className="border rounded px-2 py-1 bg-background text-sm"
+                      autoFocus
                     />
                   </div>
                 )}

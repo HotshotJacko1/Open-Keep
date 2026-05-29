@@ -376,6 +376,14 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
     );
 };
 
+const tiptapExtensions = [
+    StarterKit.configure({}),
+    UnderlineExtension,
+    Placeholder.configure({
+        placeholder: 'Take a note...',
+    }),
+];
+
 const NoteEditor: React.FC<NoteEditorProps> = ({
     isOpen,
     onClose,
@@ -477,13 +485,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
 
     const editor = useEditor({
-        extensions: [
-            StarterKit,
-            UnderlineExtension,
-            Placeholder.configure({
-                placeholder: 'Take a note...',
-            }),
-        ],
+        extensions: tiptapExtensions,
         content: content,
         editable: !isDeleted,
         editorProps: {

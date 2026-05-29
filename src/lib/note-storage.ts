@@ -1,6 +1,18 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import { registerPlugin } from "@capacitor/core";
+import { Capacitor } from "@capacitor/core";
 import { Note } from "@/types/note";
+import {
+  initializeDatabaseWeb,
+  encryptDataWeb,
+  decryptDataWeb,
+  lockDatabaseWeb,
+  clearWebCryptoKeys,
+  changeEncryptionKeyWeb,
+  exportCloudMasterKeyWeb,
+  importCloudMasterKeyWeb,
+  verifyCloudMasterKeyMatchWeb
+} from "./web-crypto";
 
 export interface NoteStoragePlugin {
   loadNotes(): Promise<{ notes: any[] }>;
@@ -21,6 +33,24 @@ export interface NoteStoragePlugin {
 }
 
 const NoteStorage = registerPlugin<NoteStoragePlugin>("NoteStorage");
+
+const isNative = Capacitor.isNativePlatform();
+
+// ── Web (localStorage) storage helpers ──────────────────────────────
+const WEB_NOTES_KEY = "open-keep-notes";
+
+const webLoadNotes = (): any[] => {
+  try {
+    const json = localStorage.getItem(WEB_NOTES_KEY);
+    return json ? JSON.parse(json) : [];
+  } catch {
+    return [];
+  }
+};
+
+const webSaveAllNotes = (notes: any[]): void => {
+  localStorage.setItem(WEB_NOTES_KEY, JSON.stringify(notes));
+};
 
 // Helper to parse tags safely
 const parseNote = (n: any): Note => {
@@ -86,6 +116,9 @@ const parseNote = (n: any): Note => {
 };
 
 export const loadNotes = async (): Promise<Note[]> => {
+  if (!isNative) {
+    return webLoadNotes().map(parseNote);
+  }
   try {
     const { notes } = await NoteStorage.loadNotes();
     return notes.map(parseNote);
@@ -96,6 +129,17 @@ export const loadNotes = async (): Promise<Note[]> => {
 };
 
 export const saveNote = async (note: Note): Promise<void> => {
+  if (!isNative) {
+    const all = webLoadNotes();
+    const idx = all.findIndex((n: any) => n.id === note.id);
+    if (idx > -1) {
+      all[idx] = note;
+    } else {
+      all.push(note);
+    }
+    webSaveAllNotes(all);
+    return;
+  }
   try {
     // We send the plain object. 
     // The native plugin might expect 'type' field still if it validates schemas.
@@ -111,6 +155,11 @@ export const saveNote = async (note: Note): Promise<void> => {
 };
 
 export const deleteNote = async (id: string): Promise<void> => {
+  if (!isNative) {
+    const all = webLoadNotes().filter((n: any) => n.id !== id);
+    webSaveAllNotes(all);
+    return;
+  }
   try {
     await NoteStorage.deleteNote({ id });
   } catch (error) {
@@ -137,6 +186,19 @@ export const migrateWebNotes = async (notes: any[]): Promise<void> => {
     };
   });
 
+  if (!isNative) {
+    // On web, merge migrated notes into the web storage
+    const existing = webLoadNotes();
+    const existingIds = new Set(existing.map((n: any) => n.id));
+    for (const note of migratedNotes) {
+      if (!existingIds.has(note.id)) {
+        existing.push(note);
+      }
+    }
+    webSaveAllNotes(existing);
+    return;
+  }
+
   try {
     await NoteStorage.migrateFromWeb({ notes: migratedNotes });
   } catch (error) {
@@ -145,6 +207,15 @@ export const migrateWebNotes = async (notes: any[]): Promise<void> => {
 };
 
 export const initializeDatabase = async (key: string): Promise<void> => {
+  if (!isNative) {
+    try {
+      await initializeDatabaseWeb(key);
+      return;
+    } catch (error) {
+      console.error("Error initializing web database:", error);
+      throw error;
+    }
+  }
   try {
     await NoteStorage.initialize({ key });
   } catch (error) {
@@ -154,6 +225,7 @@ export const initializeDatabase = async (key: string): Promise<void> => {
 };
 
 export const checkDatabaseStatus = async (): Promise<{ isConfigured: boolean; isLocked?: boolean }> => {
+  if (!isNative) return { isConfigured: true }; // Web is always "configured"
   try {
     const status = await NoteStorage.checkStatus();
     return status;
@@ -164,6 +236,15 @@ export const checkDatabaseStatus = async (): Promise<{ isConfigured: boolean; is
 };
 
 export const encryptData = async (data: string): Promise<string> => {
+  if (!isNative) {
+    try {
+      return await encryptDataWeb(data);
+    } catch (e) {
+      // If no master key is available (e.g., user is not locked and unencrypted), return as-is
+      if ((e as Error).message === "No master key available") return data;
+      throw e;
+    }
+  }
   try {
     const result = await NoteStorage.encrypt({ data });
     return result.data;
@@ -174,6 +255,17 @@ export const encryptData = async (data: string): Promise<string> => {
 };
 
 export const decryptData = async (data: string): Promise<string> => {
+  if (!isNative) {
+    try {
+      return await decryptDataWeb(data);
+    } catch (e) {
+      // If we try to decrypt but it fails, it might be unencrypted plain JSON, or we lack the key
+      if ((e as Error).message === "No master key available" || (e as Error).message === "Invalid encrypted data") {
+        return data; // Return as-is
+      }
+      throw e;
+    }
+  }
   try {
     const result = await NoteStorage.decrypt({ data });
     return result.data;
@@ -184,6 +276,10 @@ export const decryptData = async (data: string): Promise<string> => {
 };
 
 export const lockDatabase = async (): Promise<void> => {
+  if (!isNative) {
+    await lockDatabaseWeb();
+    return;
+  }
   try {
     await NoteStorage.lock();
   } catch (error) {
@@ -192,6 +288,11 @@ export const lockDatabase = async (): Promise<void> => {
 };
 
 export const clearAllData = async (): Promise<void> => {
+  if (!isNative) {
+    localStorage.removeItem(WEB_NOTES_KEY);
+    clearWebCryptoKeys();
+    return;
+  }
   try {
     await NoteStorage.clearAllData();
   } catch (error) {
@@ -201,6 +302,10 @@ export const clearAllData = async (): Promise<void> => {
 };
 
 export const changeEncryptionKey = async (oldPin: string, newPin: string): Promise<void> => {
+  if (!isNative) {
+    await changeEncryptionKeyWeb(oldPin, newPin);
+    return;
+  }
   try {
     await NoteStorage.changeEncryptionKey({ oldPin, newPin });
   } catch (error) {
@@ -210,6 +315,9 @@ export const changeEncryptionKey = async (oldPin: string, newPin: string): Promi
 };
 
 export const exportMasterKey = async (pin: string): Promise<string> => {
+  if (!isNative) {
+    return await exportCloudMasterKeyWeb(pin);
+  }
   try {
     const result = await NoteStorage.exportMasterKey({ pin });
     return result.payload;
@@ -220,6 +328,10 @@ export const exportMasterKey = async (pin: string): Promise<string> => {
 };
 
 export const importMasterKey = async (payload: string, pin: string): Promise<void> => {
+  if (!isNative) {
+    await importCloudMasterKeyWeb(payload, pin);
+    return;
+  }
   try {
     await NoteStorage.importMasterKey({ payload, pin });
   } catch (error) {
@@ -229,6 +341,9 @@ export const importMasterKey = async (payload: string, pin: string): Promise<voi
 };
 
 export const verifyCloudMasterKeyMatch = async (payload: string, pin: string): Promise<boolean> => {
+  if (!isNative) {
+    return await verifyCloudMasterKeyMatchWeb(payload, pin);
+  }
   try {
     const result = await NoteStorage.verifyCloudMasterKeyMatch({ payload, pin });
     return result.isMatch;
@@ -239,6 +354,10 @@ export const verifyCloudMasterKeyMatch = async (payload: string, pin: string): P
 };
 
 export const wipeDatabaseButKeepKeys = async (): Promise<void> => {
+  if (!isNative) {
+    localStorage.removeItem(WEB_NOTES_KEY);
+    return;
+  }
   try {
     await NoteStorage.wipeDatabaseButKeepKeys();
   } catch (error) {

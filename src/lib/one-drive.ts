@@ -1,7 +1,7 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 
 import { Note } from "@/types/note";
-import { PublicClientApplication, Configuration, PopupRequest, NavigationClient, NavigationOptions } from "@azure/msal-browser";
+import { PublicClientApplication, Configuration, PopupRequest, NavigationClient, NavigationOptions, LogLevel, InteractionRequiredAuthError } from "@azure/msal-browser";
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import { encryptData, decryptData } from "@/lib/note-storage";
@@ -65,7 +65,27 @@ const msalConfig: Configuration = {
         storeAuthStateInCookie: false, // Set this to "true" if you are having issues on IE11 or Edge
     },
     system: {
-        networkClient: Capacitor.isNativePlatform() ? new NativeNetworkClient() as any : undefined
+        ...(Capacitor.isNativePlatform() ? { networkClient: new NativeNetworkClient() as any } : {}),
+        loggerOptions: {
+            loggerCallback: (level, message, containsPii) => {
+                if (containsPii) return;
+                switch (level) {
+                    case LogLevel.Error:
+                        console.error("[MSAL]", message);
+                        break;
+                    case LogLevel.Warning:
+                        console.warn("[MSAL]", message);
+                        break;
+                    case LogLevel.Info:
+                        console.info("[MSAL]", message);
+                        break;
+                    case LogLevel.Verbose:
+                        console.debug("[MSAL]", message);
+                        break;
+                }
+            },
+            logLevel: LogLevel.Verbose,
+        },
     }
 };
 
@@ -140,13 +160,23 @@ export const getGraphAccessToken = async () => {
         });
         return response.accessToken;
     } catch (error) {
-        console.warn("Silent token acquisition failed. Acquiring token using redirect", error);
-        // Fallback to interaction when silent call fails
-        await msalInstance.acquireTokenRedirect({
-            ...loginRequest,
-            account: account,
-        });
-        throw new Error("Redirecting to acquire token...");
+        // Only fall back to interactive if it's genuinely an interaction-required error
+        if (error instanceof InteractionRequiredAuthError) {
+            console.warn("Silent token acquisition requires interaction. Trying popup...", error);
+            try {
+                const response = await msalInstance.acquireTokenPopup({
+                    ...loginRequest,
+                    account: account,
+                });
+                return response.accessToken;
+            } catch (popupError) {
+                console.error("Popup token acquisition also failed", popupError);
+                throw popupError;
+            }
+        }
+        // For other errors (network, config, etc.), surface them directly
+        console.error("Silent token acquisition failed with non-interactive error", error);
+        throw error;
     }
 };
 
@@ -255,16 +285,14 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
 
     let result = await response.json();
 
-    if (Capacitor.isNativePlatform()) {
-        try {
-            if (typeof result === "string") {
-                const decryptedText = await decryptData(result);
-                result = JSON.parse(decryptedText);
-            }
-        } catch (e) {
-            console.warn("Could not decrypt OneDrive payload.", e);
-            throw e;
+    try {
+        if (typeof result === "string") {
+            const decryptedText = await decryptData(result);
+            result = JSON.parse(decryptedText);
         }
+    } catch (e) {
+        console.warn("Could not decrypt OneDrive payload.", e);
+        throw e;
     }
 
     let parsedNotes: Note[] = [];
@@ -298,17 +326,15 @@ const uploadNotes = async (folderId: string, notes: Note[], customTags: string[]
 
     let fileContent = JSON.stringify({ notes, customTags, noteImages });
 
-    if (Capacitor.isNativePlatform()) {
-        try {
-            const encrypted = await encryptData(fileContent);
-            if (encrypted) {
-                // Wrap in JSON string to ensure valid JSON file format
-                fileContent = JSON.stringify(encrypted);
-            }
-        } catch (e) {
-            console.error("Encryption failed, aborting upload", e);
-            throw e;
+    try {
+        const encrypted = await encryptData(fileContent);
+        if (encrypted && encrypted !== fileContent) {
+            // Wrap in JSON string to ensure valid JSON file format
+            fileContent = JSON.stringify(encrypted);
         }
+    } catch (e) {
+        console.error("Encryption failed, aborting upload", e);
+        throw e;
     }
 
     const accessToken = await getGraphAccessToken();

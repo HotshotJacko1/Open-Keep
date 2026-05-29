@@ -10,6 +10,8 @@ interface SessionContextType {
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
 
+let isSigningIn = false;
+
 export const SessionContextProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,8 +22,11 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
         setSession(session);
         setLoading(false);
       } else {
+        if (isSigningIn) return;
+        isSigningIn = true;
         // Attempt anonymous sign-in
         supabase.auth.signInAnonymously().then(async ({ data, error }) => {
+          isSigningIn = false;
           if (!error && data.session) {
             setSession(data.session);
 

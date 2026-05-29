@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 - N/A
 
+## [3.0.0] - 2026-06-05
+### Added
+- PC version released. You can now access Open Keep on a browser at open-keep.vercel.app.
+
 ## [2.1.1] - 2026-05-29
 ### Added
 - Added missing icons to buttons in settings.

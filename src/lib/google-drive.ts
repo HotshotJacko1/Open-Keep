@@ -19,6 +19,8 @@ export const setAccessToken = (token: string) => {
     globalAccessToken = token;
 };
 
+export const hasGoogleAccessToken = () => !!globalAccessToken;
+
 const getHeaders = () => {
     if (!globalAccessToken) throw new Error("No access token found");
     return {
@@ -136,17 +138,15 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
             result = text;
         }
 
-        if (Capacitor.isNativePlatform()) {
-            try {
-                if (typeof result === 'string') {
-                    // Attempt decrypt
-                    const decryptedText = await decryptData(result);
-                    result = JSON.parse(decryptedText);
-                }
-            } catch (e) {
-                console.error("Decryption failed", e);
-                throw e;
+        try {
+            if (typeof result === 'string') {
+                // Attempt decrypt
+                const decryptedText = await decryptData(result);
+                result = JSON.parse(decryptedText);
             }
+        } catch (e) {
+            console.error("Decryption failed", e);
+            throw e;
         }
 
         let parsedNotes: Note[] = [];
@@ -193,17 +193,15 @@ const uploadNotes = async (
 
     let fileContent = JSON.stringify({ notes, customTags, noteImages });
 
-    if (Capacitor.isNativePlatform()) {
-        try {
-            const encrypted = await encryptData(fileContent);
-            if (encrypted) {
-                // Wrap in JSON string to ensure valid JSON file format
-                fileContent = JSON.stringify(encrypted);
-            }
-        } catch (e) {
-            console.error("Encryption failed, aborting upload", e);
-            throw e;
+    try {
+        const encrypted = await encryptData(fileContent);
+        if (encrypted && encrypted !== fileContent) {
+            // Wrap in JSON string to ensure valid JSON file format
+            fileContent = JSON.stringify(encrypted);
         }
+    } catch (e) {
+        console.error("Encryption failed, aborting upload", e);
+        throw e;
     }
 
     const metadata = {

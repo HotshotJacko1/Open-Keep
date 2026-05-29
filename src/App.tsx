@@ -14,72 +14,71 @@ import { checkDatabaseStatus, initializeDatabase, lockDatabase } from "./lib/not
 import { Capacitor } from "@capacitor/core";
 import { supabase } from "./integrations/supabase/client";
 import FeedbackDialog from "./components/FeedbackDialog";
+import { useSession } from "./context/session-provider";
 
 const queryClient = new QueryClient();
 
 const App = () => {
   const [appState, setAppState] = useState<'loading' | 'setup' | 'locked' | 'ready'>('loading');
   const [shouldShowFeedback, setShouldShowFeedback] = useState(false);
+  const { session } = useSession();
 
   // We need to know if we are on web or native to decide flow
   const isNative = Capacitor.isNativePlatform();
 
   useEffect(() => {
+    const checkEntitlements = async () => {
+      if (!session?.user) return;
+      try {
+        const { data: entitlementData } = await supabase
+          .from('user_entitlements')
+          .select('created_at, feedback_date, times_logged_in, times_logged_in_when_feedback_requested')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        const currentCount = entitlementData?.times_logged_in || 0;
+        const newCount = currentCount + 1;
+
+        const { error: upsertError } = await supabase
+          .from('user_entitlements')
+          .upsert({
+            user_id: session.user.id,
+            times_logged_in: newCount,
+            last_login: new Date().toISOString()
+          }, { onConflict: 'user_id' });
+
+        if (upsertError) {
+          console.error("Supabase upsert error:", JSON.stringify(upsertError, null, 2));
+        }
+
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+        const twoMonthsAgo = new Date();
+        twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+
+        const createdAtDate = entitlementData?.created_at ? new Date(entitlementData.created_at) : new Date();
+        const feedbackDate = entitlementData?.feedback_date ? new Date(entitlementData.feedback_date) : null;
+        const timesWhenRequested = entitlementData?.times_logged_in_when_feedback_requested || 0;
+
+        const isOldEnough = createdAtDate < oneMonthAgo;
+        const isFeedbackOldEnough = !feedbackDate || feedbackDate < twoMonthsAgo;
+        const hasEnoughLogins = newCount > (timesWhenRequested + 9);
+
+        if (isOldEnough && isFeedbackOldEnough && hasEnoughLogins) {
+          setShouldShowFeedback(true);
+        }
+      } catch (err) {
+        console.error("Failed to update login count", err);
+      }
+    };
+
+    checkEntitlements();
+  }, [session?.user?.id]);
+
+  useEffect(() => {
     const init = async () => {
       try {
-        // Initialize Supabase Anonymous Auth
-        const { data: { session } } = await supabase.auth.getSession();
-        let currentUser = session?.user;
-        if (!session) {
-          const { data: authData, error } = await supabase.auth.signInAnonymously();
-          if (error) console.error("Anonymous sign in failed", error);
-          currentUser = authData?.user;
-        }
-
-        if (currentUser) {
-          try {
-            const { data: entitlementData } = await supabase
-              .from('user_entitlements')
-              .select('created_at, feedback_date, times_logged_in, times_logged_in_when_feedback_requested')
-              .eq('user_id', currentUser.id)
-              .maybeSingle();
-
-            const currentCount = entitlementData?.times_logged_in || 0;
-            const newCount = currentCount + 1;
-
-            const { error: upsertError } = await supabase
-              .from('user_entitlements')
-              .upsert({
-                user_id: currentUser.id,
-                times_logged_in: newCount,
-                last_login: new Date().toISOString()
-              }, { onConflict: 'user_id' });
-
-            if (upsertError) {
-              console.error("Supabase upsert error:", JSON.stringify(upsertError, null, 2));
-            }
-
-            const oneMonthAgo = new Date();
-            oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-
-            const twoMonthsAgo = new Date();
-            twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
-
-            const createdAtDate = entitlementData?.created_at ? new Date(entitlementData.created_at) : new Date();
-            const feedbackDate = entitlementData?.feedback_date ? new Date(entitlementData.feedback_date) : null;
-            const timesWhenRequested = entitlementData?.times_logged_in_when_feedback_requested || 0;
-
-            const isOldEnough = createdAtDate < oneMonthAgo;
-            const isFeedbackOldEnough = !feedbackDate || feedbackDate < twoMonthsAgo;
-            const hasEnoughLogins = newCount > (timesWhenRequested + 9);
-
-            if (isOldEnough && isFeedbackOldEnough && hasEnoughLogins) {
-              setShouldShowFeedback(true);
-            }
-          } catch (err) {
-            console.error("Failed to update login count", err);
-          }
-        }
         // First check if a passcode is set in localStorage
         const hasPasscode = !!localStorage.getItem("app-passcode");
         const isLockEnabled = localStorage.getItem("app-lock-enabled") === "true";
@@ -218,7 +217,7 @@ const App = () => {
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="*" element={<NotFound />} />
