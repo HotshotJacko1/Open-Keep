@@ -286,7 +286,7 @@ PIN code: ${pinCode || 'Not set'}`;
     } catch (error) {
       console.error("Feedback error:", error);
       // Fallback if device info fails
-      window.location.href = "mailto:openkeep@jorvikwebdesigns.com?subject=Open%20Keep%20App";
+      window.location.href = "mailto:jack@openkeep.net?subject=Open%20Keep%20App";
     }
   };
 
