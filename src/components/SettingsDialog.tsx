@@ -267,7 +267,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
       const info = isNative ? await Device.getInfo() : null;
       const appInfo = isNative ? await App.getInfo() : null;
       const subject = "Open Keep App";
-      const emailRecipient = "openkeep@jorvikwebdesigns.com";
+      const emailRecipient = "jack@openkeep.net";
 
       const emailBody = `Platform: ${platformString}
 Device make: ${info?.manufacturer || 'Unknown'}
