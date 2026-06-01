@@ -30,9 +30,9 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
           if (!error && data.session) {
             setSession(data.session);
 
-            // Create a new user record in the public Users table
+            // Create a new user record in the user_entitlements table
             const { error: insertError } = await supabase
-              .from('Users')
+              .from('user_entitlements')
               .insert({
                 user_id: data.session.user.id
               });
@@ -40,7 +40,7 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
             if (insertError) {
               console.error("Error creating user record:", insertError);
             } else {
-              console.log("New user record created in public.Users");
+              console.log("New user record created in user_entitlements");
             }
           } else {
             console.error("Anonymous sign-in failed:", error);
