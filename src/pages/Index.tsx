@@ -829,11 +829,9 @@ const Index = () => {
           </div>
         )}
         <div
-          className="pt-4 w-full"
+          className="pt-4 w-full columns-2 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5"
           style={{
-            columnCount: 2,
             columnGap: isMobile ? "0.5rem" : "1rem",
-            columnWidth: "auto",
           }}
         >
           {filteredNotes.map((note) => (

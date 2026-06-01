@@ -154,7 +154,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                   e.stopPropagation();
                   onPinToggle(note.id);
                 }}
-                className={cn(note.isPinned ? "text-primary" : "text-muted-foreground")}
+                className={cn(note.isPinned ? "text-amber-400" : "text-muted-foreground")}
               >
                 <Pin className="h-4 w-4" />
               </Button>
