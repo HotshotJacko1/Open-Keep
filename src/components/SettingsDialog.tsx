@@ -279,7 +279,7 @@ PIN code: ${pinCode || 'Not set'}`;
 
       // Copy to clipboard
       await navigator.clipboard.writeText(emailRecipient);
-      showSuccess('Email copied to clipboard');
+      showSuccess('Email address copied to clipboard');
 
       // Open mail client
       window.location.href = mailtoUrl;
