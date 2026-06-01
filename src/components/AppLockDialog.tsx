@@ -6,7 +6,6 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -133,9 +132,6 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
                     </Button>
                     <DialogTitle>App Lock & Biometrics</DialogTitle>
                 </DialogHeader>
-                <DialogDescription className="sr-only">
-                    Configure your application lock screen settings.
-                </DialogDescription>
                 <div className="flex flex-col gap-6 py-4">
                     <div className="flex items-center justify-between border-b pb-4">
                         <div className="space-y-0.5">

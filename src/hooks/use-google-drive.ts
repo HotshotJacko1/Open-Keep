@@ -136,6 +136,7 @@ export const useGoogleDrive = () => {
                 // Persist the PIN locally so subsequent syncs can re-use it
                 if (importPin !== pin) {
                     localStorage.setItem("app-passcode", importPin);
+                    localStorage.setItem("app-lock-enabled", "true");
                 }
             }
 
@@ -147,6 +148,7 @@ export const useGoogleDrive = () => {
                 }
                 await importMasterKey(cloudPayload, providedPin);
                 localStorage.setItem("app-passcode", providedPin);
+                localStorage.setItem("app-lock-enabled", "true");
             }
 
             let masterKeyPayload: string | undefined;
