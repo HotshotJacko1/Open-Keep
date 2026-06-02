@@ -1,7 +1,7 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Note } from "@/types/note";
-import { loadNotes, saveNote, deleteNote, getLegacyWebNotes, migrateWebNotes, clearLegacyWebNotes } from "@/lib/note-storage";
+import { loadNotes, saveNote as localSaveNote, deleteNote as localDeleteNote, getLegacyWebNotes, migrateWebNotes, clearLegacyWebNotes } from "@/lib/note-storage";
 import { deleteImage } from "@/lib/image-storage";
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import NoteCard from "@/components/NoteCard";
@@ -106,6 +106,81 @@ const Index = () => {
   const [pullChange, setPullChange] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const PULL_THRESHOLD = 150; // px to trigger refresh
+
+  // Auto-Sync Logic
+  const autoSyncTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasInitialSynced = useRef(false);
+
+  const performAutoSync = useCallback(async () => {
+    if (!activeService) return;
+    try {
+      const syncResult = await activeService.sync();
+      if (syncResult && syncResult.status === "success") {
+        const loadedNotes = await loadNotes();
+        setNotes(loadedNotes);
+        // Silently succeeded
+      } else if (syncResult && syncResult.status === "conflict") {
+        window.dispatchEvent(new CustomEvent("open-sync-conflict", { 
+          detail: { 
+            service: activeService.name.toLowerCase().replace(" ", ""), 
+            payload: (syncResult as any).cloudPayload, 
+            reason: (syncResult as any).reason 
+          } 
+        }));
+        setIsSettingsOpen(true);
+      }
+    } catch (error) {
+      console.error("Auto-sync failed", error);
+    }
+  }, [activeService]);
+
+  const triggerEditAutoSync = useCallback(() => {
+    if (!activeService) return;
+    if (autoSyncTimerRef.current) {
+      clearTimeout(autoSyncTimerRef.current);
+    }
+    autoSyncTimerRef.current = setTimeout(() => {
+      performAutoSync();
+    }, 30000); // 30 seconds
+  }, [activeService, performAutoSync]);
+
+  const saveNote = async (note: Note) => {
+    await localSaveNote(note);
+    triggerEditAutoSync();
+  };
+
+  const deleteNote = async (id: string) => {
+    await localDeleteNote(id);
+    triggerEditAutoSync();
+  };
+
+  // Auto-sync on App Launch
+  useEffect(() => {
+    if (activeService && !hasInitialSynced.current) {
+      hasInitialSynced.current = true;
+      performAutoSync();
+    }
+  }, [activeService, performAutoSync]);
+
+  // Auto-sync on App Resume
+  useEffect(() => {
+    if (!activeService) return;
+    
+    const setupResumeListener = async () => {
+      const listener = await CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) {
+          performAutoSync();
+        }
+      });
+      return listener;
+    };
+    
+    const listenerPromise = setupResumeListener();
+
+    return () => {
+      listenerPromise.then(listener => listener.remove());
+    };
+  }, [activeService, performAutoSync]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     // Check if we are at the top of the scroll container
