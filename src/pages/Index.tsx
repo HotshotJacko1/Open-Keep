@@ -113,8 +113,10 @@ const Index = () => {
 
   const performAutoSync = useCallback(async () => {
     if (!activeService) return;
+    console.log("Auto-sync: performAutoSync started for", activeService.name);
     try {
       const syncResult = await activeService.sync();
+      console.log("Auto-sync: result", syncResult);
       if (syncResult && syncResult.status === "success") {
         const loadedNotes = await loadNotes();
         setNotes(loadedNotes);
@@ -157,6 +159,7 @@ const Index = () => {
   // Auto-sync on App Launch
   useEffect(() => {
     if (activeService && !hasInitialSynced.current) {
+      console.log("Auto-sync: App Launch triggered");
       hasInitialSynced.current = true;
       performAutoSync();
     }
