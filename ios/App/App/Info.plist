@@ -49,5 +49,24 @@
 	<true/>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Use Face ID to unlock the app</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.889284625804-5prnhudcoalopvn0ad0au449lo1bn8f8</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>com.jackbarkerapps.openkeep</string>
+		</dict>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>openkeep</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>com.jackbarkerapps.openkeep</string>
+		</dict>
+	</array>
 </dict>
 </plist>

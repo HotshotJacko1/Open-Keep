@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 - Improved automatic cloud syncing. Notes now sync to the cloud when the app launches, when the app is resumed from background, and 30 seconds after editing.
 - Changed pin colour to gold to more clearly show when a note is pinned. Pin remains visible when a note is pinned.
-- On large screens, the number of columns is responsive, so for example the web version will show more than 2 columns on PCs.
+- On large screens, the number of columns is responsive, so, for example, the web version will show more than 2 columns on PCs.
 
 ## [2.1.1] - 2026-05-29
 ### Added
