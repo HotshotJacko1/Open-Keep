@@ -119,68 +119,26 @@ const NoteCard: React.FC<NoteCardProps> = ({
           )}
           <div className="flex flex-row items-start justify-between gap-2 min-w-0 w-full max-w-full">
             <CardTitle className="text-base sm:text-lg font-semibold break-words flex-1 leading-snug min-w-0 max-w-full overflow-hidden [overflow-wrap:anywhere]">{note.title}</CardTitle>
-        <div className={cn("hidden md:flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0", isSelectionMode && "opacity-0 pointer-events-none")}>
-          {note.isDeleted ? (
-            <>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRestore?.(note.id);
-                }}
-                title="Restore"
-              >
-                <RotateCcw className="h-4 w-4 text-muted-foreground" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(note.id);
-                }}
-                title="Delete Forever"
-              >
-                <Trash2 className="h-4 w-4 text-red-500" />
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPinToggle(note.id);
-                }}
-                className={cn(note.isPinned ? "text-amber-400" : "text-muted-foreground")}
-              >
-                <Pin className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onArchiveToggle(note.id);
-                }}
-              >
-                <Archive className="h-4 w-4 text-muted-foreground" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(note.id);
-                }}
-              >
-                <Trash2 className="h-4 w-4 text-muted-foreground text-red-400" />
-              </Button>
-            </>
-          )}
-        </div>
+            {!note.isDeleted && (
+              <div className={cn(
+                "hidden md:flex flex-shrink-0 transition-opacity duration-200",
+                note.isPinned ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                isSelectionMode && "opacity-0 pointer-events-none"
+              )}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPinToggle(note.id);
+                  }}
+                  className={cn(note.isPinned ? "text-amber-400" : "text-muted-foreground")}
+                  title={note.isPinned ? "Unpin" : "Pin"}
+                >
+                  <Pin className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -254,6 +212,64 @@ const NoteCard: React.FC<NoteCardProps> = ({
             {formatReminderLabel(note.reminder)}
           </div>
         )}
+
+        {/* Action buttons row — visible on hover (desktop only) */}
+        <div className={cn(
+          "hidden md:flex items-center justify-end gap-1 mt-2 -mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200",
+          isSelectionMode && "opacity-0 pointer-events-none"
+        )}>
+          {note.isDeleted ? (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRestore?.(note.id);
+                }}
+                title="Restore"
+              >
+                <RotateCcw className="h-4 w-4 text-muted-foreground" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(note.id);
+                }}
+                title="Delete Forever"
+              >
+                <Trash2 className="h-4 w-4 text-red-500" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onArchiveToggle(note.id);
+                }}
+                title="Archive"
+              >
+                <Archive className="h-4 w-4 text-muted-foreground" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(note.id);
+                }}
+                title="Delete"
+              >
+                <Trash2 className="h-4 w-4 text-red-400" />
+              </Button>
+            </>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
