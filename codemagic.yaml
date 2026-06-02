@@ -1,0 +1,32 @@
+workflows:
+  ios-app-build:
+    name: iOS App Build
+    instance_type: mac_mini_m2
+    environment:
+      node: latest
+      xcode: latest
+      cocoapods: default
+    triggering:
+      events:
+        - push
+        - pull_request
+      branch_patterns:
+        - pattern: '*'
+          include: true
+          source: true
+    scripts:
+      - name: Install dependencies
+        script: npm install --legacy-peer-deps
+      - name: Build web application
+        script: npm run build
+      - name: Sync Capacitor
+        script: npx cap sync ios
+      - name: Build iOS app
+        script: |
+          xcode-project build-ipa \
+            --workspace "ios/App/App.xcworkspace" \
+            --scheme "App"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - xcodebuild/**/*.log
