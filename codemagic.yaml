@@ -6,6 +6,9 @@ workflows:
       node: latest
       xcode: latest
       cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.jackbarkerapps.openkeep
     triggering:
       events:
         - push
@@ -14,6 +17,8 @@ workflows:
         - pattern: '*'
           include: true
           source: true
+    integrations:
+      app_store_connect: Codemagic
     scripts:
       - name: Install dependencies
         script: npm install --legacy-peer-deps
@@ -21,17 +26,23 @@ workflows:
         script: npm run build
       - name: Sync Capacitor
         script: npx cap sync ios
-      - name: Build iOS app (Unsigned)
+      - name: Update Xcode project signing
+        script: xcode-project use-profiles
+      - name: Increment build number
         script: |
-          # Build an unsigned app for the iOS Simulator to verify the build passes.
-          # To build a distributable .ipa, you must configure Apple Developer Code Signing in Codemagic.
-          xcodebuild build \
-            -project "ios/App/App.xcodeproj" \
-            -scheme "App" \
-            -destination "generic/platform=iOS Simulator" \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+          cd ios/App
+          agvtool new-version -all $BUILD_NUMBER
+      - name: Build iOS app
+        script: |
+          xcode-project build-ipa \
+            --project "ios/App/App.xcodeproj" \
+            --scheme "App"
     artifacts:
+      - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
       - xcodebuild/**/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        submit_to_app_store: false
