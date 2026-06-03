@@ -49,6 +49,10 @@
 	<true/>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Use Face ID to unlock the app</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs access to your photo library to let you attach and manage images in your notes.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app uses the camera to let you capture photos for your notes.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

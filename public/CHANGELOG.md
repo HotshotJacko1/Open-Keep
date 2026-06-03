@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 - N/A
 
+## [4.0.0] - 2026-06-12
+### Added
+- Apple App Store release.
+
+### Fixed
+- Favicon (tab icon) on web version.
+
 ## [3.0.0] - 2026-06-05
 ### Added
 - PC version released. You can now access Open Keep on a web browser at [app.openkeep.net](https://app.openkeep.net).
