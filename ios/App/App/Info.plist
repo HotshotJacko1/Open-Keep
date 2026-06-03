@@ -72,5 +72,7 @@
 			<string>com.jackbarkerapps.openkeep</string>
 		</dict>
 	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

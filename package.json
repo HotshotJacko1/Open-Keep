@@ -60,6 +60,8 @@
     "@radix-ui/react-toggle-group": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.4",
     "@react-oauth/google": "^0.12.2",
+    "@sentry/capacitor": "^4.0.0",
+    "@sentry/react": "^10.43.0",
     "@supabase/auth-ui-react": "^0.4.7",
     "@supabase/auth-ui-shared": "^0.1.8",
     "@supabase/supabase-js": "^2.87.1",

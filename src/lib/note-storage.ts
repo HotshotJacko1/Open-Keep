@@ -34,7 +34,7 @@ export interface NoteStoragePlugin {
 
 const NoteStorage = registerPlugin<NoteStoragePlugin>("NoteStorage");
 
-const isNative = Capacitor.isNativePlatform();
+const isNative = Capacitor.getPlatform() === 'android';
 
 // ── Web (localStorage) storage helpers ──────────────────────────────
 const WEB_NOTES_KEY = "open-keep-notes";

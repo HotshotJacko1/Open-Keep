@@ -99,7 +99,7 @@ const EncryptionSetupScreen: React.FC<EncryptionSetupScreenProps> = ({ onSetupCo
                         <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-md text-red-500 text-sm">
                             <p className="font-semibold mb-1">Decryption failed</p>
                             <p className="mb-3">This usually happens if previous encryption keys are still on your device. To reuse them (required for Cloud Restore), enter your previous PIN.</p>
-                            <Button variant="destructive" className="w-full text-xs h-8" onClick={handleWipeAndStartOver} disabled={isLoading}>
+                            <Button type="button" variant="destructive" className="w-full text-xs h-8" onClick={handleWipeAndStartOver} disabled={isLoading}>
                                 Erase Old Keys & Start Over
                             </Button>
                         </div>
