@@ -1,0 +1,26 @@
+Metadata-Version: 2.4
+Name: openstep-parser
+Version: 2.0.3
+Summary: OpenStep plist reader into python objects
+Home-page: http://github.com/kronenthaler/openstep-parser
+Author: Ignacio Calderon
+License-Expression: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Dynamic: home-page
+Dynamic: license-file
+
+[![GitHub Workflow Status (branch)](https://img.shields.io/github/workflow/status/kronenthaler/openstep-parser/branch-check/master?logo=github&style=flat-square)](https://github.com/kronenthaler/openstep-parser/actions?query=workflow%3Abranch-check)
+[![Codacy branch coverage](https://img.shields.io/codacy/coverage/d5402a91aa7b4234bd1c19b5e86a63be/master?logo=codacy&style=flat-square)](https://www.codacy.com/app/kronenthaler/pbxproj?utm_source=github.com&utm_medium=referral&utm_content=kronenthaler/pbxproj&utm_campaign=badger)
+[![Codacy grade](https://img.shields.io/codacy/grade/d5402a91aa7b4234bd1c19b5e86a63be?logo=codacy&style=flat-square)](https://www.codacy.com/app/kronenthaler/openstep-parser?utm_source=github.com&utm_medium=referral&utm_content=kronenthaler/openstep-parser&utm_campaign=badger)
+[![PyPI](https://img.shields.io/pypi/v/openstep-parser?color=97cb02&logo=python&logoColor=ffffff&style=flat-square)](https://pypi.python.org/pypi/openstep_parser)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/openstep-parser?color=97cb02&logo=python&logoColor=ffffff&style=flat-square)](https://pypi.python.org/pypi/openstep_parser/)
+[![PyPI - License](https://img.shields.io/pypi/l/openstep-parser?color=97cb02&logo=python&logoColor=ffffff&style=flat-square)](LICENSE)
+
+# OpenStep Parser
+
+Parse Xcode projects directly using python. It doesn't require system command utilities.
+
+
+

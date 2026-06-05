@@ -15,6 +15,13 @@
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
+
+		91CD641DC6DB4E4BBD1258E0 /* NoteDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99932BC3A916440AA6F36D1A /* NoteDatabase.swift */; };
+		222086F5680546C687DCDF6F /* KeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57D154AB35424EDE8D613C1B /* KeyManager.swift */; };
+		A0271B6F93D34488BB305151 /* NoteStoragePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371C4E7E4C164740BE50FF83 /* NoteStoragePlugin.swift */; };
+		91ED39A63EFB4970A88D64A9 /* SQLiteCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 03DF8A2F73FD487E91F2A933 /* SQLiteCipher */; };
+
+		8359635C54C845AAB901B623 /* NoteStoragePlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = A1CF4D41D1384F6AA42FA10C /* NoteStoragePlugin.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +35,12 @@
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+
+		99932BC3A916440AA6F36D1A /* NoteDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteDatabase.swift; sourceTree = "<group>"; };
+		57D154AB35424EDE8D613C1B /* KeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyManager.swift; sourceTree = "<group>"; };
+		371C4E7E4C164740BE50FF83 /* NoteStoragePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteStoragePlugin.swift; sourceTree = "<group>"; };
+
+		A1CF4D41D1384F6AA42FA10C /* NoteStoragePlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = NoteStoragePlugin.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -35,6 +48,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				91ED39A63EFB4970A88D64A9 /* SQLiteCipher in Frameworks */,
+
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -62,6 +77,12 @@
 		504EC3061FED79650016851F /* App */ = {
 			isa = PBXGroup;
 			children = (
+				A1CF4D41D1384F6AA42FA10C /* NoteStoragePlugin.m */,
+
+				99932BC3A916440AA6F36D1A /* NoteDatabase.swift */,
+				57D154AB35424EDE8D613C1B /* KeyManager.swift */,
+				371C4E7E4C164740BE50FF83 /* NoteStoragePlugin.swift */,
+
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -91,6 +112,8 @@
 			);
 			name = App;
 			packageProductDependencies = (
+				03DF8A2F73FD487E91F2A933 /* SQLiteCipher */,
+
 				4D22ABE82AF431CB00220026 /* CapApp-SPM */,
 			);
 			productName = App;
@@ -123,6 +146,8 @@
 			);
 			mainGroup = 504EC2FB1FED79650016851F;
 			packageReferences = (
+				6D4C262034454EA2A71B709D /* XCRemoteSwiftPackageReference "SQLite.swift" */,
+
 				D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
@@ -155,6 +180,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8359635C54C845AAB901B623 /* NoteStoragePlugin.m in Sources */,
+
+				91CD641DC6DB4E4BBD1258E0 /* NoteDatabase.swift in Sources */,
+				222086F5680546C687DCDF6F /* KeyManager.swift in Sources */,
+				A0271B6F93D34488BB305151 /* NoteStoragePlugin.swift in Sources */,
+
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -366,11 +397,29 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+
+/* Begin XCRemoteSwiftPackageReference section */
+		6D4C262034454EA2A71B709D /* XCRemoteSwiftPackageReference "SQLite.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/stephencelis/SQLite.swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.15.3;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		4D22ABE82AF431CB00220026 /* CapApp-SPM */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */;
 			productName = "CapApp-SPM";
+		};
+
+		03DF8A2F73FD487E91F2A933 /* SQLiteCipher */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6D4C262034454EA2A71B709D /* XCRemoteSwiftPackageReference "SQLite.swift" */;
+			productName = SQLiteCipher;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

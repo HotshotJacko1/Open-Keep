@@ -72,11 +72,7 @@ export const useGoogleDrive = () => {
         if (Capacitor.isNativePlatform()) {
             try {
                 // Initialize plugin before sign in (required for capacitor-google-auth v3.2.0+)
-                const isIos = Capacitor.getPlatform() === 'ios';
-                await GoogleAuth.initialize({
-                    clientId: isIos ? '889284625804-4o32i9r7cun3pd9a471a6kno2rmgb4k1.apps.googleusercontent.com' : '889284625804-5prnhudcoalopvn0ad0au449lo1bn8f8.apps.googleusercontent.com',
-                    scopes: ["profile", "email", "https://www.googleapis.com/auth/drive.file"]
-                });
+                await GoogleAuth.initialize();
                 const user = await GoogleAuth.signIn();
 
                 // Initialize GAPI
@@ -103,11 +99,7 @@ export const useGoogleDrive = () => {
             await initGoogleDrive();
 
             if (Capacitor.isNativePlatform()) {
-                const isIos = Capacitor.getPlatform() === 'ios';
-                await GoogleAuth.initialize({
-                    clientId: isIos ? '889284625804-4o32i9r7cun3pd9a471a6kno2rmgb4k1.apps.googleusercontent.com' : '889284625804-5prnhudcoalopvn0ad0au449lo1bn8f8.apps.googleusercontent.com',
-                    scopes: ["profile", "email", "https://www.googleapis.com/auth/drive.file"]
-                });
+                await GoogleAuth.initialize();
                 try {
                     const auth = await GoogleAuth.refresh();
                     setAccessToken(auth.accessToken);
@@ -232,11 +224,7 @@ export const useGoogleDrive = () => {
     const disconnect = async () => {
         if (Capacitor.isNativePlatform()) {
             try {
-                const isIos = Capacitor.getPlatform() === 'ios';
-                await GoogleAuth.initialize({
-                    clientId: isIos ? '889284625804-4o32i9r7cun3pd9a471a6kno2rmgb4k1.apps.googleusercontent.com' : '889284625804-5prnhudcoalopvn0ad0au449lo1bn8f8.apps.googleusercontent.com',
-                    scopes: ["profile", "email", "https://www.googleapis.com/auth/drive.file"]
-                });
+                await GoogleAuth.initialize();
                 await GoogleAuth.signOut();
             } catch (e) {
                 console.error("Native signout failed", e);
