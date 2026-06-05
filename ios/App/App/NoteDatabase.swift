@@ -1,5 +1,17 @@
 import Foundation
 
+// sqlite3_key and sqlite3_rekey are exported by the SQLCipher binary but are
+// conditionally declared in the header under #ifdef SQLITE_HAS_CODEC.
+// The pre-compiled SQLCipher module (.pcm) was built without that flag, so
+// the module system strips these declarations. We use @_silgen_name to bind
+// directly to the linker symbols, bypassing the module cache entirely.
+@_silgen_name("sqlite3_key")
+private func sqlite3_key(_ db: OpaquePointer?, _ pKey: UnsafeRawPointer?, _ nKey: Int32) -> Int32
+
+@_silgen_name("sqlite3_rekey")
+private func sqlite3_rekey(_ db: OpaquePointer?, _ pKey: UnsafeRawPointer?, _ nKey: Int32) -> Int32
+
+
 class NoteDatabase {
     static let shared = NoteDatabase()
     
