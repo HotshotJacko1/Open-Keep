@@ -115,9 +115,9 @@ export const useDropbox = () => {
         try {
             const url = await getAuthenticationUrl();
             if (Capacitor.isNativePlatform()) {
-                await Browser.open({ url: url.toString() });
+                await Browser.open({ url: encodeURI(url.toString()) });
             } else {
-                window.location.href = url.toString();
+                window.location.href = encodeURI(url.toString());
             }
         } catch (error: any) {
             console.error("Dropbox Login init failed:", error);

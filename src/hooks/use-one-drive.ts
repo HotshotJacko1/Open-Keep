@@ -41,13 +41,13 @@ export const useOneDrive = () => {
                 try {
                     await initOneDrive();
                     // MSAL handleRedirectPromise expects the hash string, not the full URL
-                    const urlObj = new URL(event.url);
-                    const serverResponse = urlObj.hash || urlObj.search;
+                    // MSAL handleRedirectPromise can parse the full URL directly
+                    
 
                     if (!isAuthenticating) {
                         isAuthenticating = true;
                         try {
-                            const response = await msalInstance.handleRedirectPromise(serverResponse);
+                            const response = await msalInstance.handleRedirectPromise(event.url);
                             if (response && response.account) {
                                 msalInstance.setActiveAccount(response.account);
                                 setUserEmail(response.account.username);
@@ -223,4 +223,5 @@ export const useOneDrive = () => {
         isConnected: !!userEmail
     };
 };
+
 

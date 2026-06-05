@@ -72,10 +72,7 @@ export const useGoogleDrive = () => {
         if (Capacitor.isNativePlatform()) {
             try {
                 // Initialize plugin before sign in (required for capacitor-google-auth v3.2.0+)
-                await GoogleAuth.initialize({
-                    clientId: '889284625804-5prnhudcoalopvn0ad0au449lo1bn8f8.apps.googleusercontent.com',
-                    scopes: ["profile", "email", "https://www.googleapis.com/auth/drive.file"]
-                });
+                await GoogleAuth.initialize();
                 const user = await GoogleAuth.signIn();
 
                 // Initialize GAPI
@@ -102,10 +99,7 @@ export const useGoogleDrive = () => {
             await initGoogleDrive();
 
             if (Capacitor.isNativePlatform()) {
-                await GoogleAuth.initialize({
-                    clientId: '889284625804-5prnhudcoalopvn0ad0au449lo1bn8f8.apps.googleusercontent.com',
-                    scopes: ["profile", "email", "https://www.googleapis.com/auth/drive.file"]
-                });
+                await GoogleAuth.initialize();
                 try {
                     const auth = await GoogleAuth.refresh();
                     setAccessToken(auth.accessToken);
@@ -230,10 +224,7 @@ export const useGoogleDrive = () => {
     const disconnect = async () => {
         if (Capacitor.isNativePlatform()) {
             try {
-                await GoogleAuth.initialize({
-                    clientId: '889284625804-5prnhudcoalopvn0ad0au449lo1bn8f8.apps.googleusercontent.com',
-                    scopes: ["profile", "email", "https://www.googleapis.com/auth/drive.file"]
-                });
+                await GoogleAuth.initialize();
                 await GoogleAuth.signOut();
             } catch (e) {
                 console.error("Native signout failed", e);
