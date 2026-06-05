@@ -119,9 +119,9 @@ export const useDropbox = () => {
             } else {
                 window.location.href = url.toString();
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Dropbox Login init failed:", error);
-            showError("Failed to start Dropbox login.");
+            showError(`Failed to start Dropbox login: ${error?.message || error}`);
         }
     }, []);
 
