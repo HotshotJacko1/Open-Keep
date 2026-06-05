@@ -80,7 +80,12 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
             let dbExists = FileManager.default.fileExists(atPath: dbPath)
             
             let masterKey: [UInt8]
-            if !dbExists && !keyManager.hasV2Key() {
+            if !dbExists {
+                // Fresh install (or database was deleted). Keychain persists across
+                // iOS app uninstalls but the DB file and UserDefaults (PBKDF2 salt) do
+                // not. Any existing Keychain entries are therefore stale — clear them
+                // before generating a new master key to avoid KEK mismatch errors.
+                keyManager.clearAll()
                 masterKey = try keyManager.generateRandomMasterKeyAndSave(pin: pin)
             } else {
                 masterKey = try keyManager.getMasterKeyForPin(pin: pin)
