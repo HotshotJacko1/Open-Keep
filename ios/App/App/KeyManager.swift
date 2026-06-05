@@ -51,7 +51,7 @@ class KeyManager {
         var derivedKey = [UInt8](repeating: 0, count: keyLength)
         
         let passwordPtr = [UInt8](passwordData)
-        let status = CC_KeyDerivationPBKDF(
+        let status = CCKeyDerivationPBKDF(
             CCPBKDFAlgorithm(kCCPBKDF2),
             passwordPtr, passwordData.count,
             salt, salt.count,
