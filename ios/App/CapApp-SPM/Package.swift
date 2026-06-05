@@ -21,6 +21,7 @@ let package = Package(
         .package(name: "CapacitorLocalNotifications", path: "..\..\..\node_modules\.pnpm\@capacitor+local-notifications@8.0.2_@capacitor+core@8.0.0\node_modules\@capacitor\local-notifications"),
         .package(name: "CapacitorShare", path: "..\..\..\node_modules\.pnpm\@capacitor+share@8.0.0_@capacitor+core@8.0.0\node_modules\@capacitor\share"),
         .package(name: "CapgoCapacitorNativeBiometric", path: "..\..\..\node_modules\.pnpm\@capgo+capacitor-native-bio_40b26c4cf3eea31f06c2381be8f2288b\node_modules\@capgo\capacitor-native-biometric"),
+        .package(name: "CapgoCapacitorSocialLogin", path: "..\..\..\node_modules\.pnpm\@capgo+capacitor-social-login@8.3.22_@capacitor+core@8.0.0\node_modules\@capgo\capacitor-social-login"),
         .package(name: "SentryCapacitor", path: "..\..\..\node_modules\.pnpm\@sentry+capacitor@4.0.0_@ca_c6b794a880dea0833ca5fa2784f3e0c4\node_modules\@sentry\capacitor")
     ],
     targets: [
@@ -38,6 +39,7 @@ let package = Package(
                 .product(name: "CapacitorLocalNotifications", package: "CapacitorLocalNotifications"),
                 .product(name: "CapacitorShare", package: "CapacitorShare"),
                 .product(name: "CapgoCapacitorNativeBiometric", package: "CapgoCapacitorNativeBiometric"),
+                .product(name: "CapgoCapacitorSocialLogin", package: "CapgoCapacitorSocialLogin"),
                 .product(name: "SentryCapacitor", package: "SentryCapacitor")
             ]
         )

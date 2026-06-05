@@ -1,11 +1,66 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import { useState, useCallback, useEffect } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
-import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
+import { SocialLogin } from "@capgo/capacitor-social-login";
 import { Capacitor } from "@capacitor/core";
 import { initGoogleDrive, setAccessToken, syncNotesWithDrive, checkGoogleDriveMasterKey, hasGoogleAccessToken } from "@/lib/google-drive";
 import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, wipeDatabaseButKeepKeys, changeEncryptionKey, SyncResult } from "@/lib/note-storage";
 import { showSuccess, showError } from "@/utils/toast";
+
+const GOOGLE_WEB_CLIENT_ID = "889284625804-5prnhudcoalopvn0ad0au449lo1bn8f8.apps.googleusercontent.com";
+const GOOGLE_IOS_CLIENT_ID = "889284625804-4o32i9r7cun3pd9a471a6kno2rmgb4k1.apps.googleusercontent.com";
+const GOOGLE_DRIVE_SCOPES = ["profile", "email", "https://www.googleapis.com/auth/drive.file"];
+
+const initNativeGoogleAuth = async () => {
+    await SocialLogin.initialize({
+        google: {
+            webClientId: GOOGLE_WEB_CLIENT_ID,
+            iOSClientId: GOOGLE_IOS_CLIENT_ID,
+            iOSServerClientId: GOOGLE_WEB_CLIENT_ID,
+            mode: "online",
+        },
+    });
+};
+
+const nativeGoogleSignIn = async () => {
+    await initNativeGoogleAuth();
+    const res = await SocialLogin.login({
+        provider: "google",
+        options: {
+            scopes: GOOGLE_DRIVE_SCOPES,
+            forceRefreshToken: true,
+        },
+    });
+
+    if (res.result.responseType !== "online") {
+        throw new Error("Expected online Google login response");
+    }
+
+    const accessToken = res.result.accessToken?.token;
+    if (!accessToken) {
+        throw new Error("No access token received from Google");
+    }
+
+    return {
+        accessToken,
+        email: res.result.profile.email || "",
+    };
+};
+
+const nativeGoogleRefreshToken = async () => {
+    await initNativeGoogleAuth();
+    await SocialLogin.refresh({
+        provider: "google",
+        options: {
+            scopes: GOOGLE_DRIVE_SCOPES,
+        },
+    });
+    const auth = await SocialLogin.getAuthorizationCode({ provider: "google" });
+    if (!auth.accessToken) {
+        throw new Error("No access token available after refresh");
+    }
+    return auth.accessToken;
+};
 
 export const useGoogleDrive = () => {
     const [isSyncing, setIsSyncing] = useState(false);
@@ -71,13 +126,10 @@ export const useGoogleDrive = () => {
     const login = async (): Promise<SyncResult | undefined> => {
         if (Capacitor.isNativePlatform()) {
             try {
-                // Initialize plugin before sign in (required for capacitor-google-auth v3.2.0+)
-                await GoogleAuth.initialize();
-                const user = await GoogleAuth.signIn();
+                const user = await nativeGoogleSignIn();
 
-                // Initialize GAPI
                 await initGoogleDrive();
-                setAccessToken(user.authentication.accessToken);
+                setAccessToken(user.accessToken);
 
                 setUserEmail(user.email);
                 localStorage.setItem("google-user-email", user.email);
@@ -99,14 +151,13 @@ export const useGoogleDrive = () => {
             await initGoogleDrive();
 
             if (Capacitor.isNativePlatform()) {
-                await GoogleAuth.initialize();
                 try {
-                    const auth = await GoogleAuth.refresh();
-                    setAccessToken(auth.accessToken);
+                    const accessToken = await nativeGoogleRefreshToken();
+                    setAccessToken(accessToken);
                 } catch (e) {
                     console.log("Silent refresh failed, attempting sign in", e);
-                    const user = await GoogleAuth.signIn();
-                    setAccessToken(user.authentication.accessToken);
+                    const user = await nativeGoogleSignIn();
+                    setAccessToken(user.accessToken);
                     setUserEmail(user.email);
                     localStorage.setItem("google-user-email", user.email);
                 }
@@ -188,7 +239,8 @@ export const useGoogleDrive = () => {
 
             const localNotes = await loadNotes();
             const localCustomTags = JSON.parse(localStorage.getItem("custom-tags") || "[]");
-            const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithDrive(localNotes, localCustomTags, { masterKeyPayload, forceResolution });
+            const driveForceResolution = forceResolution === "merge" ? undefined : forceResolution;
+            const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithDrive(localNotes, localCustomTags, { masterKeyPayload, forceResolution: driveForceResolution });
 
             await Promise.all(mergedNotes.map(note => saveNote(note)));
             localStorage.setItem("custom-tags", JSON.stringify(mergedTags));
@@ -224,8 +276,8 @@ export const useGoogleDrive = () => {
     const disconnect = async () => {
         if (Capacitor.isNativePlatform()) {
             try {
-                await GoogleAuth.initialize();
-                await GoogleAuth.signOut();
+                await initNativeGoogleAuth();
+                await SocialLogin.logout({ provider: "google" });
             } catch (e) {
                 console.error("Native signout failed", e);
             }

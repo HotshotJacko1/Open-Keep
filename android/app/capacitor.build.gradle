@@ -18,7 +18,7 @@ dependencies {
     implementation project(':capacitor-local-notifications')
     implementation project(':capacitor-share')
     implementation project(':capgo-capacitor-native-biometric')
-    implementation project(':codetrix-studio-capacitor-google-auth')
+    implementation project(':capgo-capacitor-social-login')
     implementation project(':sentry-capacitor')
 
 }

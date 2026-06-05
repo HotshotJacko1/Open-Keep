@@ -27,7 +27,7 @@
     "@capacitor/local-notifications": "^8.0.2",
     "@capacitor/share": "^8.0.0",
     "@capgo/capacitor-native-biometric": "^8.3.7",
-    "@codetrix-studio/capacitor-google-auth": "^3.4.0-rc.4",
+    "@capgo/capacitor-social-login": "^8.3.22",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
