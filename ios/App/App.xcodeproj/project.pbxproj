@@ -19,7 +19,7 @@
 		91CD641DC6DB4E4BBD1258E0 /* NoteDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99932BC3A916440AA6F36D1A /* NoteDatabase.swift */; };
 		222086F5680546C687DCDF6F /* KeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57D154AB35424EDE8D613C1B /* KeyManager.swift */; };
 		A0271B6F93D34488BB305151 /* NoteStoragePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371C4E7E4C164740BE50FF83 /* NoteStoragePlugin.swift */; };
-		91ED39A63EFB4970A88D64A9 /* SQLiteCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 03DF8A2F73FD487E91F2A933 /* SQLiteCipher */; };
+		91ED39A63EFB4970A88D64A9 /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 03DF8A2F73FD487E91F2A933 /* SQLCipher */; };
 
 		8359635C54C845AAB901B623 /* NoteStoragePlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = A1CF4D41D1384F6AA42FA10C /* NoteStoragePlugin.m */; };
 /* End PBXBuildFile section */
@@ -48,7 +48,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				91ED39A63EFB4970A88D64A9 /* SQLiteCipher in Frameworks */,
+				91ED39A63EFB4970A88D64A9 /* SQLCipher in Frameworks */,
 
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
 			);
@@ -112,7 +112,7 @@
 			);
 			name = App;
 			packageProductDependencies = (
-				03DF8A2F73FD487E91F2A933 /* SQLiteCipher */,
+				03DF8A2F73FD487E91F2A933 /* SQLCipher */,
 
 				4D22ABE82AF431CB00220026 /* CapApp-SPM */,
 			);
@@ -146,7 +146,7 @@
 			);
 			mainGroup = 504EC2FB1FED79650016851F;
 			packageReferences = (
-				6D4C262034454EA2A71B709D /* XCRemoteSwiftPackageReference "SQLite.swift" */,
+				6D4C262034454EA2A71B709D /* XCRemoteSwiftPackageReference "SQLCipher" */,
 
 				D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */,
 			);
@@ -399,12 +399,12 @@
 
 
 /* Begin XCRemoteSwiftPackageReference section */
-		6D4C262034454EA2A71B709D /* XCRemoteSwiftPackageReference "SQLite.swift" */ = {
+		6D4C262034454EA2A71B709D /* XCRemoteSwiftPackageReference "SQLCipher" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/stephencelis/SQLite.swift.git";
+			repositoryURL = "https://github.com/sqlcipher/SQLCipher.swift.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.15.3;
+				minimumVersion = 4.16.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -416,10 +416,10 @@
 			productName = "CapApp-SPM";
 		};
 
-		03DF8A2F73FD487E91F2A933 /* SQLiteCipher */ = {
+		03DF8A2F73FD487E91F2A933 /* SQLCipher */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 6D4C262034454EA2A71B709D /* XCRemoteSwiftPackageReference "SQLite.swift" */;
-			productName = SQLiteCipher;
+			package = 6D4C262034454EA2A71B709D /* XCRemoteSwiftPackageReference "SQLCipher" */;
+			productName = SQLCipher;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
