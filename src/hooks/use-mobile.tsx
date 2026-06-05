@@ -1,7 +1,7 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import * as React from "react";
 
-const MOBILE_BREAKPOINT = 768;
+const MOBILE_BREAKPOINT = 700;
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(
