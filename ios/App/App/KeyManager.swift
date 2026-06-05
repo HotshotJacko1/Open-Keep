@@ -216,6 +216,9 @@ class KeyManager {
     func clearAll() {
         clear()
         keychainDelete(key: ENCRYPTED_MASTER_KEY_V2)
+        // Salt lives in UserDefaults and is wiped on uninstall, but must be cleared
+        // explicitly when resetting encryption state (matches Android key wipe behavior).
+        defaults.removeObject(forKey: SALT_KEY)
     }
     
     // MARK: - Keychain Helpers

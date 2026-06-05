@@ -32,6 +32,20 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
         return documentsDirectory.appendingPathComponent("open-keep-db.sqlite3").path
     }
     
+    private func removeDatabaseFiles(at dbPath: String) {
+        let fm = FileManager.default
+        for path in [dbPath, "\(dbPath)-wal", "\(dbPath)-shm"] {
+            if fm.fileExists(atPath: path) {
+                try? fm.removeItem(atPath: path)
+            }
+        }
+    }
+    
+    /// True when no encrypted database file exists yet (first-launch setup).
+    private func needsFreshEncryptionSetup(dbExists: Bool) -> Bool {
+        return !dbExists
+    }
+    
     @objc func loadNotes(_ call: CAPPluginCall) {
         do {
             let notes = try NoteDatabase.shared.getAllNotes()
@@ -75,17 +89,17 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
         
+        let dbPath = getDatabasePath()
+        let dbExists = FileManager.default.fileExists(atPath: dbPath)
+        let freshSetup = needsFreshEncryptionSetup(dbExists: dbExists)
+        
         do {
-            let dbPath = getDatabasePath()
-            let dbExists = FileManager.default.fileExists(atPath: dbPath)
-            
             let masterKey: [UInt8]
-            if !dbExists {
-                // Fresh install (or database was deleted). Keychain persists across
-                // iOS app uninstalls but the DB file and UserDefaults (PBKDF2 salt) do
-                // not. Any existing Keychain entries are therefore stale — clear them
-                // before generating a new master key to avoid KEK mismatch errors.
+            if freshSetup {
+                // Fresh install, reinstall, or recovering from a failed first-launch attempt.
+                // Keychain can survive iOS uninstalls while the DB file and PBKDF2 salt do not.
                 keyManager.clearAll()
+                removeDatabaseFiles(at: dbPath)
                 masterKey = try keyManager.generateRandomMasterKeyAndSave(pin: pin)
             } else {
                 masterKey = try keyManager.getMasterKeyForPin(pin: pin)
@@ -103,6 +117,10 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
             call.resolve()
         } catch {
             NoteDatabase.shared.reset()
+            if freshSetup {
+                keyManager.clearAll()
+                removeDatabaseFiles(at: dbPath)
+            }
             call.reject("Failed to open database. Incorrect PIN? \(error.localizedDescription)")
         }
     }
@@ -170,16 +188,8 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
         keyManager.clearAll()
         
         NoteDatabase.shared.reset()
-        
-        let dbPath = getDatabasePath()
-        do {
-            if FileManager.default.fileExists(atPath: dbPath) {
-                try FileManager.default.removeItem(atPath: dbPath)
-            }
-            call.resolve()
-        } catch {
-            call.reject("Clear data failed: \(error.localizedDescription)")
-        }
+        removeDatabaseFiles(at: getDatabasePath())
+        call.resolve()
     }
     
     @objc func wipeDatabaseButKeepKeys(_ call: CAPPluginCall) {
@@ -192,16 +202,8 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
         }
         
         NoteDatabase.shared.reset()
-        
-        let dbPath = getDatabasePath()
-        do {
-            if FileManager.default.fileExists(atPath: dbPath) {
-                try FileManager.default.removeItem(atPath: dbPath)
-            }
-            call.resolve()
-        } catch {
-            call.reject("Failed to wipe database: \(error.localizedDescription)")
-        }
+        removeDatabaseFiles(at: getDatabasePath())
+        call.resolve()
     }
     
     @objc func migrateFromWeb(_ call: CAPPluginCall) {

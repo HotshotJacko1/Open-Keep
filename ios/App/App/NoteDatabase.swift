@@ -30,17 +30,26 @@ class NoteDatabase {
         
         self.db = connection
         
-        // Apply SQLCipher key (sqlite3_key is exposed via App-Bridging-Header.h with SQLITE_HAS_CODEC)
+        // Apply SQLCipher key immediately after open, before any other statement.
         let keyData = Data(key)
-        keyData.withUnsafeBytes { ptr in
-            _ = sqlite3_key(connection, ptr.baseAddress, Int32(key.count))
+        let keyStatus = keyData.withUnsafeBytes { ptr -> Int32 in
+            sqlite3_key(connection, ptr.baseAddress, Int32(key.count))
         }
+        if keyStatus != SQLITE_OK {
+            let message = connection.flatMap { sqlite3_errmsg($0) }.map { String(cString: $0) } ?? "Unknown error"
+            sqlite3_close(connection)
+            self.db = nil
+            throw NSError(domain: "NoteDatabase", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to apply encryption key: \(message)"])
+        }
+        
+        try verifySQLCipherActive(connection)
         
         // Test key (SQLCipher needs to run a query to verify the key is correct)
         if sqlite3_exec(connection, "SELECT count(*) FROM sqlite_master;", nil, nil, nil) != SQLITE_OK {
+            let message = connection.flatMap { sqlite3_errmsg($0) }.map { String(cString: $0) } ?? "Invalid encryption key"
             sqlite3_close(connection)
             self.db = nil
-            throw NSError(domain: "NoteDatabase", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid encryption key"])
+            throw NSError(domain: "NoteDatabase", code: 2, userInfo: [NSLocalizedDescriptionKey: message])
         }
         
         // Create table
@@ -72,6 +81,24 @@ class NoteDatabase {
         try ensureColumnExists(columnName: "recurrence", columnType: "TEXT")
         
         print("NoteDatabase: Successfully initialized")
+    }
+    
+    private func verifySQLCipherActive(_ connection: OpaquePointer?) throws {
+        var stmt: OpaquePointer?
+        defer { sqlite3_finalize(stmt) }
+        
+        guard sqlite3_prepare_v2(connection, "PRAGMA cipher_version;", -1, &stmt, nil) == SQLITE_OK else {
+            let message = connection.flatMap { sqlite3_errmsg($0) }.map { String(cString: $0) } ?? "Unknown error"
+            throw NSError(domain: "NoteDatabase", code: 10, userInfo: [NSLocalizedDescriptionKey: "SQLCipher is not active: \(message)"])
+        }
+        
+        guard sqlite3_step(stmt) == SQLITE_ROW,
+              let versionCStr = sqlite3_column_text(stmt, 0) else {
+            throw NSError(domain: "NoteDatabase", code: 10, userInfo: [NSLocalizedDescriptionKey: "SQLCipher is not active on this connection"])
+        }
+        
+        let version = String(cString: UnsafeRawPointer(versionCStr).assumingMemoryBound(to: CChar.self))
+        print("NoteDatabase: SQLCipher version \(version)")
     }
     
     private func ensureColumnExists(columnName: String, columnType: String) throws {
