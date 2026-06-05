@@ -112,7 +112,7 @@ export const useOneDrive = () => {
         }
     }, []);
 
-    const doInternalSync = async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string): Promise<SyncResult> => {
+    const doInternalSync = async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false): Promise<SyncResult> => {
         setIsSyncing(true);
         try {
             await initOneDrive();
@@ -175,7 +175,9 @@ export const useOneDrive = () => {
             localStorage.setItem("onedrive-last-synced", now);
             setLastSynced(now);
             window.dispatchEvent(new Event("notes-updated"));
-            showSuccess("Notes synced with OneDrive!");
+            if (!silent) {
+                showSuccess("Notes synced with OneDrive!");
+            }
             return { status: "success" };
         } catch (error) {
             console.error("OneDrive sync failed:", error);
@@ -193,12 +195,12 @@ export const useOneDrive = () => {
         }
     };
 
-    const sync = useCallback(async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string) => {
+    const sync = useCallback(async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false) => {
         if (!userEmail) {
             showError("Please connect to OneDrive first.");
             return { status: "error", message: "Not connected" };
         }
-        return await doInternalSync(forceResolution, cloudPayload, providedPin);
+        return await doInternalSync(forceResolution, cloudPayload, providedPin, silent);
     }, [userEmail]);
 
     const disconnect = useCallback(async () => {

@@ -125,7 +125,7 @@ export const useDropbox = () => {
         }
     }, []);
 
-    const doInternalSync = async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string): Promise<SyncResult> => {
+    const doInternalSync = async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false): Promise<SyncResult> => {
         setIsSyncing(true);
         try {
             const pin = localStorage.getItem("app-passcode");
@@ -187,7 +187,9 @@ export const useDropbox = () => {
             localStorage.setItem("dropbox-last-synced", now);
             setLastSynced(now);
             window.dispatchEvent(new Event("notes-updated"));
-            showSuccess("Notes synced with Dropbox!");
+            if (!silent) {
+                showSuccess("Notes synced with Dropbox!");
+            }
             return { status: "success" };
         } catch (error) {
             console.error("Dropbox sync failed:", error);
@@ -210,13 +212,13 @@ export const useDropbox = () => {
         }
     };
 
-    const sync = useCallback(async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string) => {
+    const sync = useCallback(async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false) => {
         if (!accessToken) {
             showError("Please connect to Dropbox first.");
             return { status: "error", message: "Not connected" };
         }
 
-        return await doInternalSync(forceResolution, cloudPayload, providedPin);
+        return await doInternalSync(forceResolution, cloudPayload, providedPin, silent);
     }, [accessToken]);
 
     const disconnect = useCallback(() => {

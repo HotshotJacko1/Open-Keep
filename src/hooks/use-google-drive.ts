@@ -64,7 +64,8 @@ export const useGoogleDrive = () => {
         },
         scope: "https://www.googleapis.com/auth/drive.file",
         flow: 'implicit',
-        prompt: 'select_account',
+        prompt: userEmail ? '' : 'select_account',
+        hint: userEmail || undefined,
     });
 
     const login = async (): Promise<SyncResult | undefined> => {
@@ -95,7 +96,7 @@ export const useGoogleDrive = () => {
         }
     };
 
-    const doInternalSync = async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string): Promise<SyncResult> => {
+    const doInternalSync = async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false): Promise<SyncResult> => {
         setIsSyncing(true);
         try {
             await initGoogleDrive();
@@ -202,7 +203,9 @@ export const useGoogleDrive = () => {
             localStorage.setItem("last-synced-time", now);
             setLastSynced(now);
             window.dispatchEvent(new Event("notes-updated"));
-            showSuccess("Notes synced successfully!");
+            if (!silent) {
+                showSuccess("Notes synced successfully!");
+            }
             return { status: "success" };
         } catch (error) {
             console.error("Sync failed:", error);
@@ -220,8 +223,8 @@ export const useGoogleDrive = () => {
         }
     };
 
-    const sync = useCallback(async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string) => {
-        return await doInternalSync(forceResolution, cloudPayload, providedPin);
+    const sync = useCallback(async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false) => {
+        return await doInternalSync(forceResolution, cloudPayload, providedPin, silent);
     }, []);
 
     const disconnect = async () => {

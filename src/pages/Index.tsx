@@ -115,7 +115,7 @@ const Index = () => {
     if (!activeService) return;
     console.log("Auto-sync: performAutoSync started for", activeService.name);
     try {
-      const syncResult = await activeService.sync();
+      const syncResult = await activeService.sync(undefined, undefined, undefined, true);
       console.log("Auto-sync: result", syncResult);
       if (syncResult && syncResult.status === "success") {
         const loadedNotes = await loadNotes();

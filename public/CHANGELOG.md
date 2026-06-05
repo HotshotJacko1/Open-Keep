@@ -6,20 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 - F-Droid release.
-
-## [4.0.0] - 2026-06-12
-### Added
 - Apple App Store release.
 
+## [3.0.1] - 2026-06-05
 ### Fixed
-- Favicon (tab icon) on web version.
+- Fixed favicon (tab icon) on web version.
+- Auto-sync notifications now silent.
+- Fixed Google Drive sync on web version.
 
 ## [3.0.0] - 2026-06-05
 ### Added
 - PC version released. You can now access Open Keep on a web browser at [app.openkeep.net](https://app.openkeep.net).
 
 ### Changed
-- Improved automatic cloud syncing. Notes now sync to the cloud when the app launches, when the app is resumed from background, and 30 seconds after editing.
+- Improved automatic cloud syncing. Notes now sync to the cloud when the app launches, when the app is resumed from background, and 30 seconds after last edit.
 - Changed pin colour to gold to more clearly show when a note is pinned. Pin remains visible when a note is pinned.
 - On large screens, the number of columns is responsive, so, for example, the web version will show more than 2 columns on PCs.
 
