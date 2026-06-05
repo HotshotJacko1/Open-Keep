@@ -1,15 +1,5 @@
 import Foundation
-
-// sqlite3_key and sqlite3_rekey are exported by the SQLCipher binary but are
-// conditionally declared in the header under #ifdef SQLITE_HAS_CODEC.
-// The pre-compiled SQLCipher module (.pcm) was built without that flag, so
-// the module system strips these declarations. We use @_silgen_name to bind
-// directly to the linker symbols, bypassing the module cache entirely.
-@_silgen_name("sqlite3_key")
-private func sqlite3_key(_ db: OpaquePointer?, _ pKey: UnsafeRawPointer?, _ nKey: Int32) -> Int32
-
-@_silgen_name("sqlite3_rekey")
-private func sqlite3_rekey(_ db: OpaquePointer?, _ pKey: UnsafeRawPointer?, _ nKey: Int32) -> Int32
+import SQLCipher
 
 
 class NoteDatabase {
@@ -30,10 +20,16 @@ class NoteDatabase {
         
         self.db = connection
         
-        // Apply SQLCipher key (sqlite3_key is exposed via App-Bridging-Header.h with SQLITE_HAS_CODEC)
-        let keyData = Data(key)
-        keyData.withUnsafeBytes { ptr in
-            _ = sqlite3_key(connection, ptr.baseAddress, Int32(key.count))
+        // Apply SQLCipher key via PRAGMA SQL API.
+        // This avoids the C-level sqlite3_key() call which is gated by SQLITE_HAS_CODEC
+        // and not surfaced through the Swift module interface. The PRAGMA approach is
+        // fully supported by SQLCipher and goes through sqlite3_exec which IS exported.
+        let hexKey = key.map { String(format: "%02x", $0) }.joined()
+        let keyPragma = "PRAGMA key = \"x'\(hexKey)'\";"
+        if sqlite3_exec(connection, keyPragma, nil, nil, nil) != SQLITE_OK {
+            sqlite3_close(connection)
+            self.db = nil
+            throw NSError(domain: "NoteDatabase", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to set encryption key"])
         }
         
         // Test key (SQLCipher needs to run a query to verify the key is correct)
@@ -346,9 +342,11 @@ class NoteDatabase {
     func changePassword(newKey: [UInt8]) throws {
         guard let db = self.db else { throw NSError(domain: "NoteDatabase", code: 1, userInfo: [NSLocalizedDescriptionKey: "Database not initialized"]) }
         
-        let keyData = Data(newKey)
-        keyData.withUnsafeBytes { ptr in
-            _ = sqlite3_rekey(db, ptr.baseAddress, Int32(newKey.count))
+        // Use PRAGMA rekey SQL API instead of C-level sqlite3_rekey() for same reasons as PRAGMA key.
+        let hexKey = newKey.map { String(format: "%02x", $0) }.joined()
+        let rekeyPragma = "PRAGMA rekey = \"x'\(hexKey)'\";"
+        if sqlite3_exec(db, rekeyPragma, nil, nil, nil) != SQLITE_OK {
+            throw NSError(domain: "NoteDatabase", code: 10, userInfo: [NSLocalizedDescriptionKey: "Failed to change encryption key"])
         }
     }
     
