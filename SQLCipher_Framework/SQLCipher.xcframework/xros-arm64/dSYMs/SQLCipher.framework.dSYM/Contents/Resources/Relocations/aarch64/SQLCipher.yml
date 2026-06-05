@@ -1,0 +1,5 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     '/Users/jenkins/workspace/workspace/sqlcipher-packages-apple-pipeline/src/libSQLCipher/build/Release-xros/SQLCipher.framework/SQLCipher'
+relocations:     []
+...

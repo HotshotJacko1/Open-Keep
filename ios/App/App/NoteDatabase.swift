@@ -1,5 +1,4 @@
 import Foundation
-import SQLCipher
 
 class NoteDatabase {
     static let shared = NoteDatabase()
@@ -13,21 +12,21 @@ class NoteDatabase {
         
         var connection: OpaquePointer?
         let flags = SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX
-        if SQLCipher.sqlite3_open_v2(dbPath, &connection, flags, nil) != SQLITE_OK {
+        if sqlite3_open_v2(dbPath, &connection, flags, nil) != SQLITE_OK {
             throw NSError(domain: "NoteDatabase", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to open database"])
         }
         
         self.db = connection
         
-        // Apply SQLCipher key
+        // Apply SQLCipher key (sqlite3_key is exposed via App-Bridging-Header.h with SQLITE_HAS_CODEC)
         let keyData = Data(key)
         keyData.withUnsafeBytes { ptr in
-            SQLCipher.sqlite3_key(connection, ptr.baseAddress, Int32(key.count))
+            _ = sqlite3_key(connection, ptr.baseAddress, Int32(key.count))
         }
         
-        // Test key (SQLCipher needs to run a query to verify)
-        if SQLCipher.sqlite3_exec(connection, "SELECT count(*) FROM sqlite_master;", nil, nil, nil) != SQLITE_OK {
-            SQLCipher.sqlite3_close(connection)
+        // Test key (SQLCipher needs to run a query to verify the key is correct)
+        if sqlite3_exec(connection, "SELECT count(*) FROM sqlite_master;", nil, nil, nil) != SQLITE_OK {
+            sqlite3_close(connection)
             self.db = nil
             throw NSError(domain: "NoteDatabase", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid encryption key"])
         }
@@ -51,7 +50,7 @@ class NoteDatabase {
             recurrence TEXT
         );
         """
-        if SQLCipher.sqlite3_exec(connection, createTableSql, nil, nil, nil) != SQLITE_OK {
+        if sqlite3_exec(connection, createTableSql, nil, nil, nil) != SQLITE_OK {
             throw NSError(domain: "NoteDatabase", code: 3, userInfo: [NSLocalizedDescriptionKey: "Failed to create table"])
         }
         
@@ -67,10 +66,10 @@ class NoteDatabase {
         guard let db = self.db else { return }
         
         var stmt: OpaquePointer?
-        if SQLCipher.sqlite3_prepare_v2(db, "PRAGMA table_info(notes);", -1, &stmt, nil) == SQLITE_OK {
+        if sqlite3_prepare_v2(db, "PRAGMA table_info(notes);", -1, &stmt, nil) == SQLITE_OK {
             var exists = false
-            while SQLCipher.sqlite3_step(stmt) == SQLITE_ROW {
-                if let nameCStr = SQLCipher.sqlite3_column_text(stmt, 1) {
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if let nameCStr = sqlite3_column_text(stmt, 1) {
                     let name = String(cString: UnsafeRawPointer(nameCStr).assumingMemoryBound(to: CChar.self))
                     if name == columnName {
                         exists = true
@@ -78,18 +77,18 @@ class NoteDatabase {
                     }
                 }
             }
-            SQLCipher.sqlite3_finalize(stmt)
+            sqlite3_finalize(stmt)
             
             if !exists {
                 let addColSql = "ALTER TABLE notes ADD COLUMN \(columnName) \(columnType);"
-                SQLCipher.sqlite3_exec(db, addColSql, nil, nil, nil)
+                sqlite3_exec(db, addColSql, nil, nil, nil)
             }
         }
     }
     
     func reset() {
         if let db = self.db {
-            SQLCipher.sqlite3_close(db)
+            sqlite3_close(db)
         }
         self.db = nil
     }
@@ -99,7 +98,7 @@ class NoteDatabase {
     }
     
     private func getString(stmt: OpaquePointer, index: Int32) -> String {
-        guard let cString = SQLCipher.sqlite3_column_text(stmt, index) else { return "" }
+        guard let cString = sqlite3_column_text(stmt, index) else { return "" }
         return String(cString: UnsafeRawPointer(cString).assumingMemoryBound(to: CChar.self))
     }
     
@@ -109,22 +108,22 @@ class NoteDatabase {
         let query = "SELECT id, title, content, type, createdAt, updatedAt, isPinned, isArchived, deleted, tags, syncState, images, reminder, recurrence FROM notes ORDER BY updatedAt DESC;"
         var stmt: OpaquePointer?
         
-        if SQLCipher.sqlite3_prepare_v2(db, query, -1, &stmt, nil) != SQLITE_OK {
+        if sqlite3_prepare_v2(db, query, -1, &stmt, nil) != SQLITE_OK {
             throw NSError(domain: "NoteDatabase", code: 4, userInfo: [NSLocalizedDescriptionKey: "Failed to prepare select query"])
         }
         
         var result = [[String: Any]]()
-        while SQLCipher.sqlite3_step(stmt) == SQLITE_ROW {
-            let deletedBool = SQLCipher.sqlite3_column_int(stmt, 8) != 0
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            let deletedBool = sqlite3_column_int(stmt, 8) != 0
             var dict: [String: Any] = [
                 "id": getString(stmt: stmt!, index: 0),
                 "title": getString(stmt: stmt!, index: 1),
                 "content": getString(stmt: stmt!, index: 2),
                 "type": getString(stmt: stmt!, index: 3),
-                "createdAt": SQLCipher.sqlite3_column_int64(stmt, 4),
-                "updatedAt": SQLCipher.sqlite3_column_int64(stmt, 5),
-                "isPinned": SQLCipher.sqlite3_column_int(stmt, 6) != 0,
-                "isArchived": SQLCipher.sqlite3_column_int(stmt, 7) != 0,
+                "createdAt": sqlite3_column_int64(stmt, 4),
+                "updatedAt": sqlite3_column_int64(stmt, 5),
+                "isPinned": sqlite3_column_int(stmt, 6) != 0,
+                "isArchived": sqlite3_column_int(stmt, 7) != 0,
                 "isDeleted": deletedBool,
                 "syncState": getString(stmt: stmt!, index: 10)
             ]
@@ -145,11 +144,11 @@ class NoteDatabase {
                 dict["images"] = []
             }
             
-            if SQLCipher.sqlite3_column_type(stmt, 12) != SQLITE_NULL {
-                dict["reminder"] = SQLCipher.sqlite3_column_int64(stmt, 12)
+            if sqlite3_column_type(stmt, 12) != SQLITE_NULL {
+                dict["reminder"] = sqlite3_column_int64(stmt, 12)
             }
             
-            if SQLCipher.sqlite3_column_type(stmt, 13) != SQLITE_NULL {
+            if sqlite3_column_type(stmt, 13) != SQLITE_NULL {
                 let rec = getString(stmt: stmt!, index: 13)
                 if let recData = rec.data(using: .utf8),
                    let recObj = try? JSONSerialization.jsonObject(with: recData, options: []) as? [String: Any] {
@@ -163,16 +162,16 @@ class NoteDatabase {
             
             result.append(dict)
         }
-        SQLCipher.sqlite3_finalize(stmt)
+        sqlite3_finalize(stmt)
         
         return result
     }
     
     private func bindString(_ stmt: OpaquePointer, index: Int32, value: String?) {
         if let val = value {
-            SQLCipher.sqlite3_bind_text(stmt, index, (val as NSString).utf8String, -1, nil)
+            sqlite3_bind_text(stmt, index, (val as NSString).utf8String, -1, nil)
         } else {
-            SQLCipher.sqlite3_bind_null(stmt, index)
+            sqlite3_bind_null(stmt, index)
         }
     }
     
@@ -185,7 +184,7 @@ class NoteDatabase {
         """
         
         var stmt: OpaquePointer?
-        if SQLCipher.sqlite3_prepare_v2(db, query, -1, &stmt, nil) != SQLITE_OK {
+        if sqlite3_prepare_v2(db, query, -1, &stmt, nil) != SQLITE_OK {
             throw NSError(domain: "NoteDatabase", code: 5, userInfo: [NSLocalizedDescriptionKey: "Failed to prepare insert query"])
         }
         
@@ -218,28 +217,28 @@ class NoteDatabase {
         bindString(stmt!, index: 2, value: noteTitle)
         bindString(stmt!, index: 3, value: noteContent)
         bindString(stmt!, index: 4, value: noteType)
-        SQLCipher.sqlite3_bind_int64(stmt, 5, noteCreatedAt)
-        SQLCipher.sqlite3_bind_int64(stmt, 6, noteUpdatedAt)
-        SQLCipher.sqlite3_bind_int(stmt, 7, noteIsPinned ? 1 : 0)
-        SQLCipher.sqlite3_bind_int(stmt, 8, noteIsArchived ? 1 : 0)
-        SQLCipher.sqlite3_bind_int(stmt, 9, noteIsDeleted ? 1 : 0)
+        sqlite3_bind_int64(stmt, 5, noteCreatedAt)
+        sqlite3_bind_int64(stmt, 6, noteUpdatedAt)
+        sqlite3_bind_int(stmt, 7, noteIsPinned ? 1 : 0)
+        sqlite3_bind_int(stmt, 8, noteIsArchived ? 1 : 0)
+        sqlite3_bind_int(stmt, 9, noteIsDeleted ? 1 : 0)
         bindString(stmt!, index: 10, value: tagsStr)
         bindString(stmt!, index: 11, value: "PENDING")
         bindString(stmt!, index: 12, value: imagesStr)
         
         if let noteReminder = dict["reminder"] as? Int64 {
-            SQLCipher.sqlite3_bind_int64(stmt, 13, noteReminder)
+            sqlite3_bind_int64(stmt, 13, noteReminder)
         } else {
-            SQLCipher.sqlite3_bind_null(stmt, 13)
+            sqlite3_bind_null(stmt, 13)
         }
         
         bindString(stmt!, index: 14, value: recurrenceStr)
         
-        if SQLCipher.sqlite3_step(stmt) != SQLITE_DONE {
-            SQLCipher.sqlite3_finalize(stmt)
+        if sqlite3_step(stmt) != SQLITE_DONE {
+            sqlite3_finalize(stmt)
             throw NSError(domain: "NoteDatabase", code: 6, userInfo: [NSLocalizedDescriptionKey: "Failed to execute insert"])
         }
-        SQLCipher.sqlite3_finalize(stmt)
+        sqlite3_finalize(stmt)
     }
     
     func deleteNote(noteId: String) throws {
@@ -247,25 +246,25 @@ class NoteDatabase {
         
         let query = "UPDATE notes SET deleted = 1, updatedAt = ?, syncState = 'PENDING' WHERE id = ?;"
         var stmt: OpaquePointer?
-        if SQLCipher.sqlite3_prepare_v2(db, query, -1, &stmt, nil) != SQLITE_OK {
+        if sqlite3_prepare_v2(db, query, -1, &stmt, nil) != SQLITE_OK {
             throw NSError(domain: "NoteDatabase", code: 7, userInfo: [NSLocalizedDescriptionKey: "Failed to prepare delete query"])
         }
         
         let now = Int64(Date().timeIntervalSince1970 * 1000)
-        SQLCipher.sqlite3_bind_int64(stmt, 1, now)
+        sqlite3_bind_int64(stmt, 1, now)
         bindString(stmt!, index: 2, value: noteId)
         
-        if SQLCipher.sqlite3_step(stmt) != SQLITE_DONE {
-            SQLCipher.sqlite3_finalize(stmt)
+        if sqlite3_step(stmt) != SQLITE_DONE {
+            sqlite3_finalize(stmt)
             throw NSError(domain: "NoteDatabase", code: 8, userInfo: [NSLocalizedDescriptionKey: "Failed to execute delete"])
         }
-        SQLCipher.sqlite3_finalize(stmt)
+        sqlite3_finalize(stmt)
     }
     
     func bulkInsert(notesList: [[String: Any]]) throws {
         guard let db = self.db else { throw NSError(domain: "NoteDatabase", code: 1, userInfo: [NSLocalizedDescriptionKey: "Database not initialized"]) }
         
-        SQLCipher.sqlite3_exec(db, "BEGIN TRANSACTION;", nil, nil, nil)
+        sqlite3_exec(db, "BEGIN TRANSACTION;", nil, nil, nil)
         
         let query = """
         INSERT OR IGNORE INTO notes (id, title, content, type, createdAt, updatedAt, isPinned, isArchived, deleted, tags, syncState, images, reminder, recurrence)
@@ -273,8 +272,8 @@ class NoteDatabase {
         """
         
         var stmt: OpaquePointer?
-        if SQLCipher.sqlite3_prepare_v2(db, query, -1, &stmt, nil) != SQLITE_OK {
-            SQLCipher.sqlite3_exec(db, "ROLLBACK;", nil, nil, nil)
+        if sqlite3_prepare_v2(db, query, -1, &stmt, nil) != SQLITE_OK {
+            sqlite3_exec(db, "ROLLBACK;", nil, nil, nil)
             throw NSError(domain: "NoteDatabase", code: 9, userInfo: [NSLocalizedDescriptionKey: "Failed to prepare bulk insert query"])
         }
         
@@ -304,32 +303,32 @@ class NoteDatabase {
             bindString(stmt!, index: 2, value: noteTitle)
             bindString(stmt!, index: 3, value: noteContent)
             bindString(stmt!, index: 4, value: noteType)
-            SQLCipher.sqlite3_bind_int64(stmt, 5, noteCreatedAt)
-            SQLCipher.sqlite3_bind_int64(stmt, 6, noteUpdatedAt)
-            SQLCipher.sqlite3_bind_int(stmt, 7, noteIsPinned ? 1 : 0)
-            SQLCipher.sqlite3_bind_int(stmt, 8, noteIsArchived ? 1 : 0)
-            SQLCipher.sqlite3_bind_int(stmt, 9, noteIsDeleted ? 1 : 0)
+            sqlite3_bind_int64(stmt, 5, noteCreatedAt)
+            sqlite3_bind_int64(stmt, 6, noteUpdatedAt)
+            sqlite3_bind_int(stmt, 7, noteIsPinned ? 1 : 0)
+            sqlite3_bind_int(stmt, 8, noteIsArchived ? 1 : 0)
+            sqlite3_bind_int(stmt, 9, noteIsDeleted ? 1 : 0)
             bindString(stmt!, index: 10, value: tagsStr)
             bindString(stmt!, index: 11, value: "SYNCED")
             bindString(stmt!, index: 12, value: "[]")
             
             if let noteReminder = dict["reminder"] as? Int64 {
-                SQLCipher.sqlite3_bind_int64(stmt, 13, noteReminder)
+                sqlite3_bind_int64(stmt, 13, noteReminder)
             } else {
-                SQLCipher.sqlite3_bind_null(stmt, 13)
+                sqlite3_bind_null(stmt, 13)
             }
             
             bindString(stmt!, index: 14, value: recurrenceStr)
             
-            if SQLCipher.sqlite3_step(stmt) != SQLITE_DONE {
-                // Ignore single insert error
+            if sqlite3_step(stmt) != SQLITE_DONE {
+                // Ignore single insert error, continue bulk insert
             }
-            SQLCipher.sqlite3_reset(stmt)
-            SQLCipher.sqlite3_clear_bindings(stmt)
+            sqlite3_reset(stmt)
+            sqlite3_clear_bindings(stmt)
         }
         
-        SQLCipher.sqlite3_finalize(stmt)
-        SQLCipher.sqlite3_exec(db, "COMMIT;", nil, nil, nil)
+        sqlite3_finalize(stmt)
+        sqlite3_exec(db, "COMMIT;", nil, nil, nil)
     }
     
     func changePassword(newKey: [UInt8]) throws {
@@ -337,12 +336,12 @@ class NoteDatabase {
         
         let keyData = Data(newKey)
         keyData.withUnsafeBytes { ptr in
-            SQLCipher.sqlite3_rekey(db, ptr.baseAddress, Int32(newKey.count))
+            _ = sqlite3_rekey(db, ptr.baseAddress, Int32(newKey.count))
         }
     }
     
     func clearAllTables() throws {
         guard let db = self.db else { throw NSError(domain: "NoteDatabase", code: 1, userInfo: [NSLocalizedDescriptionKey: "Database not initialized"]) }
-        SQLCipher.sqlite3_exec(db, "DELETE FROM notes;", nil, nil, nil)
+        sqlite3_exec(db, "DELETE FROM notes;", nil, nil, nil)
     }
 }
