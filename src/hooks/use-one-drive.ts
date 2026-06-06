@@ -1,17 +1,17 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 
 import { useState, useCallback, useEffect } from "react";
-import { initOneDrive, loginToOneDrive, syncNotesWithOneDrive, logoutFromOneDrive, msalInstance, checkOneDriveMasterKey } from "@/lib/one-drive";
-import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, wipeDatabaseButKeepKeys, changeEncryptionKey, SyncResult } from "@/lib/note-storage";
+import { initOneDrive, loginToOneDrive, syncNotesWithOneDrive, logoutFromOneDrive, checkOneDriveMasterKey, msalInstance } from "@/lib/one-drive";
+import { setupOneDriveOAuthRedirect } from "@/lib/one-drive-oauth";
+import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, wipeDatabaseButKeepKeys, SyncResult } from "@/lib/note-storage";
+import { resolveCloudKeyImport, getCloudKeyConflictIfNeeded } from "@/lib/cloud-sync-resolver";
+import { setCloudSyncState, useCloudSyncState } from "@/lib/cloud-sync-state";
 import { showSuccess, showError } from "@/utils/toast";
-import { App as CapacitorApp } from "@capacitor/app";
-import { Browser } from "@capacitor/browser";
-import { Capacitor } from "@capacitor/core";
 
-let isAuthenticating = false;
+let oauthSuccessHandling = false;
 
 export const useOneDrive = () => {
-    const [isSyncing, setIsSyncing] = useState(false);
+    const isSyncing = useCloudSyncState("onedrive");
     const [lastSynced, setLastSynced] = useState<string | null>(localStorage.getItem("onedrive-last-synced"));
     const [userEmail, setUserEmail] = useState<string | null>(localStorage.getItem("onedrive-user-email"));
 
@@ -31,74 +31,44 @@ export const useOneDrive = () => {
         return () => window.removeEventListener("onedrive-user-updated", handleUserUpdated);
     }, []);
 
-    // Check for active account on load and setup Deep Link Listener
+    // Check for active account on load; OAuth deep links handled once app-wide.
     useEffect(() => {
-        let listenerHandle: any = null;
+        setupOneDriveOAuthRedirect();
 
-        const handleAppUrlOpen = async (event: { url: string }) => {
-            if (event.url.includes("openkeep://auth")) {
-                await Browser.close();
-                try {
-                    await initOneDrive();
-                    // MSAL handleRedirectPromise expects the hash string, not the full URL
-                    // MSAL handleRedirectPromise can parse the full URL directly
-                    
-
-                    if (!isAuthenticating) {
-                        isAuthenticating = true;
-                        try {
-                            const response = await msalInstance.handleRedirectPromise(event.url);
-                            if (response && response.account) {
-                                msalInstance.setActiveAccount(response.account);
-                                setUserEmail(response.account.username);
-                                localStorage.setItem("onedrive-user-email", response.account.username);
-                                showSuccess(`Connected to OneDrive as ${response.account.username}`);
-                                const syncResult = await doInternalSync();
-                                if (syncResult.status === "conflict") {
-                                    window.dispatchEvent(new CustomEvent("open-sync-conflict", { detail: { service: "onedrive", payload: (syncResult as any).cloudPayload, reason: (syncResult as any).reason } }));
-                                }
-                            }
-                        } finally {
-                            isAuthenticating = false;
-                        }
-                    }
-                } catch (e) {
-                    console.error("handleRedirectPromise deep link error:", e);
-                    showError("Failed to finalize OneDrive login.");
+        const handleOAuthSuccess = async (event: Event) => {
+            if (oauthSuccessHandling) return;
+            oauthSuccessHandling = true;
+            try {
+                const username = (event as CustomEvent<{ username: string }>).detail?.username;
+                if (username) {
+                    setUserEmail(username);
                 }
+                const syncResult = await doInternalSync(undefined, undefined, undefined, true);
+                if (syncResult.status === "conflict") {
+                    window.dispatchEvent(new CustomEvent("open-sync-conflict", {
+                        detail: { service: "onedrive", payload: (syncResult as any).cloudPayload, reason: (syncResult as any).reason },
+                    }));
+                }
+            } finally {
+                oauthSuccessHandling = false;
             }
         };
 
-        const checkAccountAndListen = async () => {
+        window.addEventListener("onedrive-oauth-success", handleOAuthSuccess);
+
+        const checkExistingAccount = async () => {
             await initOneDrive();
             const account = msalInstance.getActiveAccount();
-            if (account && account.username) {
-                const isNewLogin = localStorage.getItem("onedrive-user-email") !== account.username;
-
+            if (account?.username) {
                 setUserEmail(account.username);
                 localStorage.setItem("onedrive-user-email", account.username);
-
-                if (isNewLogin) {
-                    showSuccess(`Connected to OneDrive as ${account.username}`);
-                    // Trigger sync on first successful connection
-                    const result = await doInternalSync();
-                    if (result.status === "conflict") {
-                        window.dispatchEvent(new CustomEvent("open-sync-conflict", { detail: { service: "onedrive", payload: (result as any).cloudPayload, reason: (result as any).reason } }));
-                    }
-                }
-            }
-
-            if (Capacitor.isNativePlatform()) {
-                listenerHandle = await CapacitorApp.addListener('appUrlOpen', handleAppUrlOpen);
             }
         };
 
-        checkAccountAndListen();
+        checkExistingAccount();
 
         return () => {
-            if (listenerHandle) {
-                listenerHandle.remove();
-            }
+            window.removeEventListener("onedrive-oauth-success", handleOAuthSuccess);
         };
     }, []);
 
@@ -113,7 +83,7 @@ export const useOneDrive = () => {
     }, []);
 
     const doInternalSync = async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false): Promise<SyncResult> => {
-        setIsSyncing(true);
+        setCloudSyncState("onedrive", true);
         try {
             await initOneDrive();
             const pin = localStorage.getItem("app-passcode");
@@ -121,33 +91,34 @@ export const useOneDrive = () => {
                 throw new Error("No PIN found. Please set up a PIN in App Lock settings first.");
             }
 
-            if (forceResolution === "cloud" && cloudPayload && pin) {
-                const importPin = providedPin || pin;
-                await wipeDatabaseButKeepKeys();
-                await importMasterKey(cloudPayload, importPin);
-                if (providedPin && providedPin !== pin) {
-                    localStorage.setItem("app-passcode", providedPin);
-                }
-            }
+            const cloudKeyConflict = await getCloudKeyConflictIfNeeded(
+                pin,
+                forceResolution,
+                checkOneDriveMasterKey
+            );
+            if (cloudKeyConflict) return cloudKeyConflict;
 
-            if (forceResolution === "merge" && cloudPayload && pin && providedPin && providedPin !== pin) {
-                await changeEncryptionKey(pin, providedPin);
-                await importMasterKey(cloudPayload, providedPin);
-                localStorage.setItem("app-passcode", providedPin);
+            const keyImport = await resolveCloudKeyImport(forceResolution, cloudPayload, pin, providedPin);
+            if (keyImport.ok === false) {
+                if (cloudPayload) {
+                    return { status: "conflict", cloudPayload, reason: "key_mismatch" };
+                }
+                return { status: "error", message: keyImport.reason };
             }
+            const effectivePin = keyImport.effectivePin || pin;
 
             let masterKeyPayload: string | undefined;
 
-            if (pin) {
+            if (effectivePin) {
                 if (forceResolution === "local" || (!forceResolution)) {
-                    masterKeyPayload = await exportMasterKey(pin);
+                    masterKeyPayload = await exportMasterKey(effectivePin);
                 }
 
                 if (!forceResolution) {
                     const cloudKey = await checkOneDriveMasterKey();
                     if (cloudKey.exists && cloudKey.payload) {
                         const localNotes = await loadNotes();
-                        const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, pin);
+                        const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, effectivePin);
                         const isFirstConnect = !localStorage.getItem("onedrive-last-synced");
                         
                         if (!isMatch) {
@@ -156,7 +127,7 @@ export const useOneDrive = () => {
                         
                         if (localNotes.length === 0) {
                             await wipeDatabaseButKeepKeys();
-                            await importMasterKey(cloudKey.payload, pin);
+                            await importMasterKey(cloudKey.payload, effectivePin);
                             masterKeyPayload = undefined;
                         } else if (isFirstConnect) {
                             return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
@@ -167,7 +138,8 @@ export const useOneDrive = () => {
 
             const localNotes = await loadNotes();
             const localCustomTags = JSON.parse(localStorage.getItem("custom-tags") || "[]");
-            const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithOneDrive(localNotes, localCustomTags, { masterKeyPayload, forceResolution });
+            const oneDriveForceResolution = forceResolution === "merge" ? undefined : forceResolution;
+            const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithOneDrive(localNotes, localCustomTags, { masterKeyPayload, forceResolution: oneDriveForceResolution });
 
             await Promise.all(mergedNotes.map(note => saveNote(note)));
             localStorage.setItem("custom-tags", JSON.stringify(mergedTags));
@@ -191,7 +163,7 @@ export const useOneDrive = () => {
             showError("OneDrive sync failed. Please reconnect.");
             return { status: "error", message: (error as Error).message };
         } finally {
-            setIsSyncing(false);
+            setCloudSyncState("onedrive", false);
         }
     };
 

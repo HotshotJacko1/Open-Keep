@@ -161,6 +161,16 @@ class KeyManager {
         try storeMasterKey(key: masterKey)
     }
     
+    func canDecryptCloudMasterKey(payload: String, pin: String) -> Bool {
+        do {
+            let exportKEK = try deriveExportKEK(pin: pin)
+            _ = try decryptWithKEK(encryptedBase64: payload, kek: exportKEK)
+            return true
+        } catch {
+            return false
+        }
+    }
+    
     func verifyCloudMasterKeyMatch(payload: String, pin: String) -> Bool {
         do {
             let exportKEK = try deriveExportKEK(pin: pin)

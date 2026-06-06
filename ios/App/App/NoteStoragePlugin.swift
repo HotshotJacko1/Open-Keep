@@ -21,7 +21,8 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "changeEncryptionKey", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "exportMasterKey", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "importMasterKey", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "verifyCloudMasterKeyMatch", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "verifyCloudMasterKeyMatch", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "canDecryptCloudMasterKey", returnType: CAPPluginReturnPromise)
     ]
     
     private lazy var keyManager = KeyManager()
@@ -285,5 +286,15 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
         
         let isMatch = keyManager.verifyCloudMasterKeyMatch(payload: payload, pin: pin)
         call.resolve(["isMatch": isMatch])
+    }
+    
+    @objc func canDecryptCloudMasterKey(_ call: CAPPluginCall) {
+        guard let payload = call.getString("payload"), let pin = call.getString("pin") else {
+            call.reject("Missing payload or PIN")
+            return
+        }
+        
+        let canDecrypt = keyManager.canDecryptCloudMasterKey(payload: payload, pin: pin)
+        call.resolve(["canDecrypt": canDecrypt])
     }
 }

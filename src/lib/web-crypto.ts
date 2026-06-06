@@ -177,6 +177,16 @@ export const importCloudMasterKeyWeb = async (payload: string, pin: string): Pro
     await storeSessionMasterKey(masterKeyBuffer);
 };
 
+export const canDecryptCloudMasterKeyWeb = async (payload: string, pin: string): Promise<boolean> => {
+    try {
+        const exportKEK = await deriveExportKEK(pin);
+        await decryptWithKEK(payload, exportKEK);
+        return true;
+    } catch {
+        return false;
+    }
+};
+
 export const verifyCloudMasterKeyMatchWeb = async (payload: string, pin: string): Promise<boolean> => {
     try {
         const exportKEK = await deriveExportKEK(pin);

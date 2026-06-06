@@ -554,4 +554,23 @@ class NoteStoragePlugin : Plugin() {
             call.reject("Verification failed: ${e.message}")
         }
     }
+
+    @PluginMethod
+    fun canDecryptCloudMasterKey(call: PluginCall) {
+        val payload = call.getString("payload")
+        val pin = call.getString("pin")
+        if (payload == null || pin == null) {
+            call.reject("Missing payload or PIN")
+            return
+        }
+        try {
+            val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
+            val canDecrypt = keyManager.canDecryptCloudMasterKey(payload, pin)
+            val ret = JSObject()
+            ret.put("canDecrypt", canDecrypt)
+            call.resolve(ret)
+        } catch (e: Exception) {
+            call.reject("Decryption check failed: ${e.message}")
+        }
+    }
 }

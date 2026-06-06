@@ -6,7 +6,7 @@ import { deleteImage } from "@/lib/image-storage";
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import NoteCard from "@/components/NoteCard";
 import NoteEditor from "@/components/NoteEditor"; // Unified Editor
-import { useGoogleDrive } from "@/hooks/use-google-drive";
+import { useGoogleDrive, isGoogleDriveAuthBusy, isGoogleDriveScopeBlocked } from "@/hooks/use-google-drive";
 import { useOneDrive } from "@/hooks/use-one-drive";
 import { useDropbox } from "@/hooks/use-dropbox";
 import { Loader2 } from "lucide-react";
@@ -113,6 +113,14 @@ const Index = () => {
 
   const performAutoSync = useCallback(async () => {
     if (!activeService) return;
+    if (activeService.isSyncing) return;
+    if (
+      activeService.name === "Google Drive" &&
+      (isGoogleDriveAuthBusy() || isGoogleDriveScopeBlocked())
+    ) {
+      console.log("Auto-sync: skipping Google Drive (auth in progress or scope blocked)");
+      return;
+    }
     console.log("Auto-sync: performAutoSync started for", activeService.name);
     try {
       const syncResult = await activeService.sync(undefined, undefined, undefined, true);

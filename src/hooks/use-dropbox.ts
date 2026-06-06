@@ -2,16 +2,18 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { initDropbox, getAuthenticationUrl, handleAuthRedirect, syncNotesWithDropbox, checkDropboxMasterKey } from "@/lib/dropbox";
-import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, wipeDatabaseButKeepKeys, changeEncryptionKey, SyncResult } from "@/lib/note-storage";
+import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, wipeDatabaseButKeepKeys, SyncResult } from "@/lib/note-storage";
+import { resolveCloudKeyImport, getCloudKeyConflictIfNeeded } from "@/lib/cloud-sync-resolver";
+import { setupDropboxOAuthRedirect } from "@/lib/dropbox-oauth";
+import { setCloudSyncState, useCloudSyncState } from "@/lib/cloud-sync-state";
 import { showSuccess, showError } from "@/utils/toast";
 import { Browser } from "@capacitor/browser";
-import { App as CapacitorApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 
-let isAuthenticating = false;
+let oauthSuccessHandling = false;
 
 export const useDropbox = () => {
-    const [isSyncing, setIsSyncing] = useState(false);
+    const isSyncing = useCloudSyncState("dropbox");
     const [lastSynced, setLastSynced] = useState<string | null>(localStorage.getItem("dropbox-last-synced"));
     const [accessToken, setAccessToken] = useState<string | null>(localStorage.getItem("dropbox-access-token"));
 
@@ -37,57 +39,44 @@ export const useDropbox = () => {
         return () => window.removeEventListener("dropbox-token-updated", handleTokenUpdate);
     }, [accessToken]);
 
-    // Handle Redirect Return
+    // Handle redirect return (web query param + native deep link via shared handler)
     useEffect(() => {
-        let listenerHandle: any = null;
+        setupDropboxOAuthRedirect();
 
-        const handleAppUrlOpen = async (event: { url: string }) => {
-            if (event.url.includes("openkeep://auth")) {
-                await Browser.close();
-                const url = new URL(event.url.replace("openkeep://auth", "https://localhost"));
-                const code = url.searchParams.get("code");
-
-                if (code && !isAuthenticating) {
-                    isAuthenticating = true;
-                    try {
-                        console.log("Processing Dropbox Auth Code from Deep Link...");
-                        const token = await handleAuthRedirect(code);
-                        setAccessToken(token);
-                        localStorage.setItem("dropbox-access-token", token);
-                        window.dispatchEvent(new Event("dropbox-token-updated"));
-                        initDropbox(token);
-                        showSuccess("Connected to Dropbox!");
-                        
-                        const syncResult = await doInternalSync();
-                        if (syncResult.status === "conflict") {
-                            window.dispatchEvent(new CustomEvent("open-sync-conflict", { detail: { service: "dropbox", payload: (syncResult as any).cloudPayload, reason: (syncResult as any).reason } }));
-                        }
-                    } catch (error) {
-                        console.error("Dropbox auth error from deep link:", error);
-                        showError("Failed to finalize Dropbox login.");
-                    } finally {
-                        isAuthenticating = false;
-                    }
+        const handleOAuthSuccess = async (event: Event) => {
+            if (oauthSuccessHandling) return;
+            oauthSuccessHandling = true;
+            try {
+                const token = (event as CustomEvent<{ token: string }>).detail?.token;
+                if (token) {
+                    setAccessToken(token);
                 }
+                const syncResult = await doInternalSync(undefined, undefined, undefined, true);
+                if (syncResult.status === "conflict") {
+                    window.dispatchEvent(new CustomEvent("open-sync-conflict", {
+                        detail: { service: "dropbox", payload: (syncResult as any).cloudPayload, reason: (syncResult as any).reason },
+                    }));
+                }
+            } finally {
+                oauthSuccessHandling = false;
             }
         };
 
-        const checkCodeAndListen = async () => {
+        window.addEventListener("dropbox-oauth-success", handleOAuthSuccess);
+
+        const checkWebCode = async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get("code");
 
             if (code && !accessToken) {
                 try {
-                    // Clean URL
                     window.history.replaceState({}, document.title, window.location.pathname);
-
                     const token = await handleAuthRedirect(code);
                     setAccessToken(token);
                     localStorage.setItem("dropbox-access-token", token);
                     window.dispatchEvent(new Event("dropbox-token-updated"));
                     initDropbox(token);
                     showSuccess("Connected to Dropbox!");
-                    
                     const syncResult = await doInternalSync();
                     if (syncResult.status === "conflict") {
                         window.dispatchEvent(new CustomEvent("open-sync-conflict", { detail: { service: "dropbox", payload: (syncResult as any).cloudPayload, reason: (syncResult as any).reason } }));
@@ -96,18 +85,12 @@ export const useDropbox = () => {
                     console.error("Dropbox auth error:", error);
                 }
             }
-
-            if (Capacitor.isNativePlatform()) {
-                listenerHandle = await CapacitorApp.addListener('appUrlOpen', handleAppUrlOpen);
-            }
         };
 
-        checkCodeAndListen();
+        checkWebCode();
 
         return () => {
-            if (listenerHandle) {
-                listenerHandle.remove();
-            }
+            window.removeEventListener("dropbox-oauth-success", handleOAuthSuccess);
         };
     }, [accessToken]);
 
@@ -126,40 +109,41 @@ export const useDropbox = () => {
     }, []);
 
     const doInternalSync = async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false): Promise<SyncResult> => {
-        setIsSyncing(true);
+        setCloudSyncState("dropbox", true);
         try {
             const pin = localStorage.getItem("app-passcode");
-            if (!pin && Capacitor.isNativePlatform()) {
+            if (!pin && localStorage.getItem("app-lock-enabled") === "true") {
                 throw new Error("No PIN found. Please set up a PIN in App Lock settings first.");
             }
 
-            if (forceResolution === "cloud" && cloudPayload && pin) {
-                const importPin = providedPin || pin;
-                await wipeDatabaseButKeepKeys();
-                await importMasterKey(cloudPayload, importPin);
-                if (providedPin && providedPin !== pin) {
-                    localStorage.setItem("app-passcode", providedPin);
-                }
-            }
+            const cloudKeyConflict = await getCloudKeyConflictIfNeeded(
+                pin,
+                forceResolution,
+                checkDropboxMasterKey
+            );
+            if (cloudKeyConflict) return cloudKeyConflict;
 
-            if (forceResolution === "merge" && cloudPayload && pin && providedPin && providedPin !== pin) {
-                await changeEncryptionKey(pin, providedPin);
-                await importMasterKey(cloudPayload, providedPin);
-                localStorage.setItem("app-passcode", providedPin);
+            const keyImport = await resolveCloudKeyImport(forceResolution, cloudPayload, pin, providedPin);
+            if (keyImport.ok === false) {
+                if (cloudPayload) {
+                    return { status: "conflict", cloudPayload, reason: "key_mismatch" };
+                }
+                return { status: "error", message: keyImport.reason };
             }
+            const effectivePin = keyImport.effectivePin || pin;
 
             let masterKeyPayload: string | undefined;
 
-            if (pin && Capacitor.isNativePlatform()) {
+            if (effectivePin) {
                 if (forceResolution === "local" || (!forceResolution)) {
-                    masterKeyPayload = await exportMasterKey(pin);
+                    masterKeyPayload = await exportMasterKey(effectivePin);
                 }
 
                 if (!forceResolution) {
                     const cloudKey = await checkDropboxMasterKey();
                     if (cloudKey.exists && cloudKey.payload) {
                         const localNotes = await loadNotes();
-                        const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, pin);
+                        const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, effectivePin);
                         const isFirstConnect = !localStorage.getItem("dropbox-last-synced");
                         
                         if (!isMatch) {
@@ -168,7 +152,7 @@ export const useDropbox = () => {
 
                         if (localNotes.length === 0) {
                             await wipeDatabaseButKeepKeys();
-                            await importMasterKey(cloudKey.payload, pin);
+                            await importMasterKey(cloudKey.payload, effectivePin);
                             masterKeyPayload = undefined;
                         } else if (isFirstConnect) {
                             return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
@@ -179,7 +163,8 @@ export const useDropbox = () => {
 
             const localNotes = await loadNotes();
             const localCustomTags = JSON.parse(localStorage.getItem("custom-tags") || "[]");
-            const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithDropbox(localNotes, localCustomTags, { masterKeyPayload, forceResolution });
+            const dropboxForceResolution = forceResolution === "merge" ? undefined : forceResolution;
+            const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithDropbox(localNotes, localCustomTags, { masterKeyPayload, forceResolution: dropboxForceResolution });
 
             await Promise.all(mergedNotes.map(note => saveNote(note)));
             localStorage.setItem("custom-tags", JSON.stringify(mergedTags));
@@ -208,7 +193,7 @@ export const useDropbox = () => {
             }
             return { status: "error", message: (error as Error).message };
         } finally {
-            setIsSyncing(false);
+            setCloudSyncState("dropbox", false);
         }
     };
 

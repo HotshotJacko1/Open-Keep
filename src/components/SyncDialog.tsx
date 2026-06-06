@@ -90,9 +90,15 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
 
   const resolveConflict = async (resolution: "local" | "cloud" | "merge") => {
     if (!conflictData) return;
-    await conflictData.activeService.sync(resolution, conflictData.cloudPayload, providedPin.trim() || undefined);
-    setConflictData(null);
-    setProvidedPin("");
+    const result = await conflictData.activeService.sync(
+      resolution,
+      conflictData.cloudPayload,
+      providedPin.trim() || undefined
+    );
+    if (result?.status === "success") {
+      setConflictData(null);
+      setProvidedPin("");
+    }
   };
 
   return (

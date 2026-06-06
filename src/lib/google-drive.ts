@@ -1,8 +1,9 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import { Note } from "@/types/note";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { encryptData, decryptData } from "@/lib/note-storage";
 import { resolveImagesToBase64, restoreImagesFromBase64 } from "@/lib/image-storage";
+import { normalizeCloudMasterKeyPayload } from "@/lib/cloud-master-key";
 
 const FOLDER_NAME = "Open Keep Notes";
 const NOTES_FILE_NAME = "notes.json";
@@ -10,6 +11,63 @@ const ENCRYPTED_KEY_FILE_NAME = "encrypted_master_key.json";
 
 let isInitialized = false;
 let globalAccessToken: string | null = null;
+
+const formatDriveError = (error: unknown): string => {
+    if (error instanceof Error && error.message) return error.message;
+    if (typeof error === "string") return error;
+    try {
+        return JSON.stringify(error);
+    } catch {
+        return "Unknown Google Drive error";
+    }
+};
+
+const driveRequest = async (
+    method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
+    url: string,
+    options?: {
+        headers?: Record<string, string>;
+        body?: string;
+    }
+): Promise<{ status: number; body: string }> => {
+    const headers = options?.headers ?? {};
+
+    if (Capacitor.isNativePlatform()) {
+        const response = await CapacitorHttp.request({
+            url,
+            method,
+            headers,
+            data: options?.body,
+            responseType: "text",
+        });
+
+        const body =
+            typeof response.data === "string"
+                ? response.data
+                : response.data != null
+                  ? JSON.stringify(response.data)
+                  : "";
+
+        if (response.status < 200 || response.status >= 300) {
+            throw new Error(body || `Google Drive request failed (${response.status})`);
+        }
+
+        return { status: response.status, body };
+    }
+
+    const response = await fetch(url, {
+        method,
+        headers,
+        body: options?.body,
+    });
+    const body = await response.text();
+
+    if (!response.ok) {
+        throw new Error(body || `Google Drive request failed (${response.status})`);
+    }
+
+    return { status: response.status, body };
+};
 
 export const initGoogleDrive = async () => {
     isInitialized = true;
@@ -27,14 +85,44 @@ export const setAccessToken = (token: string, expiresIn: number = 3600) => {
 };
 
 export const hasGoogleAccessToken = () => {
-    if (globalAccessToken) return true;
+    return getGoogleAccessToken() !== null;
+};
+
+export const getGoogleAccessToken = (): string | null => {
+    if (globalAccessToken) return globalAccessToken;
     const token = localStorage.getItem("google-access-token");
     const expiry = localStorage.getItem("google-token-expiry");
     if (token && expiry && Date.now() < parseInt(expiry, 10)) {
         globalAccessToken = token;
-        return true;
+        return token;
     }
-    return false;
+    return null;
+};
+
+export const isGoogleDriveScopeError = (error: unknown): boolean => {
+    const message = formatDriveError(error);
+    return (
+        message.includes("ACCESS_TOKEN_SCOPE_INSUFFICIENT") ||
+        message.includes("insufficientPermissions") ||
+        message.includes("Insufficient Permission")
+    );
+};
+
+/** Returns true when the current token can call the Drive API. */
+export const verifyGoogleDriveAccess = async (): Promise<boolean> => {
+    try {
+        await driveRequest(
+            "GET",
+            "https://www.googleapis.com/drive/v3/files?pageSize=1&fields=files(id)",
+            { headers: getHeaders() }
+        );
+        return true;
+    } catch (error) {
+        if (isGoogleDriveScopeError(error)) {
+            return false;
+        }
+        throw error;
+    }
 };
 
 const getHeaders = () => {
@@ -56,51 +144,42 @@ const getHeaders = () => {
 const findFolder = async (): Promise<string | null> => {
     try {
         const q = encodeURIComponent(`mimeType='application/vnd.google-apps.folder' and name='${FOLDER_NAME}' and trashed=false`);
-        const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+        const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
             headers: getHeaders(),
         });
-        if (!response.ok) throw new Error(await response.text());
-        const result = await response.json();
+        const result = JSON.parse(body);
         const files = result.files;
         return files && files.length > 0 ? files[0].id : null;
-    } catch (error: any) {
-        console.error("Error finding folder:", error);
-        return null;
+    } catch (error: unknown) {
+        console.error("Error finding folder:", formatDriveError(error));
+        throw error;
     }
 };
 
 const createFolder = async (): Promise<string> => {
-    try {
-        const fileMetadata = {
-            name: FOLDER_NAME,
-            mimeType: "application/vnd.google-apps.folder",
-        };
-        const response = await fetch("https://www.googleapis.com/drive/v3/files?fields=id", {
-            method: "POST",
-            headers: getHeaders(),
-            body: JSON.stringify(fileMetadata),
-        });
-        if (!response.ok) throw new Error(await response.text());
-        const result = await response.json();
-        return result.id;
-    } catch (error: any) {
-        console.error("Error creating folder:", error);
-        throw error;
-    }
+    const fileMetadata = {
+        name: FOLDER_NAME,
+        mimeType: "application/vnd.google-apps.folder",
+    };
+    const { body } = await driveRequest("POST", "https://www.googleapis.com/drive/v3/files?fields=id", {
+        headers: getHeaders(),
+        body: JSON.stringify(fileMetadata),
+    });
+    const result = JSON.parse(body);
+    return result.id;
 };
 
 const findNotesFile = async (folderId: string): Promise<string | null> => {
     try {
         const q = encodeURIComponent(`name='${NOTES_FILE_NAME}' and '${folderId}' in parents and trashed=false`);
-        const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+        const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
             headers: getHeaders(),
         });
-        if (!response.ok) throw new Error(await response.text());
-        const result = await response.json();
+        const result = JSON.parse(body);
         const files = result.files;
         return files && files.length > 0 ? files[0].id : null;
-    } catch (error: any) {
-        console.error("Error finding notes file:", error);
+    } catch (error: unknown) {
+        console.error("Error finding notes file:", formatDriveError(error));
         return null;
     }
 };
@@ -108,15 +187,14 @@ const findNotesFile = async (folderId: string): Promise<string | null> => {
 const findKeyFile = async (folderId: string): Promise<string | null> => {
     try {
         const q = encodeURIComponent(`name='${ENCRYPTED_KEY_FILE_NAME}' and '${folderId}' in parents and trashed=false`);
-        const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+        const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
             headers: getHeaders(),
         });
-        if (!response.ok) throw new Error(await response.text());
-        const result = await response.json();
+        const result = JSON.parse(body);
         const files = result.files;
         return files && files.length > 0 ? files[0].id : null;
-    } catch (error: any) {
-        console.error("Error finding master key file:", error);
+    } catch (error: unknown) {
+        console.error("Error finding master key file:", formatDriveError(error));
         return null;
     }
 };
@@ -135,26 +213,21 @@ export const checkGoogleDriveMasterKey = async (): Promise<{ exists: boolean, fi
 
 const downloadMasterKey = async (fileId: string): Promise<string | null> => {
     try {
-        const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+        const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
             headers: { Authorization: `Bearer ${globalAccessToken}` },
         });
-        if (!response.ok) throw new Error(await response.text());
-        const text = await response.text();
-        return text;
-    } catch (error: any) {
-        console.error("Error downloading master key:", error);
+        return normalizeCloudMasterKeyPayload(body);
+    } catch (error: unknown) {
+        console.error("Error downloading master key:", formatDriveError(error));
         return null;
     }
 };
 
 const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTags: string[] }> => {
     try {
-        const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+        const { body: text } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
             headers: { Authorization: `Bearer ${globalAccessToken}` },
         });
-        if (!response.ok) throw new Error(await response.text());
-        
-        const text = await response.text();
         let result: any;
         try {
             result = JSON.parse(text);
@@ -164,7 +237,6 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
 
         try {
             if (typeof result === 'string') {
-                // Attempt decrypt
                 const decryptedText = await decryptData(result);
                 result = JSON.parse(decryptedText);
             }
@@ -178,16 +250,13 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
         let parsedNoteImages: Record<string, Array<{id: string, data: string}>> = {};
 
         if (Array.isArray(result)) {
-            // Legacy format: just an array of notes
             parsedNotes = result as unknown as Note[];
         } else if (result && typeof result === 'object' && 'notes' in result) {
-            // New format: { notes: Note[], customTags: string[] }
             parsedNotes = result.notes || [];
             parsedTags = result.customTags || [];
             parsedNoteImages = result.noteImages || {};
         }
 
-        // Restore images
         for (const note of parsedNotes) {
             if (parsedNoteImages[note.id] && parsedNoteImages[note.id].length > 0) {
                 note.images = await restoreImagesFromBase64(parsedNoteImages[note.id]);
@@ -195,10 +264,61 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
         }
 
         return { notes: parsedNotes, customTags: parsedTags };
-    } catch (error: any) {
-        console.error("Error downloading notes:", error);
-        return { notes: [], customTags: [] };
+    } catch (error: unknown) {
+        console.error("Error downloading notes:", formatDriveError(error));
+        throw error;
     }
+};
+
+const uploadFileContent = async (
+    fileName: string,
+    mimeType: string,
+    folderId: string,
+    content: string,
+    fileId: string | null
+): Promise<void> => {
+    const accessToken = globalAccessToken;
+    if (!accessToken) throw new Error("No access token found");
+
+    if (fileId) {
+        await driveRequest(
+            "PATCH",
+            `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+            {
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    "Content-Type": mimeType,
+                },
+                body: content,
+            }
+        );
+        return;
+    }
+
+    const { body } = await driveRequest("POST", "https://www.googleapis.com/drive/v3/files?fields=id", {
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            name: fileName,
+            mimeType,
+            parents: [folderId],
+        }),
+    });
+    const created = JSON.parse(body);
+
+    await driveRequest(
+        "PATCH",
+        `https://www.googleapis.com/upload/drive/v3/files/${created.id}?uploadType=media`,
+        {
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": mimeType,
+            },
+            body: content,
+        }
+    );
 };
 
 const uploadNotes = async (
@@ -228,70 +348,11 @@ const uploadNotes = async (
         throw e;
     }
 
-    const metadata = {
-        name: NOTES_FILE_NAME,
-        mimeType: "application/json",
-        parents: fileId ? undefined : [folderId],
-    };
-
-    const accessToken = globalAccessToken;
-    if (!accessToken) throw new Error("No access token found");
-
-    const form = new FormData();
-    form.append(
-        "metadata",
-        new Blob([JSON.stringify(metadata)], { type: "application/json" })
-    );
-    form.append(
-        "file",
-        new Blob([fileContent], { type: "application/json" })
-    );
-
-    const url = fileId
-        ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
-        : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
-
-    const method = fileId ? "PATCH" : "POST";
-
-    const response = await fetch(url, {
-        method,
-        headers: { Authorization: `Bearer ${accessToken}` },
-        body: form,
-    });
-
-    if (!response.ok) {
-        throw new Error(`Upload failed: ${response.statusText}`);
-    }
+    await uploadFileContent(NOTES_FILE_NAME, "application/json", folderId, fileContent, fileId);
 };
 
 const uploadMasterKey = async (folderId: string, payload: string, fileId: string | null): Promise<void> => {
-    const metadata = {
-        name: ENCRYPTED_KEY_FILE_NAME,
-        mimeType: "text/plain",
-        parents: fileId ? undefined : [folderId],
-    };
-
-    const accessToken = globalAccessToken;
-    if (!accessToken) throw new Error("No access token found");
-
-    const form = new FormData();
-    form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
-    form.append("file", new Blob([payload], { type: "text/plain" }));
-
-    const url = fileId
-        ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
-        : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
-    const method = fileId ? "PATCH" : "POST";
-
-    const response = await fetch(url, {
-        method,
-        headers: { Authorization: `Bearer ${accessToken}` },
-        body: form,
-    });
-
-    if (!response.ok) {
-        throw new Error(`Master key upload failed: ${response.statusText}`);
-    }
+    await uploadFileContent(ENCRYPTED_KEY_FILE_NAME, "text/plain", folderId, payload, fileId);
 };
 
 export const syncNotesWithDrive = async (
@@ -326,6 +387,15 @@ export const syncNotesWithDrive = async (
         }
         await uploadNotes(folderId, localNotes, localCustomTags, fileId);
         return { notes: localNotes, customTags: localCustomTags };
+    }
+
+    // If Keep Cloud, download remote notes only (local was wiped before import)
+    if (forceResolution === "cloud") {
+        if (fileId) {
+            const remoteData = await downloadNotes(fileId);
+            return { notes: remoteData.notes, customTags: remoteData.customTags };
+        }
+        return { notes: [], customTags: [] };
     }
 
     let remoteNotes: Note[] = [];
@@ -385,8 +455,7 @@ export const deleteRemoteData = async (): Promise<void> => {
 
     const folderId = await findFolder();
     if (folderId) {
-        await fetch(`https://www.googleapis.com/drive/v3/files/${folderId}`, {
-            method: "DELETE",
+        await driveRequest("DELETE", `https://www.googleapis.com/drive/v3/files/${folderId}`, {
             headers: getHeaders(),
         });
     }

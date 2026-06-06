@@ -2,6 +2,7 @@
 import { Note } from "@/types/note";
 import { encryptData, decryptData } from "@/lib/note-storage";
 import { resolveImagesToBase64, restoreImagesFromBase64 } from "@/lib/image-storage";
+import { normalizeCloudMasterKeyPayload } from "@/lib/cloud-master-key";
 import { Dropbox, DropboxAuth } from "dropbox";
 import { Capacitor } from "@capacitor/core";
 
@@ -89,8 +90,9 @@ export const checkDropboxMasterKey = async (): Promise<{ exists: boolean, payloa
         const response = await dbx.filesDownload({ path: ENCRYPTED_KEY_FILE_NAME });
         const blob = (response.result as any).fileBlob;
         const text = await blob.text();
-        const payload = JSON.parse(text);
-        return { exists: true, payload };
+        const parsed = JSON.parse(text);
+        const payload = typeof parsed === "string" ? parsed : JSON.stringify(parsed);
+        return { exists: true, payload: normalizeCloudMasterKeyPayload(payload) };
     } catch (error: any) {
          if (error.status === 409 || (error.error && error.error.path && error.error.path['.tag'] === 'not_found')) {
             return { exists: false, payload: null };
@@ -208,6 +210,19 @@ export const syncNotesWithDropbox = async (
         }
         await uploadNotes(localNotes, localCustomTags);
         return { notes: localNotes, customTags: localCustomTags };
+    }
+
+    // If Keep Cloud, download remote notes only (local was wiped before import)
+    if (forceResolution === "cloud") {
+        try {
+            const remoteData = await downloadNotes();
+            return { notes: remoteData.notes, customTags: remoteData.customTags };
+        } catch (e: any) {
+            if (e.status === 409 || (e.error && e.error.path && e.error.path['.tag'] === 'not_found')) {
+                return { notes: [], customTags: [] };
+            }
+            throw e;
+        }
     }
 
     let remoteNotes: Note[] = [];

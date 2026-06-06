@@ -6,6 +6,7 @@ import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import { encryptData, decryptData } from "@/lib/note-storage";
 import { resolveImagesToBase64, restoreImagesFromBase64 } from "@/lib/image-storage";
+import { normalizeCloudMasterKeyPayload } from "@/lib/cloud-master-key";
 
 export const CLIENT_ID = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
 const FOLDER_NAME = "Open Keep Notes";
@@ -59,6 +60,7 @@ const msalConfig: Configuration = {
         clientId: CLIENT_ID,
         authority: "https://login.microsoftonline.com/common",
         redirectUri: REDIRECT_URI, // Ensure this is registered in Azure Portal
+        ...(Capacitor.isNativePlatform() ? { navigateToLoginRequestUrl: false } : {}),
     },
     cache: {
         cacheLocation: "localStorage", // This configures where your cache will be stored
@@ -118,22 +120,40 @@ export const initOneDrive = async () => {
             console.warn("MSAL Initialize warn:", e);
         }
 
-        try {
-            const response = await msalInstance.handleRedirectPromise();
-            if (response && response.account) {
-                msalInstance.setActiveAccount(response.account);
-            } else if (!msalInstance.getActiveAccount()) {
-                const accounts = msalInstance.getAllAccounts();
-                if (accounts.length > 0) {
-                    msalInstance.setActiveAccount(accounts[0]);
+        // On web, the OAuth redirect hash is in window.location — handle it once at startup.
+        if (!Capacitor.isNativePlatform()) {
+            try {
+                const response = await msalInstance.handleRedirectPromise();
+                if (response?.account) {
+                    msalInstance.setActiveAccount(response.account);
                 }
+            } catch (e) {
+                console.error("handleRedirectPromise error:", e);
             }
-        } catch (e) {
-            console.error("handleRedirectPromise error:", e);
+        } else if (!msalInstance.getActiveAccount()) {
+            const accounts = msalInstance.getAllAccounts();
+            if (accounts.length > 0) {
+                msalInstance.setActiveAccount(accounts[0]);
+            }
         }
+
         isInitialized = true;
     })();
     return initPromise;
+};
+
+/** Extract OAuth hash fragment for MSAL (expects `#code=...`, not full deep link URL). */
+export const extractOAuthHashFromUrl = (url: string): string => {
+    const hashIndex = url.indexOf("#");
+    if (hashIndex === -1) return url;
+    return url.slice(hashIndex);
+};
+
+/** Process an OAuth redirect URL (native deep link). Call separately from init. */
+export const handleOneDriveRedirect = async (redirectUrl: string) => {
+    await initOneDrive();
+    const hash = extractOAuthHashFromUrl(redirectUrl);
+    return msalInstance.handleRedirectPromise(hash);
 };
 
 const loginRequest: PopupRequest = {
@@ -274,7 +294,8 @@ const downloadMasterKey = async (fileId: string): Promise<string | null> => {
         return null;
     }
     const result = await response.json();
-    return typeof result === 'string' ? result : JSON.stringify(result);
+    const raw = typeof result === 'string' ? result : JSON.stringify(result);
+    return normalizeCloudMasterKeyPayload(raw);
 };
 
 const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTags: string[] }> => {
@@ -408,6 +429,15 @@ export const syncNotesWithOneDrive = async (
         }
         await uploadNotes(folderId, localNotes, localCustomTags, fileId);
         return { notes: localNotes, customTags: localCustomTags };
+    }
+
+    // If Keep Cloud, download remote notes only (local was wiped before import)
+    if (forceResolution === "cloud") {
+        if (fileId) {
+            const remoteData = await downloadNotes(fileId);
+            return { notes: remoteData.notes, customTags: remoteData.customTags };
+        }
+        return { notes: [], customTags: [] };
     }
 
     let remoteNotes: Note[] = [];

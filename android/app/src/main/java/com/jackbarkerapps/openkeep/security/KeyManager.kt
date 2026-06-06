@@ -196,6 +196,16 @@ class KeyManager(private val context: Context) {
         storeMasterKey(masterKey)
     }
 
+    fun canDecryptCloudMasterKey(payload: String, pin: String): Boolean {
+        return try {
+            val exportKEK = deriveExportKEK(pin)
+            decryptWithKEK(payload, exportKEK)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     fun verifyCloudMasterKeyMatch(payload: String, pin: String): Boolean {
         try {
             val exportKEK = deriveExportKEK(pin)
