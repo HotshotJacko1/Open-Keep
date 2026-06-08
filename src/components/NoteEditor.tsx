@@ -55,10 +55,20 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { saveImage, getImageSrc, deleteImage } from "@/lib/image-storage";
 import { ImageIcon } from "lucide-react";
 
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useEditor, EditorContent, Extension } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import UnderlineExtension from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
+
+// Make Enter insert a line break (<br>) instead of a new paragraph
+const HardBreakOnEnter = Extension.create({
+    name: 'hardBreakOnEnter',
+    addKeyboardShortcuts() {
+        return {
+            Enter: () => this.editor.commands.setHardBreak(),
+        };
+    },
+});
 
 interface NoteEditorProps {
     isOpen: boolean;
@@ -119,7 +129,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
         if (!touchStartRef.current) return;
         const dx = e.touches[0].clientX - touchStartRef.current.x;
         const dy = e.touches[0].clientY - touchStartRef.current.y;
-        
+
         if (Math.abs(dx) > Math.abs(dy)) {
             setSwipeX(dx);
         }
@@ -129,7 +139,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
         if (!touchStartRef.current) return;
         const dx = e.changedTouches[0].clientX - touchStartRef.current.x;
         const dy = e.changedTouches[0].clientY - touchStartRef.current.y;
-        
+
         const threshold = 50;
         if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > threshold) {
             if (dx > 0) {
@@ -177,9 +187,9 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
         <div
             ref={setNodeRef}
             style={style}
-            className={`flex items-start bg-transparent rounded-md mb-1 overflow-hidden ${item.indentation ? 'ml-8' : ''}`}
+            className={`flex items-start bg-transparent rounded-md mb-0.1 overflow-hidden ${item.indentation ? 'ml-8' : ''}`}
         >
-            <div 
+            <div
                 className="flex items-start gap-2 w-full py-1 transition-transform duration-75"
                 style={{ transform: `translateX(${swipeX}px)` }}
             >
@@ -272,7 +282,7 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
         if (!touchStartRef.current) return;
         const dx = e.touches[0].clientX - touchStartRef.current.x;
         const dy = e.touches[0].clientY - touchStartRef.current.y;
-        
+
         if (Math.abs(dx) > Math.abs(dy)) {
             setSwipeX(dx);
         }
@@ -282,7 +292,7 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
         if (!touchStartRef.current) return;
         const dx = e.changedTouches[0].clientX - touchStartRef.current.x;
         const dy = e.changedTouches[0].clientY - touchStartRef.current.y;
-        
+
         const threshold = 50;
         if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > threshold) {
             if (dx > 0) {
@@ -318,8 +328,8 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
     }, [autoFocus]);
 
     return (
-        <div className={`flex items-start bg-transparent rounded-md mb-1 overflow-hidden ${item.indentation ? 'ml-8' : ''}`}>
-            <div 
+        <div className={`flex items-start bg-transparent rounded-md mb-0.1 overflow-hidden ${item.indentation ? 'ml-8' : ''}`}>
+            <div
                 className="flex items-start gap-2 w-full py-1 transition-transform duration-75"
                 style={{ transform: `translateX(${swipeX}px)` }}
             >
@@ -485,6 +495,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             Placeholder.configure({
                 placeholder: 'Take a note...',
             }),
+            HardBreakOnEnter,
         ],
         content: content,
         editable: !isDeleted,
@@ -737,15 +748,15 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             setChecklistItems((items) => {
                 const unchecked = items.filter(i => !i.checked);
                 const checked = items.filter(i => i.checked);
-                
+
                 const oldIndex = unchecked.findIndex((item) => item.id === active.id);
                 const newIndex = unchecked.findIndex((item) => item.id === over.id);
-                
+
                 if (oldIndex === -1 || newIndex === -1) return items;
 
                 const movedItem = unchecked[oldIndex];
                 const children: ChecklistItem[] = [];
-                
+
                 // If moving a parent, find its children
                 if (movedItem.indentation === "") {
                     for (let i = oldIndex + 1; i < unchecked.length; i++) {
@@ -760,11 +771,11 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 const newUnchecked = [...unchecked];
                 // Remove the group
                 newUnchecked.splice(oldIndex, 1 + children.length);
-                
+
                 // Find where the 'over' item is now
                 const overItem = unchecked[newIndex];
                 let insertIndex = newUnchecked.findIndex(i => i.id === overItem.id);
-                
+
                 // If we are moving down (oldIndex < newIndex), we might want to insert AFTER the over item
                 // especially if the over item also has children. 
                 // But for now, let's just insert at the found index.
@@ -773,7 +784,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 }
 
                 newUnchecked.splice(insertIndex, 0, movedItem, ...children);
-                
+
                 return [...newUnchecked, ...checked];
             });
         }
@@ -785,7 +796,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 const index = prev.findIndex(i => i.id === id);
                 // Can't indent the first item
                 if (index === 0) return item;
-                
+
                 // Prevent indenting if it has nested items below it
                 if (index < prev.length - 1 && item.indentation === "" && prev[index + 1].indentation !== "") {
                     return item;
@@ -881,7 +892,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 }
             }
 
-            const updatedItems = prev.map(i => 
+            const updatedItems = prev.map(i =>
                 itemsToToggle.includes(i.id) ? { ...i, checked: isChecked } : i
             );
 
@@ -1349,7 +1360,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                             {showCheckedItems ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                             {checklistItems.filter(i => i.checked).length} checked items
                                         </Button>
-                                        
+
                                         {showCheckedItems && (
                                             <div className="flex flex-col">
                                                 {checklistItems.filter(i => i.checked).map((item) => (

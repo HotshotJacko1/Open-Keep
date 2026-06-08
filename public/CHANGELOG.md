@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fixed favicon (tab icon) on web version.
 - Auto-sync notifications now silent.
 - Fixed Google Drive sync on web version.
+- Notes now show tiering on the homescreen.
+- Notes on homescreen now show ticked/checked items at the bottom.
 
 ## [3.0.0] - 2026-06-05
 ### Added

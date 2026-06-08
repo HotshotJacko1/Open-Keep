@@ -3,10 +3,10 @@ import React from "react";
 import { Note } from "@/types/note";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Pin, Archive, Trash2, Square, Check, RotateCcw, Bell } from "lucide-react";
+import { Pin, Archive, Trash2, Square, Check, RotateCcw, Bell, ChevronDown, ChevronRight } from "lucide-react";
 import { formatReminderLabel } from "@/utils/reminder";
 import { cn } from "@/lib/utils";
-import { isChecklist, parseChecklist } from "@/utils/markdown";
+import { isChecklist, parseChecklist, ChecklistItem } from "@/utils/markdown";
 
 import useLongPress from "@/hooks/use-long-press";
 import { useState, useEffect } from "react";
@@ -62,8 +62,18 @@ const NoteCard: React.FC<NoteCardProps> = ({
 
   // Determine view mode based on content
   const isList = isChecklist(note.content);
-  // Parse content for display
-  const displayContent = isList ? parseChecklist(note.content).items.slice(0, 8) : null; // Show first 8 items max
+  // Parse and split content for display
+  const parsedItems = isList ? parseChecklist(note.content).items : null;
+  const uncheckedItems = parsedItems ? parsedItems.filter(item => !item.checked) : [];
+  const checkedItems = parsedItems ? parsedItems.filter(item => item.checked) : [];
+
+  // Limit total visible items to 8
+  const maxItems = 8;
+  const visibleUnchecked = uncheckedItems.slice(0, maxItems);
+  const remainingSlots = Math.max(0, maxItems - visibleUnchecked.length);
+  const visibleChecked = checkedItems.slice(0, remainingSlots);
+
+  const [showCompleted, setShowCompleted] = useState(true);
 
   const [bannerSrc, setBannerSrc] = useState<string | null>(null);
 
@@ -143,29 +153,17 @@ const NoteCard: React.FC<NoteCardProps> = ({
         </div>
       </CardHeader>
       <CardContent className="px-4 pb-4 pt-0">
-        {isList && displayContent ? (
-          <ul className="space-y-1 w-full overflow-hidden">
-            {displayContent.map((item, index) => (
-              <li key={index} className="flex items-start gap-2 text-sm text-black dark:text-white w-full overflow-hidden">
+        {isList && parsedItems ? (() => {
+          const renderItem = (item: ChecklistItem, index: number) => {
+            const indentLevel = Math.floor((item.indentation?.length ?? 0) / 2);
+            return (
+              <li key={item.id} className="flex items-start gap-2 text-sm text-black dark:text-white w-full overflow-hidden" style={{ paddingLeft: `${indentLevel * 1}rem` }}>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 shrink-0 p-0"
                   onClick={(e) => {
                     e.stopPropagation();
-                    // We need to pass the original line index to toggle.
-                    // parseChecklist might return subset or reordered? 
-                    // No, parseChecklist returns sequential items found.
-                    // But we likely want to key off the ID if possible, or just index.
-                    // For now, let's assume index in the parsed array corresponds to finding it in the text?
-                    // No, `toggleCheckboxInContent` expects line index of the file.
-                    // Ideally `parseChecklist` returns the line index from source.
-                    // For now, note toggle might be tricky without line index.
-                    // Let's pass the index we are mapping over, assuming `displayContent` are the first N items which correspond to first N lines? 
-                    // No, empty lines or non-list lines would shift indices.
-                    // Let's rely on parent to handle it? 
-                    // For this refactor I will pass the ITEM ID (which I set to line-{index} in utils)
-                    // The parent can parse the index from the ID.
                     onToggleListItem && onToggleListItem(note.id, item.id);
                   }}
                   disabled={isSelectionMode}
@@ -180,10 +178,45 @@ const NoteCard: React.FC<NoteCardProps> = ({
                   {item.content}
                 </span>
               </li>
-            ))}
-            {/* If trimmed, show ... */}
-          </ul>
-        ) : (
+            );
+          };
+
+          return (
+            <div className="w-full overflow-hidden">
+              {/* Unchecked items */}
+              {visibleUnchecked.length > 0 && (
+                <ul className="space-y-1 w-full overflow-hidden">
+                  {visibleUnchecked.map(renderItem)}
+                </ul>
+              )}
+
+              {/* Completed items divider & section */}
+              {checkedItems.length > 0 && (
+                <>
+                  <button
+                    className="flex items-center gap-2 w-full py-1.5 mt-1 text-xs text-muted-foreground hover:text-secondary-foreground transition-colors duration-150"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowCompleted(prev => !prev);
+                    }}
+                  >
+                    {showCompleted ? (
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                    )}
+                    <span>{checkedItems.length} completed {checkedItems.length === 1 ? 'item' : 'items'}</span>
+                  </button>
+                  {showCompleted && (
+                    <ul className="space-y-1 w-full overflow-hidden">
+                      {visibleChecked.map(renderItem)}
+                    </ul>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })() : (
           <div
             className="text-sm text-secondary-foreground max-h-[300px] overflow-hidden text-ellipsis prose prose-sm max-w-none min-w-0 w-full dark:prose-invert prose-p:my-0 prose-headings:my-1 [overflow-wrap:anywhere] [word-break:break-word] [&_*]:[overflow-wrap:anywhere] [&_*]:[word-break:break-word]"
             dangerouslySetInnerHTML={{ __html: note.content }}
