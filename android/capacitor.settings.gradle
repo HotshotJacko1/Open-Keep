@@ -27,10 +27,10 @@ include ':capacitor-share'
 project(':capacitor-share').projectDir = new File('../node_modules/.pnpm/@capacitor+share@8.0.0_@capacitor+core@8.0.0/node_modules/@capacitor/share/android')
 
 include ':capgo-capacitor-native-biometric'
-project(':capgo-capacitor-native-biometric').projectDir = new File('../node_modules/.pnpm/@capgo+capacitor-native-biometric@8.3.7_@capacitor+core@8.0.0/node_modules/@capgo/capacitor-native-biometric/android')
+project(':capgo-capacitor-native-biometric').projectDir = new File('../node_modules/.pnpm/@capgo+capacitor-native-bio_40b26c4cf3eea31f06c2381be8f2288b/node_modules/@capgo/capacitor-native-biometric/android')
 
 include ':capgo-capacitor-social-login'
 project(':capgo-capacitor-social-login').projectDir = new File('../node_modules/.pnpm/@capgo+capacitor-social-login@8.3.22_@capacitor+core@8.0.0/node_modules/@capgo/capacitor-social-login/android')
 
 include ':sentry-capacitor'
-project(':sentry-capacitor').projectDir = new File('../node_modules/.pnpm/@sentry+capacitor@4.0.0_@capacitor+core@8.0.0_@sentry+react@10.43.0_react@18.3.1_/node_modules/@sentry/capacitor/android')
+project(':sentry-capacitor').projectDir = new File('../node_modules/.pnpm/@sentry+capacitor@4.0.0_@ca_c6b794a880dea0833ca5fa2784f3e0c4/node_modules/@sentry/capacitor/android')
