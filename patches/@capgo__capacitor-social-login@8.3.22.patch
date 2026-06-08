@@ -1,0 +1,107 @@
+diff --git a/android/src/main/java/ee/forgr/capacitor/social/login/GoogleProvider.java b/android/src/main/java/ee/forgr/capacitor/social/login/GoogleProvider.java
+index 4e8b554273a248e8e3e26c032f507e126907c054..dcbc3d771d992dba905ca36f0b3501dba19cd937 100644
+--- a/android/src/main/java/ee/forgr/capacitor/social/login/GoogleProvider.java
++++ b/android/src/main/java/ee/forgr/capacitor/social/login/GoogleProvider.java
+@@ -303,14 +303,12 @@ public class GoogleProvider implements SocialProvider {
+ 
+         String nonce = config.optString("nonce");
+         JSONObject options = call.getObject("options", new JSObject());
+-        boolean bottomUi = false;
+         boolean forcePrompt = false;
+         boolean filterByAuthorizedAccounts = false;
+         boolean autoSelectEnabled = false;
+ 
+         try {
+             if (options != null) {
+-                bottomUi = options.has("style") && Objects.equals(options.getString("style"), "bottom");
+                 filterByAuthorizedAccounts = options.has("filterByAuthorizedAccounts") && options.getBoolean("filterByAuthorizedAccounts");
+                 autoSelectEnabled = options.has("autoSelectEnabled") && options.getBoolean("autoSelectEnabled");
+                 forcePrompt = options.has("forcePrompt") && options.getBoolean("forcePrompt");
+@@ -346,48 +344,39 @@ public class GoogleProvider implements SocialProvider {
+         // Build credential request
+         GetCredentialRequest.Builder requestBuilder = new GetCredentialRequest.Builder();
+ 
+-        if (bottomUi) {
+-            Log.e(LOG_TAG, "use bottomUi");
+-            GetGoogleIdOption.Builder googleIdOptionBuilder = new GetGoogleIdOption.Builder().setServerClientId(this.clientId);
+-            // Handle bottom UI specific options
+-            if (forcePrompt) {
+-                filterByAuthorizedAccounts = false;
+-                autoSelectEnabled = false;
+-            }
++        if (forcePrompt) {
++            filterByAuthorizedAccounts = false;
++            autoSelectEnabled = false;
++        }
+ 
++        androidx.credentials.CredentialOption googleIdOption;
++        if (this.hostedDomain != null && !this.hostedDomain.isEmpty()) {
++            GetSignInWithGoogleOption.Builder googleIdOptionBuilder = new GetSignInWithGoogleOption.Builder(this.clientId);
+             if (!nonce.isEmpty()) {
+                 googleIdOptionBuilder.setNonce(nonce);
+             }
+-            if (filterByAuthorizedAccounts) {
+-                googleIdOptionBuilder.setFilterByAuthorizedAccounts(true);
+-            }
+-
+-            if (autoSelectEnabled) {
+-                googleIdOptionBuilder.setAutoSelectEnabled(true);
+-            }
+-
+-            GetGoogleIdOption googleIdOptionFiltered = googleIdOptionBuilder.build();
+-            requestBuilder.addCredentialOption(googleIdOptionFiltered);
++            googleIdOptionBuilder.setHostedDomainFilter(this.hostedDomain);
++            googleIdOption = googleIdOptionBuilder.build();
+         } else {
+-            // For standard UI, we don't use these options
+-            GetSignInWithGoogleOption.Builder googleIdOptionBuilder = new GetSignInWithGoogleOption.Builder(this.clientId);
++            GetGoogleIdOption.Builder googleIdOptionBuilder = new GetGoogleIdOption.Builder()
++                .setServerClientId(this.clientId)
++                .setFilterByAuthorizedAccounts(filterByAuthorizedAccounts)
++                .setAutoSelectEnabled(autoSelectEnabled);
+ 
+             if (!nonce.isEmpty()) {
+                 googleIdOptionBuilder.setNonce(nonce);
+             }
+-            if (this.hostedDomain != null && !this.hostedDomain.isEmpty()) {
+-                googleIdOptionBuilder.setHostedDomainFilter(this.hostedDomain);
+-            }
+-
+-            requestBuilder.addCredentialOption(googleIdOptionBuilder.build());
++            googleIdOption = googleIdOptionBuilder.build();
+         }
+ 
++        requestBuilder.addCredentialOption(googleIdOption);
++
+         GetCredentialRequest filteredRequest = requestBuilder.build();
+ 
+         // Execute credential request
+         Executor executor = Executors.newSingleThreadExecutor();
+         credentialManager.getCredentialAsync(
+-            context,
++            activity,
+             filteredRequest,
+             null,
+             executor,
+@@ -467,7 +456,7 @@ public class GoogleProvider implements SocialProvider {
+ 
+             AuthorizationRequest authorizationRequest = authorizationRequestBuilder.build();
+ 
+-            Identity.getAuthorizationClient(context)
++            Identity.getAuthorizationClient(activity)
+                 .authorize(authorizationRequest)
+                 .addOnSuccessListener((authorizationResult) -> {
+                     if (authorizationResult.hasResolution()) {
+@@ -695,7 +684,11 @@ public class GoogleProvider implements SocialProvider {
+                 }
+             }
+         } else {
+-            call.reject("Google Sign-In failed: " + e.getMessage());
++            String message = e.getMessage();
++            if (message != null && message.contains("28404")) {
++                message = "[28404] Failed to retrieve an ID token. This is often caused by a configuration mismatch between the app and the Google Cloud Console (e.g., SHA-1 fingerprint or Client ID).";
++            }
++            call.reject("Google Sign-In failed: " + message);
+         }
+     }
+ 

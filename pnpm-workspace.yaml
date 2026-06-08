@@ -376,3 +376,5 @@ allowBuilds:
 packages:
   - .
 minimumReleaseAge: 1440
+patchedDependencies:
+  '@capgo/capacitor-social-login@8.3.22': patches/@capgo__capacitor-social-login@8.3.22.patch
