@@ -43,6 +43,7 @@ const Index = () => {
   const [searchParams] = useSearchParams();
   const [selectedTag, setSelectedTag] = useState<string | null>(searchParams.get("tag"));
   const isMobile = useIsMobile();
+  const [sortMode, setSortMode] = useState<"recent" | "alphabetical">("recent");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isEditLabelsOpen, setIsEditLabelsOpen] = useState(false);
@@ -506,11 +507,16 @@ const Index = () => {
         return !note.isArchived && matchesSearch && matchesTag;
       })
       .sort((a, b) => {
-        if (a.isPinned && !b.isPinned) return -1;
-        if (!a.isPinned && b.isPinned) return 1;
-        return b.updatedAt - a.updatedAt; // Sort by most recently updated
-      });
-  }, [notes, searchTerm, selectedTag]);
+              if (a.isPinned && !b.isPinned) return -1;
+              if (!a.isPinned && b.isPinned) return 1;
+      
+              if (sortMode === "alphabetical") {
+                return a.title.localeCompare(b.title);
+              }
+      
+              return b.updatedAt - a.updatedAt; // Sort by most recently updated
+            });
+  }, [notes, searchTerm, selectedTag, sortMode]);
 
   const handleNewTextNote = () => {
     // New note implicitly Text mode, content empty
@@ -1037,11 +1043,13 @@ const Index = () => {
       onClick={handleBackgroundClick} // Handle click outside
     >
       <TopBar
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        onSettingsClick={() => setIsSettingsOpen(true)}
-        startAdornment={topBarStartAdornment}
-      />
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              onSettingsClick={() => setIsSettingsOpen(true)}
+              sortMode={sortMode}
+              onSortModeChange={setSortMode}
+              startAdornment={topBarStartAdornment}
+            />
 
       <div className="flex-1 flex overflow-hidden">
         <SelectionActionBar
