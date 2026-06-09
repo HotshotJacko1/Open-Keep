@@ -235,22 +235,24 @@ class KeyManager(private val context: Context) {
     }
 
     fun encrypt(plaintext: String, key: ByteArray? = getMasterKey()): String {
-        if (key == null) throw IllegalStateException("No master key available")
-        
-        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
-        val spec = javax.crypto.spec.SecretKeySpec(key, "AES")
-        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, spec)
-        
-        val iv = cipher.iv
-        val ciphertext = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
-        
-        // Return IV + Ciphertext encoded in Base64
-        val combined = ByteArray(iv.size + ciphertext.size)
-        System.arraycopy(iv, 0, combined, 0, iv.size)
-        System.arraycopy(ciphertext, 0, combined, iv.size, ciphertext.size)
-        
-        return Base64.encodeToString(combined, Base64.DEFAULT)
-    }
+            if (key == null) throw IllegalStateException("No master key available")
+            
+            val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+            val spec = javax.crypto.spec.SecretKeySpec(key, "AES")
+            cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, spec)
+            
+            val iv = cipher.iv
+            val ciphertext = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
+            
+            // Return IV + Ciphertext encoded in Base64
+            val combined = ByteArray(iv.size + ciphertext.size)
+            System.arraycopy(iv, 0, combined, 0, iv.size)
+            System.arraycopy(ciphertext, 0, combined, iv.size, ciphertext.size)
+            
+            // NO_WRAP prevents line breaks in base64 output, which avoids
+            // issues when the encrypted data is transmitted via JSON (e.g. Google Drive sync).
+            return Base64.encodeToString(combined, Base64.NO_WRAP)
+        }
 
     fun decrypt(encryptedData: String, key: ByteArray? = getMasterKey()): String {
         if (key == null) throw IllegalStateException("No master key available")
