@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 - F-Droid release.
 
+## [4.1.0] - 2026-06-05
+### Added
+- Apple App Store release.
+
 ## [4.0.0] - 2026-06-05
 ### Added
 - Apple App Store release.
