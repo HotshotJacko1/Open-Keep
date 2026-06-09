@@ -37,7 +37,6 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
       <DialogContent
-        hideCloseButton
         className="sm:max-w-md bg-background text-text-primary dark:text-text-primary border"
       >
         <DialogHeader className="flex flex-row items-center justify-between">
