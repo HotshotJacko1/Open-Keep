@@ -30,7 +30,7 @@ include ':capgo-capacitor-native-biometric'
 project(':capgo-capacitor-native-biometric').projectDir = new File('../node_modules/.pnpm/@capgo+capacitor-native-bio_40b26c4cf3eea31f06c2381be8f2288b/node_modules/@capgo/capacitor-native-biometric/android')
 
 include ':capgo-capacitor-social-login'
-project(':capgo-capacitor-social-login').projectDir = new File('../node_modules/.pnpm/@capgo+capacitor-social-login@8.3.22_@capacitor+core@8.0.0/node_modules/@capgo/capacitor-social-login/android')
+project(':capgo-capacitor-social-login').projectDir = new File('../node_modules/.pnpm/@capgo+capacitor-social-log_2c81f3971baa6fb6da9b81574f572c4d/node_modules/@capgo/capacitor-social-login/android')
 
 include ':sentry-capacitor'
 project(':sentry-capacitor').projectDir = new File('../node_modules/.pnpm/@sentry+capacitor@4.0.0_@ca_c6b794a880dea0833ca5fa2784f3e0c4/node_modules/@sentry/capacitor/android')
