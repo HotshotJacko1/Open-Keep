@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@capgo/capacitor-social-login@8.3.22':
+    hash: 50ac2382110b651e8147d21da5051537b869f78d5edd0d7d0e6c463936d073e6
+    path: patches/@capgo__capacitor-social-login@8.3.22.patch
+
 importers:
 
   .:
@@ -53,9 +58,9 @@ importers:
       '@capgo/capacitor-native-biometric':
         specifier: ^8.3.7
         version: 8.3.7(@capacitor/core@8.0.0)
-      '@codetrix-studio/capacitor-google-auth':
-        specifier: ^3.4.0-rc.4
-        version: 3.4.0-rc.4(@capacitor/core@8.0.0)
+      '@capgo/capacitor-social-login':
+        specifier: ^8.3.22
+        version: 8.3.22(patch_hash=50ac2382110b651e8147d21da5051537b869f78d5edd0d7d0e6c463936d073e6)(@capacitor/core@8.0.0)
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -430,10 +435,10 @@ packages:
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
-  '@codetrix-studio/capacitor-google-auth@3.4.0-rc.4':
-    resolution: {integrity: sha512-d548/xKrbMHHbzMYSWnlgZCLZYo2zzY7Onrh3x8ujojrb7atkNK68I6su5WgmaBt4E+R4gxBsWams4554aOFjA==}
+  '@capgo/capacitor-social-login@8.3.22':
+    resolution: {integrity: sha512-7afa+96ekeAU13uutqZVIVHCWXs40peKoWCK2jd9k7eWnFYcLtagRbwUf9CbaAO/zrHaifXpYQSuiWHGyH1QlQ==}
     peerDependencies:
-      '@capacitor/core': ^6.0.0
+      '@capacitor/core': '>=8.0.0'
 
   '@dnd-kit/accessibility@3.1.1':
     resolution: {integrity: sha512-2P+YgaXF+gRsIihwwY1gCsQSYnu9Zyj2py8kY5fFvUM1qm2WA2u639R6YNVfU4GWr+ZM5mqEsfHZZLoRONbemw==}
@@ -3871,9 +3876,10 @@ snapshots:
     dependencies:
       '@capacitor/core': 8.0.0
 
-  '@codetrix-studio/capacitor-google-auth@3.4.0-rc.4(@capacitor/core@8.0.0)':
+  '@capgo/capacitor-social-login@8.3.22(patch_hash=50ac2382110b651e8147d21da5051537b869f78d5edd0d7d0e6c463936d073e6)(@capacitor/core@8.0.0)':
     dependencies:
       '@capacitor/core': 8.0.0
+      tslib: 2.8.1
 
   '@dnd-kit/accessibility@3.1.1(react@18.3.1)':
     dependencies:
