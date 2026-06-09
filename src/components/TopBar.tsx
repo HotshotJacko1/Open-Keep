@@ -8,7 +8,7 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-import { Settings, CloudSync, Loader2, ArrowUpDown, Check } from "lucide-react";
+import { Settings, CloudSync, Loader2, ArrowUpDown, Check, LayoutGrid, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { useGoogleDrive } from "@/hooks/use-google-drive";
@@ -23,6 +23,8 @@ interface TopBarProps {
     onSettingsClick: () => void;
     sortMode?: SortMode;
     onSortModeChange?: (mode: SortMode) => void;
+    viewMode: "grid" | "list";
+    onViewModeChange: (mode: "grid" | "list") => void;
     startAdornment?: React.ReactNode; // For Menu Button + Logo/Header Content
     className?: string; // For additional styling
 }
@@ -33,6 +35,8 @@ const TopBar: React.FC<TopBarProps> = ({
     onSettingsClick,
     sortMode = "recent",
     onSortModeChange,
+    viewMode,
+    onViewModeChange,
     startAdornment,
     className,
 }) => {
@@ -78,33 +82,43 @@ const TopBar: React.FC<TopBarProps> = ({
                     value={searchTerm}
                     onChange={(e) => onSearchChange(e.target.value)}
                 />
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
-                        >
-                            <ArrowUpDown className="h-4 w-4" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-40">
-                        <DropdownMenuItem
-                            onClick={() => onSortModeChange?.("recent")}
-                            className="flex items-center justify-between"
-                        >
-                            <span>Recent</span>
-                            {sortMode === "recent" && <Check className="h-4 w-4" />}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            onClick={() => onSortModeChange?.("alphabetical")}
-                            className="flex items-center justify-between"
-                        >
-                            <span>Alphabetical</span>
-                            {sortMode === "alphabetical" && <Check className="h-4 w-4" />}
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            >
+                                <ArrowUpDown className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuItem
+                                onClick={() => onSortModeChange?.("recent")}
+                                className="flex items-center justify-between"
+                            >
+                                <span>Recent</span>
+                                {sortMode === "recent" && <Check className="h-4 w-4" />}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => onSortModeChange?.("alphabetical")}
+                                className="flex items-center justify-between"
+                            >
+                                <span>Alphabetical</span>
+                                {sortMode === "alphabetical" && <Check className="h-4 w-4" />}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                        onClick={() => onViewModeChange(viewMode === "grid" ? "list" : "grid")}
+                    >
+                        {viewMode === "grid" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+                    </Button>
+                </div>
             </div>
 
             {showSyncButton && (

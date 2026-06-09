@@ -18,6 +18,7 @@ import InitialAskToMigrate from "@/components/InitialAskToMigrate";
 import InitialEarlyAccessDialog from "@/components/InitialEarlyAccessDialog";
 import GoogleKeepMigrationGuide from "@/components/GoogleKeepMigrationGuide";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Menu, Lightbulb, Settings } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -44,7 +45,8 @@ const Index = () => {
   const [selectedTag, setSelectedTag] = useState<string | null>(searchParams.get("tag"));
   const isMobile = useIsMobile();
   const [sortMode, setSortMode] = useState<"recent" | "alphabetical">("recent");
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
+    const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+    const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isEditLabelsOpen, setIsEditLabelsOpen] = useState(false);
   const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
@@ -921,10 +923,15 @@ const Index = () => {
           </div>
         )}
         <div
-          className="pt-4 w-full columns-2 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5"
-          style={{
+          className={cn(
+            "pt-4 w-full",
+            viewMode === "grid"
+              ? "columns-2 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5"
+              : "flex flex-col space-y-4"
+          )}
+          style={viewMode === "grid" ? {
             columnGap: isMobile ? "0.5rem" : "1rem",
-          }}
+          } : undefined}
         >
           {filteredNotes.map((note) => (
             <NoteCard
@@ -1048,6 +1055,8 @@ const Index = () => {
               onSettingsClick={() => setIsSettingsOpen(true)}
               sortMode={sortMode}
               onSortModeChange={setSortMode}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
               startAdornment={topBarStartAdornment}
             />
 
