@@ -236,37 +236,37 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
         }
 
         try {
-                    if (typeof result === 'string') {
-                        // Strip all non-base64 characters from the data before decrypting.
-                        // Android's Base64.DEFAULT encoder inserts line breaks (real newlines),
-                        // and JSON.stringify/parse cycles can convert those to literal \n sequences
-                        // (backslash + n). We strip everything except valid base64 chars.
-                        const cleaned = result.replace(/[^A-Za-z0-9+/=]/g, '');
-                        const decryptedText = await decryptData(cleaned);
-                        result = JSON.parse(decryptedText);
-                    }
-                } catch (e) {
-                    // Backward compatibility: the data might be old JSON-wrapped format,
-                    // where JSON.stringify(encryptedBase64) was uploaded as "application/json".
-                    // Try parsing as a JSON string, then decrypt.
-                    if (typeof result !== 'string') {
-                        console.error("Decryption failed", e);
-                        throw e;
-                    }
-                    try {
-                        const innerText = JSON.parse(result);
-                        if (typeof innerText === 'string') {
-                            const cleaned = innerText.replace(/[^A-Za-z0-9+/=]/g, '');
-                            const decryptedText = await decryptData(cleaned);
-                            result = JSON.parse(decryptedText);
-                        } else {
-                            throw e;
-                        }
-                    } catch {
-                        console.error("Decryption failed", e);
-                        throw e;
-                    }
+            if (typeof result === 'string') {
+                // Strip whitespace and JSON escape artifacts (\n) before decrypting.
+                // Android's Base64.DEFAULT inserts real newlines, which JSON.stringify
+                // converts to literal \\n sequences. The regex /\\n/g removes the pair
+                // as a unit (keeping any preceding 'n' in the base64 intact).
+                const cleaned = result.replace(/\\n/g, '').replace(/\s/g, '');
+                const decryptedText = await decryptData(cleaned);
+                result = JSON.parse(decryptedText);
+            }
+        } catch (e) {
+            // Backward compatibility: the data might be old JSON-wrapped format,
+            // where JSON.stringify(encryptedBase64) was uploaded as "application/json".
+            // Try parsing as a JSON string, then decrypt.
+            if (typeof result !== 'string') {
+                console.error("Decryption failed", e);
+                throw e;
+            }
+            try {
+                const innerText = JSON.parse(result);
+                if (typeof innerText === 'string') {
+                    const cleaned = innerText.replace(/\\n/g, '').replace(/\s/g, '');
+                    const decryptedText = await decryptData(cleaned);
+                    result = JSON.parse(decryptedText);
+                } else {
+                    throw e;
                 }
+            } catch {
+                console.error("Decryption failed", e);
+                throw e;
+            }
+        }
 
         let parsedNotes: Note[] = [];
         let parsedTags: string[] = [];
