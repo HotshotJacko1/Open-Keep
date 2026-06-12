@@ -11,12 +11,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Sparkles } from "lucide-react";
 
-interface InitialEarlyAccessDialogProps {
+interface WelcomeMessageProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const InitialEarlyAccessDialog: React.FC<InitialEarlyAccessDialogProps> = ({ isOpen, onClose }) => {
+const WelcomeMessage: React.FC<WelcomeMessageProps> = ({ isOpen, onClose }) => {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="sm:max-w-[425px] max-h-[85dvh] overflow-y-auto px-6 pt-[max(env(safe-area-inset-top),1.5rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)]">
@@ -30,19 +30,19 @@ const InitialEarlyAccessDialog: React.FC<InitialEarlyAccessDialogProps> = ({ isO
           <DialogDescription asChild>
             <div className="pt-2 text-sm text-text-primary dark:text-text-primary space-y-3">
               <p>
-                Thank you so much for testing the app — it really means a lot! 🎉
+                Thank you for using the app — it really means a lot! 🎉
               </p>
               <p>
-                Open Keep is currently in <strong>early access</strong>, so you may encounter the occasional rough edge. If you run into any issues or have feedback, please let me know by going to:
+                It is early days for Open Keep, so you may encounter the occasional rough edge. If you run into any issues or have feedback, please let me know by going to:
               </p>
               <p className="font-medium text-center py-1 rounded-md bg-muted text-text-primary dark:text-text-primary">
                 Settings → Feedback
               </p>
               <p>
-                I read every message and will work to fix things as quickly as I can.
+                I read every message and will work to fix things as quickly as possible.
               </p>
               <p>
-                And don't worry — <strong>Open Keep is free forever</strong>. 💛
+                And don't worry — <strong>Open Keep is open source & free forever</strong>. 💛
               </p>
             </div>
           </DialogDescription>
@@ -57,4 +57,4 @@ const InitialEarlyAccessDialog: React.FC<InitialEarlyAccessDialogProps> = ({ isO
   );
 };
 
-export default InitialEarlyAccessDialog;
+export default WelcomeMessage;

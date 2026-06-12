@@ -7,7 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 - F-Droid release.
 
-## [4.1.0] - 2026-06-12
+## [4.1.0] - 2026-06-11
 ### Added
 - Button in top bar to sort notes either by Recent or Alphabetically.
 - Button in top bar to toggle displaying notes in a grid or as a card list.

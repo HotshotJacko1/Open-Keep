@@ -15,7 +15,7 @@ import SettingsDialog from "@/components/SettingsDialog";
 import EditLabels from "@/components/EditLabels";
 import AddNoteOptions from "@/components/AddNoteOptions";
 import InitialAskToMigrate from "@/components/InitialAskToMigrate";
-import InitialEarlyAccessDialog from "@/components/InitialEarlyAccessDialog";
+import WelcomeMessage from "@/components/WelcomeMessage";
 import GoogleKeepMigrationGuide from "@/components/GoogleKeepMigrationGuide";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -997,7 +997,7 @@ const Index = () => {
         }}
       /> */}
 
-      <InitialEarlyAccessDialog
+      <WelcomeMessage
         isOpen={showEarlyAccessDialog}
         onClose={() => {
           localStorage.setItem('has_seen_early_access_dialog_v1', 'true');
