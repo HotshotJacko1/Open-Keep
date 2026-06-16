@@ -26,6 +26,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import TopBar from "@/components/TopBar";
 import { useSession } from '@/context/session-provider';
+import { BulbIcon } from "@/components/BulbIcon";
 
 import { showSuccess } from "@/utils/toast";
 import { SelectionActionBar } from "@/components/SelectionActionBar";
@@ -45,8 +46,8 @@ const Index = () => {
   const [selectedTag, setSelectedTag] = useState<string | null>(searchParams.get("tag"));
   const isMobile = useIsMobile();
   const [sortMode, setSortMode] = useState<"recent" | "alphabetical">("recent");
-    const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-    const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isEditLabelsOpen, setIsEditLabelsOpen] = useState(false);
   const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
@@ -84,7 +85,7 @@ const Index = () => {
     }
     return (
       <div className="hidden lg:flex items-center">
-        <Lightbulb className="mr-2 h-6 w-6 text-yellow-500 flex-shrink-0" fill="currentColor" />
+        <BulbIcon className="mr-2 h-6 w-6 flex-shrink-0" />
         <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
       </div>
     );
@@ -133,12 +134,12 @@ const Index = () => {
         setNotes(loadedNotes);
         // Silently succeeded
       } else if (syncResult && syncResult.status === "conflict") {
-        window.dispatchEvent(new CustomEvent("open-sync-conflict", { 
-          detail: { 
-            service: activeService.name.toLowerCase().replace(" ", ""), 
-            payload: (syncResult as any).cloudPayload, 
-            reason: (syncResult as any).reason 
-          } 
+        window.dispatchEvent(new CustomEvent("open-sync-conflict", {
+          detail: {
+            service: activeService.name.toLowerCase().replace(" ", ""),
+            payload: (syncResult as any).cloudPayload,
+            reason: (syncResult as any).reason
+          }
         }));
         setIsSettingsOpen(true);
       }
@@ -179,7 +180,7 @@ const Index = () => {
   // Auto-sync on App Resume
   useEffect(() => {
     if (!activeService) return;
-    
+
     const setupResumeListener = async () => {
       const listener = await CapacitorApp.addListener('appStateChange', ({ isActive }) => {
         if (isActive) {
@@ -188,7 +189,7 @@ const Index = () => {
       });
       return listener;
     };
-    
+
     const listenerPromise = setupResumeListener();
 
     return () => {
@@ -226,12 +227,12 @@ const Index = () => {
           showSuccess(`Synced with ${activeService.name}`);
         } else if (syncResult && syncResult.status === "conflict") {
           // Open Sync Dialog to handle conflict
-          window.dispatchEvent(new CustomEvent("open-sync-conflict", { 
-            detail: { 
-              service: activeService.name.toLowerCase().replace(" ", ""), 
-              payload: (syncResult as any).cloudPayload, 
-              reason: (syncResult as any).reason 
-            } 
+          window.dispatchEvent(new CustomEvent("open-sync-conflict", {
+            detail: {
+              service: activeService.name.toLowerCase().replace(" ", ""),
+              payload: (syncResult as any).cloudPayload,
+              reason: (syncResult as any).reason
+            }
           }));
           setIsSettingsOpen(true); // Ensure settings is open so sync dialog can show
         }
@@ -509,15 +510,15 @@ const Index = () => {
         return !note.isArchived && matchesSearch && matchesTag;
       })
       .sort((a, b) => {
-              if (a.isPinned && !b.isPinned) return -1;
-              if (!a.isPinned && b.isPinned) return 1;
-      
-              if (sortMode === "alphabetical") {
-                return a.title.localeCompare(b.title);
-              }
-      
-              return b.updatedAt - a.updatedAt; // Sort by most recently updated
-            });
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+
+        if (sortMode === "alphabetical") {
+          return a.title.localeCompare(b.title);
+        }
+
+        return b.updatedAt - a.updatedAt; // Sort by most recently updated
+      });
   }, [notes, searchTerm, selectedTag, sortMode]);
 
   const handleNewTextNote = () => {
@@ -652,7 +653,7 @@ const Index = () => {
     if (isBinView) {
       // Hard delete
       const idsToDelete = Array.from(selectedNoteIds);
-      
+
       await Promise.all(selectedNotes.map(async n => {
         if (n.images && n.images.length > 0) {
           await Promise.all(n.images.map(deleteImage));
@@ -726,7 +727,7 @@ const Index = () => {
       // Sanitize title for filename
       const safeTitle = note.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'untitled';
       const filename = `${safeTitle}_${note.id.substring(0, 4)}.md`;
-      
+
       zip.file(filename, `# ${note.title}\n\n${content}`);
 
       if (note.images && note.images.length > 0) {
@@ -1050,15 +1051,15 @@ const Index = () => {
       onClick={handleBackgroundClick} // Handle click outside
     >
       <TopBar
-              searchTerm={searchTerm}
-              onSearchChange={setSearchTerm}
-              onSettingsClick={() => setIsSettingsOpen(true)}
-              sortMode={sortMode}
-              onSortModeChange={setSortMode}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              startAdornment={topBarStartAdornment}
-            />
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        onSettingsClick={() => setIsSettingsOpen(true)}
+        sortMode={sortMode}
+        onSortModeChange={setSortMode}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        startAdornment={topBarStartAdornment}
+      />
 
       <div className="flex-1 flex overflow-hidden">
         <SelectionActionBar
