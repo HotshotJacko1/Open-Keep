@@ -100,8 +100,16 @@ const App = () => {
           }
         } else {
           // Web flow
-          if (isLockEnabled && hasPasscode) {
-            setAppState('locked');
+          if (hasPasscode) {
+            if (isLockEnabled) {
+              setAppState('locked');
+            } else {
+              const pin = localStorage.getItem("app-passcode");
+              if (pin) {
+                await initializeDatabase(pin);
+              }
+              setAppState('ready');
+            }
           } else {
             setAppState('ready');
           }

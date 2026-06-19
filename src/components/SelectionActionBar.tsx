@@ -1,6 +1,6 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import React from "react";
-import { X, Pin, Archive, Trash2, Upload, Tag, RotateCcw } from "lucide-react";
+import { X, Pin, Archive, Trash2, Upload, Tag, RotateCcw, MoreVertical, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import NoteLabels from "@/components/NoteLabels";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,7 @@ interface SelectionActionBarProps {
     hideArchive?: boolean;
     hidePin?: boolean;
     onExport: () => void;
+    onFileInfo?: () => void;
     availableTags: string[];
     tagStates: Record<string, boolean | "indeterminate">;
     onTagToggle: (tag: string) => void;
@@ -36,11 +37,25 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
     hideArchive,
     hidePin,
     onExport,
+    onFileInfo,
     availableTags,
     tagStates,
     onTagToggle,
 }) => {
     const [isLabelsOpen, setIsLabelsOpen] = React.useState(false);
+    const [isOverflowOpen, setIsOverflowOpen] = React.useState(false);
+    const overflowRef = React.useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+        if (!isOverflowOpen) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) {
+                setIsOverflowOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [isOverflowOpen]);
 
     if (selectedCount === 0) return null;
 
@@ -62,7 +77,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                         size="icon"
                         onClick={onRestore}
                         title="Restore"
-                        className="text-primary hover:text-primary-foreground"
+                        className="text-black dark:text-white hover:text-primary-foreground"
                     >
                         <RotateCcw className="h-5 w-5" />
                     </Button>
@@ -73,7 +88,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                         size="icon"
                         onClick={onPin}
                         title="Pin"
-                        className="text-primary hover:text-primary-foreground"
+                        className="text-black dark:text-white hover:text-primary-foreground"
                     >
                         <Pin className="h-5 w-5" />
                     </Button>
@@ -84,7 +99,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                         size="icon"
                         onClick={onArchive}
                         title="Archive"
-                        className="text-primary hover:text-primary-foreground"
+                        className="hidden sm:inline-flex text-black dark:text-white hover:text-primary-foreground"
                     >
                         <Archive className="h-5 w-5" />
                     </Button>
@@ -95,7 +110,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                         size="icon"
                         onClick={onUnarchive}
                         title="Unarchive"
-                        className="text-primary hover:text-primary-foreground"
+                        className="hidden sm:inline-flex text-black dark:text-white hover:text-primary-foreground"
                     >
                         <Archive className="h-5 w-5" />
                     </Button>
@@ -105,7 +120,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                     size="icon"
                     onClick={onDelete}
                     title="Delete"
-                    className="text-primary hover:text-primary-foreground"
+                    className="text-black dark:text-white hover:text-primary-foreground"
                 >
                     <Trash2 className="h-5 w-5" />
                 </Button>
@@ -114,7 +129,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                     variant="ghost"
                     size="icon"
                     title="Change labels"
-                    className="text-primary hover:text-primary-foreground"
+                    className="text-black dark:text-white hover:text-primary-foreground"
                     onClick={() => setIsLabelsOpen(true)}
                 >
                     <Tag className="h-5 w-5" />
@@ -133,10 +148,70 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                     size="icon"
                     onClick={onExport}
                     title="Export"
-                    className="text-primary hover:text-primary-foreground"
+                    className="hidden sm:inline-flex text-black dark:text-white hover:text-primary-foreground"
                 >
                     <Upload className="h-5 w-5" />
                 </Button>
+
+                {onFileInfo && selectedCount === 1 && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={onFileInfo}
+                        title="File Info"
+                        className="hidden sm:inline-flex text-black dark:text-white hover:text-primary-foreground"
+                    >
+                        <Info className="h-5 w-5" />
+                    </Button>
+                )}
+
+                {/* 3-dot overflow — mobile only */}
+                <div className="relative sm:hidden" ref={overflowRef}>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setIsOverflowOpen((o) => !o)}
+                        title="More options"
+                        className="text-black dark:text-white hover:text-primary-foreground"
+                    >
+                        <MoreVertical className="h-5 w-5" />
+                    </Button>
+
+                    {isOverflowOpen && (
+                        <div className="absolute right-0 top-full mt-1 w-44 rounded-md border border-gray-700 bg-background shadow-lg z-50 py-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                            {!hideArchive && (
+                                <button
+                                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black dark:text-white hover:bg-muted"
+                                    onClick={() => { onArchive(); setIsOverflowOpen(false); }}
+                                >
+                                    <Archive className="h-4 w-4" /> Archive
+                                </button>
+                            )}
+                            {showUnarchive && (
+                                <button
+                                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black dark:text-white-black hover:bg-muted"
+                                    onClick={() => { onUnarchive?.(); setIsOverflowOpen(false); }}
+                                >
+                                    <Archive className="h-4 w-4" /> Unarchive
+                                </button>
+                            )}
+                            <button
+                                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black dark:text-white hover:bg-muted"
+                                onClick={() => { onExport(); setIsOverflowOpen(false); }}
+                            >
+                                <Upload className="h-4 w-4" /> Export
+                            </button>
+                            {onFileInfo && selectedCount === 1 && (
+                                <button
+                                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black dark:text-white hover:bg-muted"
+                                    onClick={() => { onFileInfo(); setIsOverflowOpen(false); }}
+                                >
+                                    <Info className="h-4 w-4" /> File Info
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

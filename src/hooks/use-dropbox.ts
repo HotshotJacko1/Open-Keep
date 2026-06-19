@@ -177,21 +177,24 @@ export const useDropbox = () => {
             }
             return { status: "success" };
         } catch (error) {
-            console.error("Dropbox sync failed:", error);
+            const message = (error as Error).message || "";
+            if (!message.includes("Cannot parse synced data")) {
+                console.error("Dropbox sync failed:", error);
+            }
             if ((error as any).status === 401) {
                 showError("Dropbox session expired. Please reconnect.");
                 disconnect();
-            } else if ((error as Error).message.includes("BAD_DECRYPT") || (error as Error).message.includes("Decryption failed")) {
-                showError("Cloud notes could not be decrypted. They may be locked with an old, unknown key.");
+            } else if (message.includes("BAD_DECRYPT") || message.includes("Decryption failed") || message.includes("Cannot parse synced data")) {
+                if (!silent) showError("Cloud notes could not be decrypted. They may be locked with an old, unknown key.");
                 const cloudKey = await checkDropboxMasterKey();
                 if (cloudKey.payload) {
                     return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
                 }
-                return { status: "error", message: (error as Error).message };
+                return { status: "error", message };
             } else {
-                showError("Dropbox sync failed.");
+                if (!silent) showError("Dropbox sync failed.");
             }
-            return { status: "error", message: (error as Error).message };
+            return { status: "error", message };
         } finally {
             setCloudSyncState("dropbox", false);
         }

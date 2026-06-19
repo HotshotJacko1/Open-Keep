@@ -314,7 +314,11 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
     try {
         if (typeof result === "string") {
             const decryptedText = await decryptData(result);
-            result = JSON.parse(decryptedText);
+            try {
+                result = JSON.parse(decryptedText);
+            } catch (parseError) {
+                throw new Error("Cannot parse synced data. Your vault might be locked or the master key does not match.");
+            }
         }
     } catch (e) {
         console.warn("Could not decrypt OneDrive payload.", e);
@@ -454,32 +458,58 @@ export const syncNotesWithOneDrive = async (
         }
     }
 
-    // Merge Logic (Reusing same logic as Google Drive for consistency. 
-    // Ideally this merge logic should be extracted to a shared util)
+    // Merge Logic
+    console.log(`[OneDrive Sync] Starting merge. Local notes: ${localNotes.length}, Remote notes: ${remoteNotes.length}`);
     const mergedNotesMap = new Map<string, Note>();
 
     // Add all local notes initially
-    localNotes.forEach((note) => mergedNotesMap.set(note.id, note));
+    localNotes.forEach((note) => {
+        const inRemote = remoteNotes.some(r => r.id === note.id);
+        if (!inRemote) {
+            console.log(`[OneDrive Sync] Note ${note.id} (${note.title}) only exists locally. Will upload.`);
+        }
+        mergedNotesMap.set(note.id, note);
+    });
 
     // Merge remote notes
     remoteNotes.forEach((remoteNote) => {
         const localNote = mergedNotesMap.get(remoteNote.id);
         if (!localNote) {
-            // Note exists remotely but not locally
+            // Note exists remotely but not locally (new from other device)
+            console.log(`[OneDrive Sync] Note ${remoteNote.id} (${remoteNote.title}) only exists remotely. Adding to local.`);
             mergedNotesMap.set(remoteNote.id, remoteNote);
         } else {
             // Note exists on both
             if (remoteNote.updatedAt > localNote.updatedAt) {
                 // Remote is newer
+                console.log(`[OneDrive Sync] Note ${remoteNote.id} (${remoteNote.title}) exists on both. Remote is newer (${new Date(remoteNote.updatedAt).toISOString()} > ${new Date(localNote.updatedAt).toISOString()}). Overwriting local with remote.`);
                 mergedNotesMap.set(remoteNote.id, remoteNote);
+            } else if (remoteNote.updatedAt < localNote.updatedAt) {
+                console.log(`[OneDrive Sync] Note ${remoteNote.id} (${localNote.title}) exists on both. Local is newer (${new Date(localNote.updatedAt).toISOString()} > ${new Date(remoteNote.updatedAt).toISOString()}). Keeping local.`);
+            } else {
+                console.log(`[OneDrive Sync] Note ${remoteNote.id} (${localNote.title}) exists on both with same timestamp. Keeping local.`);
             }
+            // Else keep local (it's newer or same)
         }
     });
 
     const mergedNotes = Array.from(mergedNotesMap.values());
 
     // Merge Tags logic (Set union)
+    console.log(`[OneDrive Sync] Merging custom tags. Local tags: ${localCustomTags.length}, Remote tags: ${remoteCustomTags.length}`);
     const mergedTags = Array.from(new Set([...localCustomTags, ...remoteCustomTags])).sort();
+    
+    localCustomTags.forEach(tag => {
+        if (!remoteCustomTags.includes(tag)) {
+            console.log(`[OneDrive Sync] Tag '${tag}' only exists locally. Will upload.`);
+        }
+    });
+    
+    remoteCustomTags.forEach(tag => {
+        if (!localCustomTags.includes(tag)) {
+            console.log(`[OneDrive Sync] Tag '${tag}' only exists remotely. Adding to local.`);
+        }
+    });
 
     // Upload merged data
     if (masterKeyPayload) {

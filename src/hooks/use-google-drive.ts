@@ -57,7 +57,7 @@ const readGoogleAccessTokenFromLogin = async (
     throw new Error("No access token received from Google");
 };
 
-const nativeGoogleSignIn = async (logoutFirst = false) => {
+const nativeGoogleSignIn = async (logoutFirst = false, forcePrompt = false) => {
     await initNativeGoogleAuth();
 
     if (logoutFirst) {
@@ -74,7 +74,7 @@ const nativeGoogleSignIn = async (logoutFirst = false) => {
         options: {
             scopes: GOOGLE_DRIVE_SCOPES,
             forceRefreshToken: true,
-            forcePrompt: true,
+            forcePrompt,
         },
     });
 
@@ -130,7 +130,8 @@ const nativeGoogleEnsureDriveToken = async (): Promise<string> => {
         }
 
         setAccessToken("");
-        let user = await nativeGoogleSignIn(false);
+        // First try a silent sign-in (no account picker prompt)
+        let user = await nativeGoogleSignIn(false, false);
         setAccessToken(user.accessToken);
         if (user.email) {
             localStorage.setItem("google-user-email", user.email);
@@ -141,7 +142,8 @@ const nativeGoogleEnsureDriveToken = async (): Promise<string> => {
         }
 
         console.log("Drive scope still missing — signing out and requesting fresh consent...");
-        user = await nativeGoogleSignIn(true);
+        // Last resort: force account picker to let user re-consent
+        user = await nativeGoogleSignIn(true, true);
         setAccessToken(user.accessToken);
         if (user.email) {
             localStorage.setItem("google-user-email", user.email);
@@ -330,20 +332,23 @@ export const useGoogleDrive = () => {
             }
             return { status: "success" };
         } catch (error) {
-            console.error("Sync failed:", error);
             const message = (error as Error).message || "";
+            if (!message.includes("Cannot parse synced data")) {
+                console.error("Sync failed:", error);
+            }
             if (message.includes("Google Drive permission was not granted")) {
                 showError(message);
                 return { status: "error", message };
             }
-            if ((error as Error).message.includes("BAD_DECRYPT") || (error as Error).message.includes("Decryption failed")) {
-                showError("Cloud notes could not be decrypted. They may be locked with an old, unknown key.");
+            if (message.includes("BAD_DECRYPT") || message.includes("Decryption failed") || message.includes("Cannot parse synced data")) {
+                // If it's a silent sync (like auto-sync on refresh), don't spam the UI with errors
+                if (!silent) showError("Cloud notes could not be decrypted. They may be locked with an old, unknown key.");
                 const cloudKey = await checkGoogleDriveMasterKey();
                 if (cloudKey.payload) {
                     return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
                 }
             }
-            showError("Sync failed. Please reconnect Google Drive.");
+            if (!silent) showError("Sync failed. Please reconnect Google Drive.");
             return { status: "error", message: (error as Error).message };
         } finally {
             setCloudSyncState("google-drive", false);

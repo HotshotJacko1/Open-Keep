@@ -4,6 +4,7 @@ import { Note } from "@/types/note";
 import { loadNotes, saveNote as localSaveNote, deleteNote as localDeleteNote, getLegacyWebNotes, migrateWebNotes, clearLegacyWebNotes } from "@/lib/note-storage";
 import { deleteImage } from "@/lib/image-storage";
 import { Filesystem, Directory } from "@capacitor/filesystem";
+import { Capacitor } from "@capacitor/core";
 import NoteCard from "@/components/NoteCard";
 import NoteEditor from "@/components/NoteEditor"; // Unified Editor
 import { useGoogleDrive, isGoogleDriveAuthBusy, isGoogleDriveScopeBlocked } from "@/hooks/use-google-drive";
@@ -30,6 +31,7 @@ import { BulbIcon } from "@/components/BulbIcon";
 
 import { showSuccess } from "@/utils/toast";
 import { SelectionActionBar } from "@/components/SelectionActionBar";
+import FileInfo from "@/components/FileInfo";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { toggleCheckboxInContent } from "@/utils/markdown";
@@ -51,6 +53,7 @@ const Index = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isEditLabelsOpen, setIsEditLabelsOpen] = useState(false);
   const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
+  const [isFileInfoOpen, setIsFileInfoOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [customTags, setCustomTags] = useState<string[]>(() => {
     const saved = localStorage.getItem("custom-tags");
@@ -84,10 +87,12 @@ const Index = () => {
       return <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3] truncate max-w-[150px]">{selectedTag}</span>;
     }
     return (
-      <div className="hidden lg:flex items-center">
-        <BulbIcon className="mr-2 h-6 w-6 flex-shrink-0" />
-        <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
-      </div>
+      !Capacitor.isNativePlatform() && (
+        <div className="flex items-center">
+          <BulbIcon className="mr-2 h-6 w-6 flex-shrink-0" />
+          <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
+        </div>
+      )
     );
   };
 
@@ -1075,10 +1080,22 @@ const Index = () => {
           hideArchive={selectedTag === "archive" || selectedTag === "bin"}
           hidePin={selectedTag === "archive" || selectedTag === "bin"}
           onExport={handleBulkExport}
+          onFileInfo={selectedNoteIds.size === 1 ? () => setIsFileInfoOpen(true) : undefined}
           availableTags={uniqueTags}
           tagStates={tagStates}
           onTagToggle={handleTagToggle}
         />
+
+        {isFileInfoOpen && selectedNoteIds.size === 1 && (() => {
+          const singleNote = notes.find(n => selectedNoteIds.has(n.id));
+          return singleNote ? (
+            <FileInfo
+              isOpen={isFileInfoOpen}
+              onClose={() => setIsFileInfoOpen(false)}
+              note={singleNote}
+            />
+          ) : null;
+        })()}
 
         <AddNoteOptions
           onNewTextNote={handleNewTextNote}

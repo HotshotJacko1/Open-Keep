@@ -19,9 +19,10 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Plus, X, GripVertical, ArrowLeft, Pin, Archive, Type, Tag, Trash2, FileDown, ListChecks, Bold, Italic, Underline, Upload, ChevronDown, ChevronRight, Bell } from "lucide-react";
+import { Plus, X, GripVertical, ArrowLeft, Pin, Archive, Type, Tag, Trash2, FileDown, ListChecks, Bold, Italic, Underline, Upload, ChevronDown, ChevronRight, Bell, Info } from "lucide-react";
 import NoteLabels from "@/components/NoteLabels";
 import ReminderSheet from "@/components/ReminderSheet";
+import FileInfo from "@/components/FileInfo";
 import { scheduleReminderNotification, cancelReminderNotification, formatReminderLabel } from "@/utils/reminder";
 import {
     DndContext,
@@ -420,6 +421,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const [reminder, setReminder] = useState<number | undefined>(undefined);
     const [recurrence, setRecurrence] = useState<Note['recurrence'] | undefined>(undefined);
     const [isReminderSheetOpen, setIsReminderSheetOpen] = useState(false);
+    const [isFileInfoOpen, setIsFileInfoOpen] = useState(false);
 
     const noteIdRef = useRef<string>(initialNote?.id || crypto.randomUUID());
     const titleTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -865,7 +867,26 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     };
 
     const handleRemoveItem = (id: string) => {
-        setChecklistItems(prev => prev.filter(i => i.id !== id));
+        setChecklistItems(prev => {
+            const index = prev.findIndex(i => i.id === id);
+            if (index === -1) return prev;
+
+            const item = prev[index];
+            const idsToRemove = new Set([id]);
+
+            // If this is a parent item (no indentation), also remove its children
+            if (item.indentation === "") {
+                for (let i = index + 1; i < prev.length; i++) {
+                    if (prev[i].indentation !== "") {
+                        idsToRemove.add(prev[i].id);
+                    } else {
+                        break;
+                    }
+                }
+            }
+
+            return prev.filter(i => !idsToRemove.has(i.id));
+        });
     };
 
     const handleUpdateItem = (id: string, newText: string) => {
@@ -1445,6 +1466,21 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                 <TooltipContent><p>Formatting</p></TooltipContent>
                             </Tooltip>
 
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="text-secondary"
+                                        onClick={() => setIsFileInfoOpen(true)}
+                                    >
+                                        <Info className="h-5 w-5" />
+                                        <span className="sr-only">File Info</span>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>File Info</p></TooltipContent>
+                            </Tooltip>
+
                             {showFormatting && editor && !isChecklistMode && (
                                 <>
                                     <Tooltip>
@@ -1570,6 +1606,23 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     />
                 </DialogContent>
             </Dialog>
+
+            {isFileInfoOpen && initialNote && (
+                <FileInfo
+                    isOpen={isFileInfoOpen}
+                    onClose={() => setIsFileInfoOpen(false)}
+                    note={{
+                        ...initialNote,
+                        title,
+                        content,
+                        tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+                        isPinned,
+                        isArchived,
+                        updatedAt: initialNote.updatedAt,
+                        createdAt: initialNote.createdAt,
+                    }}
+                />
+            )}
         </>
     );
 };

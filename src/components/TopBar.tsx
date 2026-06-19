@@ -55,12 +55,12 @@ const TopBar: React.FC<TopBarProps> = ({
         if (!activeService) return;
         const result = await activeService.sync();
         if (result && result.status === "conflict" && 'cloudPayload' in result) {
-            window.dispatchEvent(new CustomEvent('open-sync-conflict', { 
-                detail: { 
-                    service: activeService.name.toLowerCase().replace(' ', ''), 
-                    payload: (result as any).cloudPayload, 
-                    reason: (result as any).reason 
-                } 
+            window.dispatchEvent(new CustomEvent('open-sync-conflict', {
+                detail: {
+                    service: activeService.name.toLowerCase().replace(' ', ''),
+                    payload: (result as any).cloudPayload,
+                    reason: (result as any).reason
+                }
             }));
         }
     };
@@ -78,7 +78,7 @@ const TopBar: React.FC<TopBarProps> = ({
                 <Input
                     type="text"
                     placeholder="Search"
-                    className="w-full p-2 rounded-lg shadow focus:ring-2 focus:ring-primary bg-white dark:bg-[#202124] text-card-foreground border-input pr-10"
+                    className="w-full p-2 rounded-lg shadow focus:ring-2 focus:ring-primary bg-card dark:bg-card text-card-foreground border-input pr-10"
                     value={searchTerm}
                     onChange={(e) => onSearchChange(e.target.value)}
                 />
@@ -122,11 +122,11 @@ const TopBar: React.FC<TopBarProps> = ({
             </div>
 
             {showSyncButton && (
-                <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={handleSync} 
-                    disabled={activeService.isSyncing} 
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSync}
+                    disabled={activeService.isSyncing}
                     className="flex-shrink-0 text-muted-foreground"
                 >
                     {activeService.isSyncing ? (

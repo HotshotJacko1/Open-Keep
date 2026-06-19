@@ -152,16 +152,19 @@ export const useOneDrive = () => {
             }
             return { status: "success" };
         } catch (error) {
-            console.error("OneDrive sync failed:", error);
-            if ((error as Error).message.includes("BAD_DECRYPT") || (error as Error).message.includes("Decryption failed")) {
-                showError("Cloud notes could not be decrypted. They may be locked with an old, unknown key.");
+            const message = (error as Error).message || "";
+            if (!message.includes("Cannot parse synced data")) {
+                console.error("OneDrive sync failed:", error);
+            }
+            if (message.includes("BAD_DECRYPT") || message.includes("Decryption failed") || message.includes("Cannot parse synced data")) {
+                if (!silent) showError("Cloud notes could not be decrypted. They may be locked with an old, unknown key.");
                 const cloudKey = await checkOneDriveMasterKey();
                 if (cloudKey.payload) {
                     return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
                 }
             }
-            showError("OneDrive sync failed. Please reconnect.");
-            return { status: "error", message: (error as Error).message };
+            if (!silent) showError("OneDrive sync failed. Please reconnect.");
+            return { status: "error", message };
         } finally {
             setCloudSyncState("onedrive", false);
         }

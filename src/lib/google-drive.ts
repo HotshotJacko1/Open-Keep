@@ -243,7 +243,11 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
                 // as a unit (keeping any preceding 'n' in the base64 intact).
                 const cleaned = result.replace(/\\n/g, '').replace(/\s/g, '');
                 const decryptedText = await decryptData(cleaned);
-                result = JSON.parse(decryptedText);
+                try {
+                    result = JSON.parse(decryptedText);
+                } catch (parseError) {
+                    throw new Error("Cannot parse synced data. Your vault might be locked or the master key does not match.");
+                }
             }
         } catch (e) {
             // Backward compatibility: the data might be old JSON-wrapped format,
@@ -254,15 +258,23 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
                 throw e;
             }
             try {
-                const innerText = JSON.parse(result);
-                if (typeof innerText === 'string') {
-                    const cleaned = innerText.replace(/\\n/g, '').replace(/\s/g, '');
-                    const decryptedText = await decryptData(cleaned);
-                    result = JSON.parse(decryptedText);
+                if (result.startsWith('"') && result.endsWith('"')) {
+                    const innerText = JSON.parse(result);
+                    if (typeof innerText === 'string') {
+                        const cleaned = innerText.replace(/\\n/g, '').replace(/\s/g, '');
+                        const decryptedText = await decryptData(cleaned);
+                        try {
+                            result = JSON.parse(decryptedText);
+                        } catch (parseError) {
+                            throw new Error("Cannot parse synced data. Your vault might be locked or the master key does not match.");
+                        }
+                    } else {
+                        throw e;
+                    }
                 } else {
                     throw e;
                 }
-            } catch {
+            } catch (innerErr) {
                 console.error("Decryption failed", e);
                 throw e;
             }
@@ -287,8 +299,12 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
         }
 
         return { notes: parsedNotes, customTags: parsedTags };
-    } catch (error: unknown) {
-        console.error("Error downloading notes:", formatDriveError(error));
+    } catch (error: any) {
+        if (error.message && error.message.includes("Cannot parse synced data")) {
+            // Suppress error log for locked vault
+        } else {
+            console.error("Error downloading notes:", formatDriveError(error));
+        }
         throw error;
     }
 };
@@ -430,29 +446,46 @@ export const syncNotesWithDrive = async (
             const remoteData = await downloadNotes(fileId);
             remoteNotes = remoteData.notes;
             remoteCustomTags = remoteData.customTags || [];
-        } catch (e) {
-            console.error("Could not download/parse remote notes, aborting sync to prevent data loss", e);
+        } catch (e: any) {
+            if (e.message && e.message.includes("Cannot parse synced data")) {
+                // Expected when vault is locked, no noisy error
+            } else {
+                console.error("Could not download/parse remote notes, aborting sync to prevent data loss", e);
+            }
             throw e;
         }
     }
 
     // Merge Logic
+    console.log(`[Google Drive Sync] Starting merge. Local notes: ${localNotes.length}, Remote notes: ${remoteNotes.length}`);
     const mergedNotesMap = new Map<string, Note>();
 
     // Add all local notes initially
-    localNotes.forEach((note) => mergedNotesMap.set(note.id, note));
+    localNotes.forEach((note) => {
+        const inRemote = remoteNotes.some(r => r.id === note.id);
+        if (!inRemote) {
+            console.log(`[Google Drive Sync] Note ${note.id} (${note.title}) only exists locally. Will upload.`);
+        }
+        mergedNotesMap.set(note.id, note);
+    });
 
     // Merge remote notes
     remoteNotes.forEach((remoteNote) => {
         const localNote = mergedNotesMap.get(remoteNote.id);
         if (!localNote) {
             // Note exists remotely but not locally (new from other device)
+            console.log(`[Google Drive Sync] Note ${remoteNote.id} (${remoteNote.title}) only exists remotely. Adding to local.`);
             mergedNotesMap.set(remoteNote.id, remoteNote);
         } else {
             // Note exists on both
             if (remoteNote.updatedAt > localNote.updatedAt) {
                 // Remote is newer
+                console.log(`[Google Drive Sync] Note ${remoteNote.id} (${remoteNote.title}) exists on both. Remote is newer (${new Date(remoteNote.updatedAt).toISOString()} > ${new Date(localNote.updatedAt).toISOString()}). Overwriting local with remote.`);
                 mergedNotesMap.set(remoteNote.id, remoteNote);
+            } else if (remoteNote.updatedAt < localNote.updatedAt) {
+                console.log(`[Google Drive Sync] Note ${remoteNote.id} (${localNote.title}) exists on both. Local is newer (${new Date(localNote.updatedAt).toISOString()} > ${new Date(remoteNote.updatedAt).toISOString()}). Keeping local.`);
+            } else {
+                console.log(`[Google Drive Sync] Note ${remoteNote.id} (${localNote.title}) exists on both with same timestamp. Keeping local.`);
             }
             // Else keep local (it's newer or same)
         }
@@ -461,7 +494,20 @@ export const syncNotesWithDrive = async (
     const mergedNotes = Array.from(mergedNotesMap.values());
 
     // Merge Tags logic (Set union)
+    console.log(`[Google Drive Sync] Merging custom tags. Local tags: ${localCustomTags.length}, Remote tags: ${remoteCustomTags.length}`);
     const mergedTags = Array.from(new Set([...localCustomTags, ...remoteCustomTags])).sort();
+    
+    localCustomTags.forEach(tag => {
+        if (!remoteCustomTags.includes(tag)) {
+            console.log(`[Google Drive Sync] Tag '${tag}' only exists locally. Will upload.`);
+        }
+    });
+    
+    remoteCustomTags.forEach(tag => {
+        if (!localCustomTags.includes(tag)) {
+            console.log(`[Google Drive Sync] Tag '${tag}' only exists remotely. Adding to local.`);
+        }
+    });
 
     // Upload merged data
     await uploadNotes(folderId, mergedNotes, mergedTags, fileId);
