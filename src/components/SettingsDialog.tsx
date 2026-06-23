@@ -91,7 +91,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
   useEffect(() => {
     const getAppInfo = async () => {
       if (!Capacitor.isNativePlatform()) {
-        setAppVersion("Web");
+        // @ts-ignore
+        setAppVersion(__APP_VERSION__);
         return;
       }
       try {

@@ -5,6 +5,7 @@
   "license": "AGPL-3.0",
   "type": "module",
   "scripts": {
+    "prebuild": "node scripts/sync-version.cjs",
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
