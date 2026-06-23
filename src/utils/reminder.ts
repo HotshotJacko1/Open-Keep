@@ -218,21 +218,6 @@ export async function cancelReminderNotification(noteId: string): Promise<void> 
   }
 }
 
-/** Request notification permissions (call once on app start) */
-export async function requestNotificationPermission(): Promise<void> {
-  if (Capacitor.isNativePlatform()) {
-    try {
-      const { display } = await LocalNotifications.requestPermissions();
-      if (display !== "granted") {
-        console.warn("Notification permission not granted");
-      }
-    } catch (e) {
-      console.warn("Failed to request notification permissions:", e);
-    }
-  } else if ("Notification" in window && Notification.permission === "default") {
-    await Notification.requestPermission();
-  }
-}
 
 /** Reschedule all pending reminders (e.g. on app cold start) */
 export async function rescheduleAllReminders(notes: Note[]): Promise<void> {

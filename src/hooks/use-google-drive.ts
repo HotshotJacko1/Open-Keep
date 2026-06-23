@@ -4,7 +4,7 @@ import { useGoogleLogin } from "@react-oauth/google";
 import { SocialLogin, type GoogleLoginResponse } from "@capgo/capacitor-social-login";
 import { Capacitor } from "@capacitor/core";
 import { initGoogleDrive, setAccessToken, getGoogleAccessToken, syncNotesWithDrive, checkGoogleDriveMasterKey, hasGoogleAccessToken, verifyGoogleDriveAccess } from "@/lib/google-drive";
-import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, wipeDatabaseButKeepKeys, SyncResult } from "@/lib/note-storage";
+import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, canDecryptCloudMasterKey, wipeDatabaseButKeepKeys, SyncResult } from "@/lib/note-storage";
 import { resolveCloudKeyImport, getCloudKeyConflictIfNeeded } from "@/lib/cloud-sync-resolver";
 import {
     blockGoogleDriveScopeAuth,
@@ -295,21 +295,27 @@ export const useGoogleDrive = () => {
                     if (cloudKey.exists && cloudKey.payload) {
                         const localNotes = await loadNotes();
                         const isFirstConnect = !localStorage.getItem("last-synced-time");
+                        const canDecrypt = await canDecryptCloudMasterKey(cloudKey.payload, effectivePin);
                         const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, effectivePin);
 
-                        if (!isMatch) {
-                            // Keys differ — conflict resolution required
-                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
-                        }
-
                         if (localNotes.length === 0) {
-                            // Local is empty and keys match — auto-restore from cloud
-                            await wipeDatabaseButKeepKeys();
-                            await importMasterKey(cloudKey.payload, effectivePin);
-                            masterKeyPayload = undefined;
-                        } else if (isFirstConnect) {
-                            // Keys match but this is first connect — ask user which data to keep
-                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
+                            if (canDecrypt) {
+                                // Local is empty and we can decrypt the cloud key — auto-restore from cloud
+                                await wipeDatabaseButKeepKeys();
+                                await importMasterKey(cloudKey.payload, effectivePin);
+                                masterKeyPayload = undefined;
+                            } else {
+                                // We cannot decrypt the cloud key. Need the correct PIN.
+                                return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
+                            }
+                        } else {
+                            if (!isMatch) {
+                                // Keys differ and we have local notes — conflict resolution required
+                                return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
+                            } else if (isFirstConnect) {
+                                // Keys match but this is first connect — ask user which data to keep
+                                return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
+                            }
                         }
                     }
                 }

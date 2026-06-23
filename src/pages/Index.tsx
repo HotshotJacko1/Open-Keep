@@ -35,7 +35,7 @@ import FileInfo from "@/components/FileInfo";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { toggleCheckboxInContent } from "@/utils/markdown";
-import { requestNotificationPermission, rescheduleAllReminders } from "@/utils/reminder";
+import { rescheduleAllReminders } from "@/utils/reminder";
 import { App as CapacitorApp } from "@capacitor/app";
 
 const Index = () => {
@@ -204,13 +204,13 @@ const Index = () => {
 
   const handleTouchStart = (e: React.TouchEvent) => {
     // Check if we are at the top of the scroll container
-    if (activeService && (!scrollContainerRef.current || scrollContainerRef.current.scrollTop === 0) && !isSelectionMode) {
+    if (activeService && (!scrollContainerRef.current || scrollContainerRef.current.scrollTop <= 1) && !isSelectionMode) {
       setPullStartPoint(e.targetTouches[0].clientY);
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (activeService && pullStartPoint > 0 && (!scrollContainerRef.current || scrollContainerRef.current.scrollTop === 0) && !isSelectionMode) {
+    if (activeService && pullStartPoint > 0 && (!scrollContainerRef.current || scrollContainerRef.current.scrollTop <= 1) && !isSelectionMode) {
       const pullY = e.targetTouches[0].clientY;
       const dist = pullY - pullStartPoint;
       if (dist > 0) {
@@ -285,8 +285,7 @@ const Index = () => {
 
       const loadedNotes = await loadNotes();
 
-      // Request notification permissions (once) and reschedule any pending reminders
-      await requestNotificationPermission();
+      // Reschedule any pending reminders
       await rescheduleAllReminders(loadedNotes);
 
       // AUTO-DELETE CLEANUP (30 days)

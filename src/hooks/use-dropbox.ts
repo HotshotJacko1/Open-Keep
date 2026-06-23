@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { initDropbox, getAuthenticationUrl, handleAuthRedirect, syncNotesWithDropbox, checkDropboxMasterKey } from "@/lib/dropbox";
-import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, wipeDatabaseButKeepKeys, SyncResult } from "@/lib/note-storage";
+import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, canDecryptCloudMasterKey, wipeDatabaseButKeepKeys, SyncResult } from "@/lib/note-storage";
 import { resolveCloudKeyImport, getCloudKeyConflictIfNeeded } from "@/lib/cloud-sync-resolver";
 import { setupDropboxOAuthRedirect } from "@/lib/dropbox-oauth";
 import { setCloudSyncState, useCloudSyncState } from "@/lib/cloud-sync-state";
@@ -143,19 +143,24 @@ export const useDropbox = () => {
                     const cloudKey = await checkDropboxMasterKey();
                     if (cloudKey.exists && cloudKey.payload) {
                         const localNotes = await loadNotes();
+                        const canDecrypt = await canDecryptCloudMasterKey(cloudKey.payload, effectivePin);
                         const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, effectivePin);
                         const isFirstConnect = !localStorage.getItem("dropbox-last-synced");
                         
-                        if (!isMatch) {
-                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
-                        }
-
                         if (localNotes.length === 0) {
-                            await wipeDatabaseButKeepKeys();
-                            await importMasterKey(cloudKey.payload, effectivePin);
-                            masterKeyPayload = undefined;
-                        } else if (isFirstConnect) {
-                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
+                            if (canDecrypt) {
+                                await wipeDatabaseButKeepKeys();
+                                await importMasterKey(cloudKey.payload, effectivePin);
+                                masterKeyPayload = undefined;
+                            } else {
+                                return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
+                            }
+                        } else {
+                            if (!isMatch) {
+                                return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
+                            } else if (isFirstConnect) {
+                                return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
+                            }
                         }
                     }
                 }

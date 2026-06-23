@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - F-Droid release.
 - Coloured notes.
 
+## [4.1.2] - 2026-06-26
+
+### Changed
+- App only asks for notification permissions when user sets a reminder. This makes for a smoother onboarding flow on first launch.
+
+### Fixed
+- Fixed issue where setting up cloud sync with existing notes would ask for the cloud PIN, even if the local PIN is the same. Now, it will use the local PIN if they're the same and not askfor it again.
+- Fixed swipe to sync not working.
+
 ## [4.1.1] - 2026-06-20
 ### Added
 - Highlighting a note allows users to see file info/metadata.
