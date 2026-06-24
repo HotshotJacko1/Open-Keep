@@ -1405,7 +1405,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                 )}
                             </div>
                         ) : (
-                            <div onClick={() => editor?.chain().focus().run()} className="w-full h-full min-h-[300px] cursor-text">
+                            <div onClick={() => editor?.chain().focus().run()} className="w-full h-full min-h-[200px] cursor-text">
                                 <EditorContent editor={editor} className="outline-none min-h-[300px]" />
                             </div>
                         )}
