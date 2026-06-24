@@ -19,7 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 - Deleting a parent list item now also deletes the child list items.
 - Improved cloud sync.
-- Fixed issue where setting up cloud sync with existing notes would ask for the cloud PIN, even if the local PIN is the same. Now, it will use the local PIN if they're the same and not askfor it again.
+- Fixed issue where setting up cloud sync with existing notes would ask for the cloud PIN, even if the local PIN is the same. Now, it will use the local PIN if they're the same and not ask for it again.
 - Fixed swipe to sync not working.
 - Fixed issue with notes being deleted, then quickly reappearing due to in-progress cloud syncs.
 - Improved scrolling of long notes.
