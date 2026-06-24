@@ -7,7 +7,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { Info, Calendar, Clock, Tag, Type, Image, Hash } from "lucide-react";
+import { Info, Calendar, Clock, Tag, Type, Image, Hash, Fingerprint } from "lucide-react";
 
 interface FileInfoProps {
     isOpen: boolean;
@@ -88,6 +88,11 @@ const FileInfo: React.FC<FileInfoProps> = ({ isOpen, onClose, note }) => {
                         value={noteType}
                     />
                     <InfoRow
+                        icon={<Tag className="h-4 w-4" />}
+                        label="Labels"
+                        value={tagList}
+                    />
+                    <InfoRow
                         icon={<Hash className="h-4 w-4" />}
                         label="Words / Characters"
                         value={`${wordCount} words · ${charCount} characters`}
@@ -100,9 +105,9 @@ const FileInfo: React.FC<FileInfoProps> = ({ isOpen, onClose, note }) => {
                         />
                     )}
                     <InfoRow
-                        icon={<Tag className="h-4 w-4" />}
-                        label="Labels"
-                        value={tagList}
+                        icon={<Fingerprint className="h-4 w-4" />}
+                        label="Note ID"
+                        value={note.id}
                     />
                 </div>
             </DialogContent>

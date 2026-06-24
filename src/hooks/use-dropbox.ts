@@ -171,7 +171,21 @@ export const useDropbox = () => {
             const dropboxForceResolution = forceResolution === "merge" ? undefined : forceResolution;
             const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithDropbox(localNotes, localCustomTags, { masterKeyPayload, forceResolution: dropboxForceResolution });
 
-            await Promise.all(mergedNotes.map(note => saveNote(note)));
+            // Re-read local DB after sync in case local notes changed while sync was in-flight.
+            const currentLocalNotes = await loadNotes();
+            const currentLocalMap = new Map(currentLocalNotes.map(n => [n.id, n]));
+            let savedCount = 0, skippedCount = 0;
+            await Promise.all(mergedNotes.map(async note => {
+                const current = currentLocalMap.get(note.id);
+                if (current && current.updatedAt > note.updatedAt) {
+                    console.log(`[Dropbox Sync] Write-back skipped for note ${note.id}: local is newer (${new Date(current.updatedAt).toISOString()} > ${new Date(note.updatedAt).toISOString()})`);
+                    skippedCount++;
+                    return;
+                }
+                await saveNote(note);
+                savedCount++;
+            }));
+            console.log(`[Dropbox Sync] Write-back complete: ${savedCount} saved, ${skippedCount} skipped`);
             localStorage.setItem("custom-tags", JSON.stringify(mergedTags));
             const now = new Date().toLocaleString();
             localStorage.setItem("dropbox-last-synced", now);

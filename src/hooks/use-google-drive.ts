@@ -322,11 +322,32 @@ export const useGoogleDrive = () => {
             }
 
             const localNotes = await loadNotes();
+            console.log(`[Google Drive Sync] Loaded ${localNotes.length} local notes for sync`);
             const localCustomTags = JSON.parse(localStorage.getItem("custom-tags") || "[]");
             const driveForceResolution = forceResolution === "merge" ? undefined : forceResolution;
             const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithDrive(localNotes, localCustomTags, { masterKeyPayload, forceResolution: driveForceResolution });
 
-            await Promise.all(mergedNotes.map(note => saveNote(note)));
+            // Re-read local DB state now that sync is complete. Local notes may have changed
+            // while the sync was in-flight (e.g. user deleted a note during a long sync).
+            // Only write back a merged note if it is still newer than (or equal to) the
+            // current local copy — this prevents a stale sync from resurrecting deleted notes.
+            const currentLocalNotes = await loadNotes();
+            const currentLocalMap = new Map(currentLocalNotes.map(n => [n.id, n]));
+
+            let savedCount = 0;
+            let skippedCount = 0;
+            await Promise.all(mergedNotes.map(async note => {
+                const current = currentLocalMap.get(note.id);
+                if (current && current.updatedAt > note.updatedAt) {
+                    // Local was modified after the sync started — skip to avoid overwriting
+                    console.log(`[Google Drive Sync] Write-back skipped for note ${note.id} (${note.title}): local is newer (${new Date(current.updatedAt).toISOString()} > ${new Date(note.updatedAt).toISOString()})`);
+                    skippedCount++;
+                    return;
+                }
+                await saveNote(note);
+                savedCount++;
+            }));
+            console.log(`[Google Drive Sync] Write-back complete: ${savedCount} saved, ${skippedCount} skipped (local was newer)`);
             localStorage.setItem("custom-tags", JSON.stringify(mergedTags));
 
             const now = new Date().toLocaleString();

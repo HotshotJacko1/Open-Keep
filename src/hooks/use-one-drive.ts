@@ -146,12 +146,27 @@ export const useOneDrive = () => {
             const oneDriveForceResolution = forceResolution === "merge" ? undefined : forceResolution;
             const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithOneDrive(localNotes, localCustomTags, { masterKeyPayload, forceResolution: oneDriveForceResolution });
 
-            await Promise.all(mergedNotes.map(note => saveNote(note)));
+            // Re-read local DB after sync in case local notes changed while sync was in-flight.
+            const currentLocalNotes = await loadNotes();
+            const currentLocalMap = new Map(currentLocalNotes.map(n => [n.id, n]));
+            let savedCount = 0, skippedCount = 0;
+            await Promise.all(mergedNotes.map(async note => {
+                const current = currentLocalMap.get(note.id);
+                if (current && current.updatedAt > note.updatedAt) {
+                    console.log(`[OneDrive Sync] Write-back skipped for note ${note.id}: local is newer (${new Date(current.updatedAt).toISOString()} > ${new Date(note.updatedAt).toISOString()})`);
+                    skippedCount++;
+                    return;
+                }
+                await saveNote(note);
+                savedCount++;
+            }));
+            console.log(`[OneDrive Sync] Write-back complete: ${savedCount} saved, ${skippedCount} skipped`);
             localStorage.setItem("custom-tags", JSON.stringify(mergedTags));
             const now = new Date().toLocaleString();
             localStorage.setItem("onedrive-last-synced", now);
             setLastSynced(now);
             window.dispatchEvent(new Event("notes-updated"));
+
             if (!silent) {
                 showSuccess("Notes synced with OneDrive!");
             }
