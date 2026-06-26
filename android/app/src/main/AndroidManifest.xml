@@ -30,6 +30,8 @@
                 <data android:scheme="openkeep" android:host="auth" />
                 <data android:scheme="openkeep" android:host="new-text" />
                 <data android:scheme="openkeep" android:host="new-list" />
+                <data android:scheme="openkeep" android:host="open-note" />
+                <data android:scheme="openkeep" android:host="toggle-checkbox" />
             </intent-filter>
 
         </activity>
@@ -44,6 +46,33 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/openkeep_widget_info" />
         </receiver>
+
+        <receiver
+            android:name=".NoteCollectionWidget"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.jackbarkerapps.openkeep.TOGGLE_CHECKBOX" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/note_collection_widget_info" />
+        </receiver>
+
+        <activity
+            android:name=".NoteCollectionWidgetConfigureActivity"
+            android:label="Note Collection"
+            android:theme="@style/Theme.AppCompat.Light.Dialog"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".NoteCollectionWidgetService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_checkbox_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingTop="1dp"
+    android:paddingBottom="1dp"
+    android:clickable="true"
+    android:focusable="true">
+
+    <!-- Checkbox icon -->
+    <ImageView
+        android:id="@+id/widget_checkbox_icon"
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:layout_marginEnd="6dp"
+        android:contentDescription="Checkbox" />
+
+    <!-- Checkbox text -->
+    <TextView
+        android:id="@+id/widget_checkbox_text"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textSize="12sp"
+        android:textColor="#3C4043"
+        android:fontFamily="sans-serif"
+        android:maxLines="1"
+        android:ellipsize="end" />
+
+</LinearLayout>
