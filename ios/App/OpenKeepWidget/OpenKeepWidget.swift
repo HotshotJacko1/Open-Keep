@@ -71,7 +71,7 @@ struct OpenKeepWidget: Widget {
         StaticConfiguration(kind: kind, provider: OpenKeepWidgetProvider()) { entry in
             OpenKeepWidgetEntryView(entry: entry)
         }
-        .configurationDisplayName("Open Keep")
+        .configurationDisplayName("New note")
         .description("Quickly create new text or list notes")
         .supportedFamilies([.systemSmall])
     }
