@@ -28,10 +28,34 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
     private lazy var keyManager = KeyManager()
     
     private func getDatabasePath() -> String {
-        let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-        let documentsDirectory = paths[0]
-        return documentsDirectory.appendingPathComponent("open-keep-db.sqlite3").path
-    }
+            // Use the shared App Group container so the widget extension can access the DB.
+            // On first launch after this change, migrate the DB from the old Documents path.
+            let oldPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("open-keep-db.sqlite3").path
+            let newPath = SharedAppGroup.databasePath
+    
+            let oldExists = FileManager.default.fileExists(atPath: oldPath)
+            let newExists = FileManager.default.fileExists(atPath: newPath)
+    
+            if oldExists && !newExists {
+                // Migrate DB + WAL + SHM files to the shared container
+                do {
+                    for ext in ["", "-wal", "-shm"] {
+                        let src = oldPath + ext
+                        let dst = newPath + ext
+                        if FileManager.default.fileExists(atPath: src) {
+                            try FileManager.default.moveItem(atPath: src, toPath: dst)
+                        }
+                    }
+                    print("[NoteStoragePlugin] Migrated database to shared container")
+                } catch {
+                    print("[NoteStoragePlugin] Migration failed, falling back to old path: \(error)")
+                    return oldPath
+                }
+            }
+    
+            return newPath
+        }
     
     private func removeDatabaseFiles(at dbPath: String) {
         let fm = FileManager.default
@@ -63,11 +87,12 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
         }
         
         do {
-            try NoteDatabase.shared.saveNote(dict: noteObj)
-            call.resolve()
-        } catch {
-            call.reject("Failed to save note: \(error.localizedDescription)")
-        }
+                    try NoteDatabase.shared.saveNote(dict: noteObj)
+                    WidgetRefresher.refreshAllWidgets()
+                    call.resolve()
+                } catch {
+                    call.reject("Failed to save note: \(error.localizedDescription)")
+                }
     }
     
     @objc func deleteNote(_ call: CAPPluginCall) {
@@ -77,11 +102,12 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
         }
         
         do {
-            try NoteDatabase.shared.deleteNote(noteId: id)
-            call.resolve()
-        } catch {
-            call.reject("Failed to delete note: \(error.localizedDescription)")
-        }
+                    try NoteDatabase.shared.deleteNote(noteId: id)
+                    WidgetRefresher.refreshAllWidgets()
+                    call.resolve()
+                } catch {
+                    call.reject("Failed to delete note: \(error.localizedDescription)")
+                }
     }
     
     @objc func initialize(_ call: CAPPluginCall) {
@@ -289,12 +315,17 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
     }
     
     @objc func canDecryptCloudMasterKey(_ call: CAPPluginCall) {
-        guard let payload = call.getString("payload"), let pin = call.getString("pin") else {
-            call.reject("Missing payload or PIN")
-            return
+            guard let payload = call.getString("payload"), let pin = call.getString("pin") else {
+                call.reject("Missing payload or PIN")
+                return
+            }
+            
+            let canDecrypt = keyManager.canDecryptCloudMasterKey(payload: payload, pin: pin)
+            call.resolve(["canDecrypt": canDecrypt])
         }
         
-        let canDecrypt = keyManager.canDecryptCloudMasterKey(payload: payload, pin: pin)
-        call.resolve(["canDecrypt": canDecrypt])
+        @objc func refreshWidgets(_ call: CAPPluginCall) {
+            WidgetRefresher.refreshAllWidgets()
+            call.resolve()
+        }
     }
-}

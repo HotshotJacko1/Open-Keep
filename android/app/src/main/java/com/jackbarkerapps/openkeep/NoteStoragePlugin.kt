@@ -1,5 +1,7 @@
 package com.jackbarkerapps.openkeep
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
@@ -22,8 +24,23 @@ class NoteStoragePlugin : Plugin() {
 
     override fun load() {
         super.load()
-        // Repository is initialized via the initialize() plugin method calls
     }
+
+    /**
+     * Trigger both the old and new widget providers to refresh.
+     */
+    private fun refreshWidgets() {
+            try {
+                val context = activity ?: return
+                val appWidgetManager = AppWidgetManager.getInstance(context)
+    
+                val widget = ComponentName(context, NoteCollectionWidget::class.java)
+                val ids = appWidgetManager.getAppWidgetIds(widget)
+                NoteCollectionWidget.refreshWidget(context, ids)
+            } catch (e: Exception) {
+                android.util.Log.e("NoteStorage", "Failed to refresh widgets", e)
+            }
+        }
 
     @PluginMethod
     fun loadNotes(call: PluginCall) {
@@ -112,7 +129,8 @@ class NoteStoragePlugin : Plugin() {
                     recurrence = noteObj.optJSONObject("recurrence")?.toString()
                 )
                 repository.saveNote(note)
-                call.resolve()
+                                refreshWidgets()
+                                call.resolve()
             } catch (e: Exception) {
                 call.reject("Failed to save note: ${e.message}")
             }
@@ -129,7 +147,8 @@ class NoteStoragePlugin : Plugin() {
         scope.launch {
             try {
                 repository.deleteNote(id)
-                call.resolve()
+                                refreshWidgets()
+                                call.resolve()
             } catch (e: Exception) {
                 call.reject("Failed to delete note: ${e.message}")
             }
@@ -572,5 +591,11 @@ class NoteStoragePlugin : Plugin() {
         } catch (e: Exception) {
             call.reject("Decryption check failed: ${e.message}")
         }
+    }
+
+    @PluginMethod
+    fun refreshWidgets(call: PluginCall) {
+        refreshWidgets()
+        call.resolve()
     }
 }

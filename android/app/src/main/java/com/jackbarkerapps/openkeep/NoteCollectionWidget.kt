@@ -17,58 +17,43 @@ import com.jackbarkerapps.openkeep.data.NoteEntity
 import com.jackbarkerapps.openkeep.data.NoteRepository
 import com.jackbarkerapps.openkeep.security.KeyManager
 import org.json.JSONArray
+import kotlinx.coroutines.flow.firstOrNull
 
 /**
  * 4x3 homescreen widget that displays a scrollable list of notes from the
- * encrypted database, filtered by the user's configuration (All, Pinned, or a Label).
- *
- * Supports:
- * - Tapping a note → deep-link into the note editor (openkeep://open-note/{id})
- * - Tapping a checkbox → inline toggle via broadcast + DB update
+ * encrypted database, filtered by the user's configuration.
  */
 class NoteCollectionWidget : AppWidgetProvider() {
 
     companion object {
         private const val TAG = "NoteCollectionWidget"
-        private const val ACTION_TOGGLE_CHECKBOX = "com.jackbarkerapps.openkeep.TOGGLE_CHECKBOX"
-        private const val EXTRA_NOTE_ID = "note_id"
-        private const val EXTRA_LINE_INDEX = "line_index"
-        private const val EXTRA_APPWIDGET_ID = "appwidget_id"
+        const val ACTION_TOGGLE_CHECKBOX = "com.jackbarkerapps.openkeep.TOGGLE_CHECKBOX"
+        const val EXTRA_NOTE_ID = "note_id"
+        const val EXTRA_LINE_INDEX = "line_index"
+        const val EXTRA_APPWIDGET_ID = "appwidget_id"
 
-        /**
-         * Read filter preferences saved by the config Activity.
-         */
         private fun getFilterPrefs(context: Context, appWidgetId: Int): NoteCollectionWidgetConfigureActivity.FilterPrefs? {
             return NoteCollectionWidgetConfigureActivity.loadFilterPrefs(context, appWidgetId)
         }
 
-        /**
-         * Try to initialize the database and query notes matching the filter.
-         * Returns null if the DB is locked / key unavailable.
-         */
         fun queryNotes(context: Context, appWidgetId: Int): List<NoteEntity>? {
             return try {
                 val prefs = getFilterPrefs(context, appWidgetId) ?: return emptyList()
                 val keyManager = KeyManager(context)
-                val masterKey = keyManager.getMasterKey()
-                    ?: return null // DB locked
+                val masterKey = keyManager.getMasterKey() ?: return null
 
                 NoteRepository.reset()
                 NoteRepository.initialize(context, masterKey)
                 val repo = NoteRepository(context)
-
                 val allNotes = kotlinx.coroutines.flow.firstOrNull(repo.getAllNotes()) ?: emptyList()
                 NoteRepository.reset()
 
-                // Apply filter
                 val filtered = when (prefs.type) {
-                    NoteCollectionWidgetConfigureActivity.FILTER_ALL -> {
+                    NoteCollectionWidgetConfigureActivity.FILTER_ALL ->
                         allNotes.filter { !it.deleted && !it.isArchived }
-                    }
-                    NoteCollectionWidgetConfigureActivity.FILTER_PINNED -> {
+                    NoteCollectionWidgetConfigureActivity.FILTER_PINNED ->
                         allNotes.filter { !it.deleted && !it.isArchived && it.isPinned }
-                    }
-                    NoteCollectionWidgetConfigureActivity.FILTER_LABEL -> {
+                    NoteCollectionWidgetConfigureActivity.FILTER_LABEL ->
                         allNotes.filter { note ->
                             if (note.deleted || note.isArchived) return@filter false
                             try {
@@ -76,14 +61,12 @@ class NoteCollectionWidget : AppWidgetProvider() {
                                 for (i in 0 until tagsArray.length()) {
                                     if (tagsArray.getString(i) == prefs.value) return@filter true
                                 }
-                            } catch (e: Exception) {}
+                            } catch (_: Exception) {}
                             false
                         }
-                    }
                     else -> emptyList()
                 }
 
-                // Sort: pinned first, then by updatedAt desc
                 filtered.sortedWith(
                     compareByDescending<NoteEntity> { it.isPinned }
                         .thenByDescending { it.updatedAt }
@@ -94,9 +77,6 @@ class NoteCollectionWidget : AppWidgetProvider() {
             }
         }
 
-        /**
-         * Toggle a checkbox in a note's content at the given line index.
-         */
         fun toggleCheckboxInNote(context: Context, noteId: String, lineIndex: Int): Boolean {
             return try {
                 val keyManager = KeyManager(context)
@@ -151,7 +131,6 @@ class NoteCollectionWidget : AppWidgetProvider() {
         ) {
             val prefs = getFilterPrefs(context, appWidgetId)
             if (prefs == null) {
-                // Not configured yet — show placeholder
                 val views = RemoteViews(context.packageName, R.layout.note_collection_widget_layout)
                 views.setTextViewText(R.id.widget_title, "Note Collection")
                 views.setViewVisibility(R.id.widget_note_list, View.GONE)
@@ -162,7 +141,6 @@ class NoteCollectionWidget : AppWidgetProvider() {
                 return
             }
 
-            // Check if DB is accessible
             val testKey = KeyManager(context).getMasterKey()
             if (testKey == null) {
                 val views = RemoteViews(context.packageName, R.layout.note_collection_widget_layout)
@@ -175,7 +153,6 @@ class NoteCollectionWidget : AppWidgetProvider() {
                 return
             }
 
-            // Set up the list via RemoteViewsService
             val intent = Intent(context, NoteCollectionWidgetService::class.java).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME).toString() + "#" + appWidgetId)
@@ -184,7 +161,6 @@ class NoteCollectionWidget : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.note_collection_widget_layout)
             views.setTextViewText(R.id.widget_title, prefs.displayName())
 
-            // Query notes to get count
             val notes = queryNotes(context, appWidgetId)
             val noteCount = notes?.size ?: 0
 
@@ -204,7 +180,6 @@ class NoteCollectionWidget : AppWidgetProvider() {
                 views.setTextViewText(R.id.widget_note_count, "${noteCount} notes")
                 views.setRemoteAdapter(R.id.widget_note_list, intent)
 
-                // Set the pending intent template for tapping a note
                 val tapIntent = Intent(Intent.ACTION_VIEW).apply {
                     data = Uri.parse("openkeep://open-note/PLACEHOLDER")
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -222,11 +197,7 @@ class NoteCollectionWidget : AppWidgetProvider() {
         }
     }
 
-    override fun onUpdate(
-        context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetIds: IntArray
-    ) {
+    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         for (appWidgetId in appWidgetIds) {
             updateWidgetAppearance(context, appWidgetManager, appWidgetId)
         }
@@ -241,9 +212,7 @@ class NoteCollectionWidget : AppWidgetProvider() {
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        try {
-            context.unregisterReceiver(checkboxToggleReceiver)
-        } catch (e: Exception) {}
+        try { context.unregisterReceiver(checkboxToggleReceiver) } catch (_: Exception) {}
     }
 
     private val checkboxToggleReceiver = object : BroadcastReceiver() {
@@ -258,7 +227,6 @@ class NoteCollectionWidget : AppWidgetProvider() {
 
             toggleCheckboxInNote(context, noteId, lineIndex)
 
-            // Refresh the widget
             if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
                 updateWidgetAppearance(context, AppWidgetManager.getInstance(context), appWidgetId)
             } else {
@@ -314,13 +282,12 @@ class NoteCollectionViewsFactory(
 
         val itemViews = RemoteViews(context.packageName, R.layout.note_collection_widget_item)
 
-        // --- Title ---
+        // Title
         itemViews.setTextViewText(R.id.widget_note_title, note.title.ifBlank { "Untitled" })
 
-        // Parse content for checkboxes
         val lines = note.content.split("\n")
         val checkboxRegex = Regex("^\\s*-\\s\\[([ xX])\\]\\s(.*)$")
-        val checkboxLines = mutableListOf<Triple<Int, Boolean, String>>() // (lineIndex, checked, text)
+        val checkboxLines = mutableListOf<Triple<Int, Boolean, String>>()
 
         for ((idx, line) in lines.withIndex()) {
             val match = checkboxRegex.find(line)
@@ -331,29 +298,25 @@ class NoteCollectionViewsFactory(
             }
         }
 
-        // Get first non-checkbox line for content preview
         val firstContentLine = lines.firstOrNull { line ->
             line.trim().isNotEmpty() && !checkboxRegex.containsMatchIn(line)
         }
 
         if (checkboxLines.isEmpty()) {
-            // --- Plain text note (no checkboxes) ---
+            // Plain text note
             itemViews.setViewVisibility(R.id.widget_note_content, View.VISIBLE)
             itemViews.setTextViewText(R.id.widget_note_content, firstContentLine ?: "")
             hideAllCheckboxRows(itemViews)
             itemViews.setViewVisibility(R.id.widget_more_items, View.GONE)
 
-            // Open-note fillInIntent on the root
             val fillIntent = Intent().apply {
                 data = Uri.parse("openkeep://open-note/${note.id}")
             }
             itemViews.setOnClickFillInIntent(R.id.widget_note_item_root, fillIntent)
-
         } else {
-            // --- Checkbox note ---
+            // Checkbox note — show up to 3 checkbox rows
             itemViews.setViewVisibility(R.id.widget_note_content, View.GONE)
 
-            // Show up to 3 checkbox rows
             val visibleCount = minOf(checkboxLines.size, 3)
             for (i in 0 until visibleCount) {
                 val (lineIdx, checked, text) = checkboxLines[i]
@@ -368,11 +331,10 @@ class NoteCollectionViewsFactory(
                 )
                 itemViews.setTextViewText(textId, text)
 
-                // Fill-in intent for tapping this checkbox row
-                val toggleIntent = Intent(ACTION_TOGGLE_CHECKBOX).apply {
-                    putExtra(EXTRA_NOTE_ID, note.id)
-                    putExtra(EXTRA_LINE_INDEX, lineIdx)
-                    putExtra(EXTRA_APPWIDGET_ID, appWidgetId)
+                val toggleIntent = Intent(NoteCollectionWidget.ACTION_TOGGLE_CHECKBOX).apply {
+                    putExtra(NoteCollectionWidget.EXTRA_NOTE_ID, note.id)
+                    putExtra(NoteCollectionWidget.EXTRA_LINE_INDEX, lineIdx)
+                    putExtra(NoteCollectionWidget.EXTRA_APPWIDGET_ID, appWidgetId)
                 }
                 val togglePendingIntent = PendingIntent.getBroadcast(
                     context,
@@ -383,23 +345,17 @@ class NoteCollectionViewsFactory(
                 itemViews.setOnClickPendingIntent(rowId, togglePendingIntent)
             }
 
-            // Hide remaining checkbox slots
             for (i in visibleCount until 3) {
                 itemViews.setViewVisibility(checkboxRowId(i + 1), View.GONE)
             }
 
-            // "More items" indicator
             if (checkboxLines.size > 3) {
                 itemViews.setViewVisibility(R.id.widget_more_items, View.VISIBLE)
-                itemViews.setTextViewText(
-                    R.id.widget_more_items,
-                    "+${checkboxLines.size - 3} more items"
-                )
+                itemViews.setTextViewText(R.id.widget_more_items, "+${checkboxLines.size - 3} more items")
             } else {
                 itemViews.setViewVisibility(R.id.widget_more_items, View.GONE)
             }
 
-            // Open-note fillInIntent on the root (for tapping the title area)
             val fillIntent = Intent().apply {
                 data = Uri.parse("openkeep://open-note/${note.id}")
             }

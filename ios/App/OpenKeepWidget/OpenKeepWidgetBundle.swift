@@ -5,5 +5,6 @@ import SwiftUI
 struct OpenKeepWidgetBundle: WidgetBundle {
     var body: some Widget {
         OpenKeepWidget()
+        NoteCollectionWidgetIOS()
     }
 }
