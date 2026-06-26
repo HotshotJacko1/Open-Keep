@@ -1,8 +1,11 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">Open Keep</string>
-    <string name="title_activity_main">Open Keep</string>
+    <string name="title_activity_main">New note</string>
     <string name="package_name">com.jackbarkerapps.openkeep</string>
     <string name="custom_url_scheme">com.jackbarkerapps.openkeep</string>
     <string name="server_client_id">889284625804-5prnhudcoalopvn0ad0au449lo1bn8f8.apps.googleusercontent.com</string>
+    <string name="widget_note_collection_description">View a set of notes</string>
+    <string name="widget_openkeep_description">Quickly create new text or list notes</string>
+    <string name="widget_single_note_description">Pin a specific note or list to your home screen</string>
 </resources>
