@@ -28,9 +28,22 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="openkeep" android:host="auth" />
+                <data android:scheme="openkeep" android:host="new-text" />
+                <data android:scheme="openkeep" android:host="new-list" />
             </intent-filter>
 
         </activity>
+
+        <receiver
+            android:name=".OpenKeepWidget"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/openkeep_widget_info" />
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

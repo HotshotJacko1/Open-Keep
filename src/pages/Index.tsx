@@ -37,6 +37,7 @@ import { saveAs } from "file-saver";
 import { toggleCheckboxInContent } from "@/utils/markdown";
 import { rescheduleAllReminders } from "@/utils/reminder";
 import { App as CapacitorApp } from "@capacitor/app";
+import { useWidgetDeepLink } from "@/hooks/use-widget-deep-link";
 
 const Index = () => {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -69,12 +70,25 @@ const Index = () => {
   }, [customTags]);
 
   // Derive selection mode from selected count
-  const isSelectionMode = selectedNoteIds.size > 0;
-
-  // Sync selectedTag with URL search params
-  useEffect(() => {
-    setSelectedTag(searchParams.get("tag"));
-  }, [searchParams]);
+    const isSelectionMode = selectedNoteIds.size > 0;
+  
+    // Sync selectedTag with URL search params
+    useEffect(() => {
+      setSelectedTag(searchParams.get("tag"));
+    }, [searchParams]);
+  
+    // Widget deep link handling
+    const { action: widgetAction, clearAction } = useWidgetDeepLink();
+  
+    useEffect(() => {
+      if (widgetAction === "new-text") {
+        handleNewTextNote();
+        clearAction();
+      } else if (widgetAction === "new-list") {
+        handleNewListNote();
+        clearAction();
+      }
+    }, [widgetAction]);
 
   const getHeaderContent = () => {
     if (selectedTag === "archive") {
