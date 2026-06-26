@@ -78,17 +78,28 @@ const Index = () => {
     }, [searchParams]);
   
     // Widget deep link handling
-    const { action: widgetAction, clearAction } = useWidgetDeepLink();
-  
-    useEffect(() => {
-      if (widgetAction === "new-text") {
-        handleNewTextNote();
-        clearAction();
-      } else if (widgetAction === "new-list") {
-        handleNewListNote();
-        clearAction();
-      }
-    }, [widgetAction]);
+        const { action: widgetAction, clearAction } = useWidgetDeepLink();
+      
+        useEffect(() => {
+          if (!widgetAction) return;
+    
+          if (widgetAction.type === "new-text") {
+            handleNewTextNote();
+            clearAction();
+          } else if (widgetAction.type === "new-list") {
+            handleNewListNote();
+            clearAction();
+          } else if (widgetAction.type === "open-note") {
+            const note = notes.find((n) => n.id === widgetAction.noteId);
+            if (note && !note.isDeleted) {
+              handleEditNote(note);
+            }
+            clearAction();
+          } else if (widgetAction.type === "toggle-checkbox") {
+            handleToggleListItem(widgetAction.noteId, `line-${widgetAction.lineIndex}`);
+            clearAction();
+          }
+        }, [widgetAction]);
 
   const getHeaderContent = () => {
     if (selectedTag === "archive") {

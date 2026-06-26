@@ -2,15 +2,20 @@ import { useEffect, useRef, useState } from "react";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 
-export type WidgetAction = "new-text" | "new-list" | null;
+export type WidgetAction =
+  | { type: "new-text" }
+  | { type: "new-list" }
+  | { type: "open-note"; noteId: string }
+  | { type: "toggle-checkbox"; noteId: string; lineIndex: number }
+  | null;
 
 /**
  * Hook that listens for incoming deep links from the OS widget (or any
  * openkeep:// URL) and returns the parsed action.
  *
- * Returns `null` when idle, or `"new-text"` / `"new-list"` when a
- * corresponding deep link is received. The action resets to `null` after
- * the calling component consumes it by calling `clearAction()`.
+ * Returns `null` when idle, or an action object when a corresponding deep
+ * link is received. The action resets to `null` after the calling component
+ * consumes it by calling `clearAction()`.
  */
 export function useWidgetDeepLink() {
   const [action, setAction] = useState<WidgetAction>(null);
@@ -28,13 +33,24 @@ export function useWidgetDeepLink() {
         if (parsed.protocol !== "openkeep:") return;
 
         const host = parsed.hostname || parsed.host;
+        const pathParts = parsed.pathname.replace(/^\//, "").split("/").filter(Boolean);
 
         if (host === "new-text") {
           handledRef.current = true;
-          setAction("new-text");
+          setAction({ type: "new-text" });
         } else if (host === "new-list") {
           handledRef.current = true;
-          setAction("new-list");
+          setAction({ type: "new-list" });
+        } else if (host === "open-note" && pathParts.length > 0) {
+          handledRef.current = true;
+          setAction({ type: "open-note", noteId: pathParts[0] });
+        } else if (host === "toggle-checkbox" && pathParts.length >= 2) {
+          handledRef.current = true;
+          setAction({
+            type: "toggle-checkbox",
+            noteId: pathParts[0],
+            lineIndex: parseInt(pathParts[1], 10),
+          });
         }
       } catch {
         // Not a valid URL — ignore
