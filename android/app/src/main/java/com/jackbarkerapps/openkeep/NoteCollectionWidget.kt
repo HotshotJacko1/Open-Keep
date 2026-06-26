@@ -1,5 +1,6 @@
 package com.jackbarkerapps.openkeep
 
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
@@ -34,7 +35,7 @@ class NoteCollectionWidget : AppWidgetProvider() {
         const val EXTRA_LINE_INDEX = "line_index"
         const val EXTRA_APPWIDGET_ID = "appwidget_id"
 
-        private fun getFilterPrefs(context: Context, appWidgetId: Int): NoteCollectionWidgetConfigureActivity.FilterPrefs? {
+        private fun getFilterPrefs(context: Context, appWidgetId: Int): FilterPrefs? {
             return NoteCollectionWidgetConfigureActivity.loadFilterPrefs(context, appWidgetId)
         }
 
@@ -52,11 +53,11 @@ class NoteCollectionWidget : AppWidgetProvider() {
                 NoteRepository.reset()
 
                 val filtered = when (prefs.type) {
-                    NoteCollectionWidgetConfigureActivity.FILTER_ALL ->
+                    FilterPrefs.FILTER_ALL ->
                         allNotes.filter { !it.deleted && !it.isArchived }
-                    NoteCollectionWidgetConfigureActivity.FILTER_PINNED ->
+                    FilterPrefs.FILTER_PINNED ->
                         allNotes.filter { !it.deleted && !it.isArchived && it.isPinned }
-                    NoteCollectionWidgetConfigureActivity.FILTER_LABEL ->
+                    FilterPrefs.FILTER_LABEL ->
                         allNotes.filter { note ->
                             if (note.deleted || note.isArchived) return@filter false
                             try {
@@ -205,15 +206,16 @@ class NoteCollectionWidget : AppWidgetProvider() {
         super.onUpdate(context, appWidgetManager, appWidgetIds)
     }
 
-    override fun onEnabled(context: Context) {
-        super.onEnabled(context)
-        val filter = IntentFilter(ACTION_TOGGLE_CHECKBOX)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.registerReceiver(checkboxToggleReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            context.registerReceiver(checkboxToggleReceiver, filter)
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
+        override fun onEnabled(context: Context) {
+            super.onEnabled(context)
+            val filter = IntentFilter(ACTION_TOGGLE_CHECKBOX)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.registerReceiver(checkboxToggleReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                context.registerReceiver(checkboxToggleReceiver, filter)
+            }
         }
-    }
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)

@@ -36,11 +36,6 @@ class NoteCollectionWidgetConfigureActivity : Activity() {
         private const val KEY_FILTER_TYPE = "filter_type"
         private const val KEY_FILTER_VALUE = "filter_value"
 
-        // Filter type constants
-        const val FILTER_ALL = "all"
-        const val FILTER_PINNED = "pinned"
-        const val FILTER_LABEL = "label"
-
         fun loadFilterPrefs(context: Context, appWidgetId: Int): FilterPrefs? {
             val prefs = context.getSharedPreferences("${PREFS_NAME}_${appWidgetId}", Context.MODE_PRIVATE)
             val type = prefs.getString(KEY_FILTER_TYPE, null) ?: return null
@@ -54,15 +49,6 @@ class NoteCollectionWidgetConfigureActivity : Activity() {
                 .putString(KEY_FILTER_TYPE, filterType)
                 .putString(KEY_FILTER_VALUE, filterValue)
                 .apply()
-        }
-
-        data class FilterPrefs(val type: String, val value: String) {
-            fun displayName(): String = when (type) {
-                FILTER_ALL -> "All Notes"
-                FILTER_PINNED -> "Pinned Notes"
-                FILTER_LABEL -> "Label: $value"
-                else -> "All Notes"
-            }
         }
     }
 
@@ -145,9 +131,9 @@ class NoteCollectionWidgetConfigureActivity : Activity() {
         )
 
         // Add "All Notes" option
-        addRadioOption(FILTER_ALL, "All Notes", "Show all non-archived notes", 0)
+        addRadioOption(FilterPrefs.FILTER_ALL, "All Notes", "Show all non-archived notes", 0)
         // Add "Pinned Notes" option
-        addRadioOption(FILTER_PINNED, "Pinned Notes", "Show only pinned notes", 1)
+        addRadioOption(FilterPrefs.FILTER_PINNED, "Pinned Notes", "Show only pinned notes", 1)
 
         contentLayout.addView(radioGroup)
 
@@ -263,7 +249,7 @@ class NoteCollectionWidgetConfigureActivity : Activity() {
                 val radioBtn = RadioButton(this)
                 radioBtn.id = index
                 radioBtn.text = label
-                radioBtn.tag = FILTER_LABEL
+                radioBtn.tag = FilterPrefs.FILTER_LABEL
                 radioBtn.setTextColor(0xFF202124.toInt())
                 radioBtn.textSize = 16f
                 radioBtn.setPadding(32, 12, 16, 12)
