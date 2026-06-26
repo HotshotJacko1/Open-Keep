@@ -27,20 +27,32 @@ class NoteStoragePlugin : Plugin() {
     }
 
     /**
-     * Trigger both the old and new widget providers to refresh.
-     */
-    private fun refreshWidgets() {
-            try {
-                val context = activity ?: return
-                val appWidgetManager = AppWidgetManager.getInstance(context)
+         * Trigger all widget providers to refresh.
+         */
+        private fun refreshWidgets() {
+                try {
+                    val context = activity ?: return
+                    val appWidgetManager = AppWidgetManager.getInstance(context)
     
-                val widget = ComponentName(context, NoteCollectionWidget::class.java)
-                val ids = appWidgetManager.getAppWidgetIds(widget)
-                NoteCollectionWidget.refreshWidget(context, ids)
-            } catch (e: Exception) {
-                android.util.Log.e("NoteStorage", "Failed to refresh widgets", e)
+                    // Refresh existing NoteCollectionWidget
+                    val noteCollectionWidget = ComponentName(context, NoteCollectionWidget::class.java)
+                    val noteCollectionIds = appWidgetManager.getAppWidgetIds(noteCollectionWidget)
+                    NoteCollectionWidget.refreshWidget(context, noteCollectionIds)
+    
+                    // Refresh SingleNoteWidget
+                    val singleNoteWidget = ComponentName(context, SingleNoteWidget::class.java)
+                    val singleNoteIds = appWidgetManager.getAppWidgetIds(singleNoteWidget)
+                    val updateIntent = android.content.Intent(
+                        context, SingleNoteWidget::class.java
+                    ).apply {
+                        action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, singleNoteIds)
+                    }
+                    context.sendBroadcast(updateIntent)
+                } catch (e: Exception) {
+                    android.util.Log.e("NoteStorage", "Failed to refresh widgets", e)
+                }
             }
-        }
 
     @PluginMethod
     fun loadNotes(call: PluginCall) {

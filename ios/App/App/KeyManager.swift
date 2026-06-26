@@ -11,9 +11,13 @@ class KeyManager {
     private let SALT_SIZE = 16
     private let ITERATIONS: UInt32 = 10000
     private let KEY_LENGTH = 32 // 256 bits
+    private let APP_GROUP = "group.com.jackbarkerapps.openkeep"
+    private let SHARED_DEFAULTS_KEY = "shared_master_key"
     
     // UserDefaults used for salt, like Android's standardPrefs
     private let defaults = UserDefaults.standard
+    // Shared UserDefaults (App Group) so the widget extension can read the key
+    private lazy var sharedDefaults: UserDefaults? = UserDefaults(suiteName: APP_GROUP)
     
     init() {}
     
@@ -190,17 +194,28 @@ class KeyManager {
     }
     
     func storeMasterKey(key: [UInt8]) throws {
-        let encodedKey = Data(key).base64EncodedString()
-        try keychainSet(key: KEY_ALIAS, value: encodedKey)
-    }
-    
-    func getMasterKey() -> [UInt8]? {
-        guard let encodedKey = keychainGet(key: KEY_ALIAS),
-              let keyData = Data(base64Encoded: encodedKey) else {
-            return nil
+            let encodedKey = Data(key).base64EncodedString()
+            try keychainSet(key: KEY_ALIAS, value: encodedKey)
+            // Also store in shared UserDefaults for widget extension access
+            sharedDefaults?.set(encodedKey, forKey: SHARED_DEFAULTS_KEY)
         }
-        return [UInt8](keyData)
-    }
+        
+        func getMasterKey() -> [UInt8]? {
+            guard let encodedKey = keychainGet(key: KEY_ALIAS),
+                  let keyData = Data(base64Encoded: encodedKey) else {
+                return nil
+            }
+            return [UInt8](keyData)
+        }
+        
+        /// Read the master key from shared App Group UserDefaults (for widget extension).
+        func getMasterKeyFromSharedDefaults() -> [UInt8]? {
+            guard let encodedKey = sharedDefaults?.string(forKey: SHARED_DEFAULTS_KEY),
+                  let keyData = Data(base64Encoded: encodedKey) else {
+                return nil
+            }
+            return [UInt8](keyData)
+        }
     
     func encrypt(plaintext: String, key: [UInt8]? = nil) throws -> String {
         let activeKey = key ?? getMasterKey()
@@ -220,8 +235,9 @@ class KeyManager {
     }
     
     func clear() {
-        keychainDelete(key: KEY_ALIAS)
-    }
+            keychainDelete(key: KEY_ALIAS)
+            sharedDefaults?.removeObject(forKey: SHARED_DEFAULTS_KEY)
+        }
     
     func clearAll() {
         clear()

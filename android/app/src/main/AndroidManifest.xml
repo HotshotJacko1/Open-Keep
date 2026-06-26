@@ -36,6 +36,7 @@
 
         </activity>
 
+        <!-- Existing Quick Actions Widget (2x1) -->
         <receiver
             android:name=".OpenKeepWidget"
             android:exported="true">
@@ -47,8 +48,9 @@
                 android:resource="@xml/openkeep_widget_info" />
         </receiver>
 
+        <!-- New Single Note Widget (4x3) -->
         <receiver
-            android:name=".NoteCollectionWidget"
+            android:name=".SingleNoteWidget"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -56,23 +58,24 @@
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/note_collection_widget_info" />
+                android:resource="@xml/single_note_widget_info" />
         </receiver>
 
+        <!-- RemoteViewsService for SingleNoteWidget -->
+        <service
+            android:name=".SingleNoteWidgetRemoteViewsService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+        <!-- Configuration Activity for SingleNoteWidget -->
         <activity
-            android:name=".NoteCollectionWidgetConfigureActivity"
-            android:label="Note Collection"
-            android:theme="@style/Theme.AppCompat.Light.Dialog"
-            android:exported="true">
+            android:name=".SingleNoteWidgetConfigureActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
             </intent-filter>
         </activity>
-
-        <service
-            android:name=".NoteCollectionWidgetService"
-            android:exported="false"
-            android:permission="android.permission.BIND_REMOTEVIEWS" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -86,11 +89,10 @@
     </application>
 
     <!-- Permissions -->
-
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
-    <!-- Photo support (camera only; images stored in app-private storage via Capacitor Filesystem) -->
+    <!-- Photo support -->
     <uses-permission android:name="android.permission.CAMERA" />
     <queries>
         <intent>
