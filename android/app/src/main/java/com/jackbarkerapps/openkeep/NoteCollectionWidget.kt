@@ -9,19 +9,21 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
-import android.util.Log
-import android.view.View
+import android.os.Build
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
-import com.jackbarkerapps.openkeep.data.NoteEntity
 import com.jackbarkerapps.openkeep.data.NoteRepository
 import com.jackbarkerapps.openkeep.security.KeyManager
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
-import kotlinx.coroutines.flow.firstOrNull
 
 /**
- * 4x3 homescreen widget that displays a scrollable list of notes from the
+ * 4×3 homescreen widget that displays a scrollable list of notes from the
  * encrypted database, filtered by the user's configuration.
+ *
+ * Tapping a note deep-links into the editor; tapping a checkbox row sends a
+ * broadcast that toggles the checkbox inline (brief visual delay is acceptable).
  */
 class NoteCollectionWidget : AppWidgetProvider() {
 
@@ -36,7 +38,7 @@ class NoteCollectionWidget : AppWidgetProvider() {
             return NoteCollectionWidgetConfigureActivity.loadFilterPrefs(context, appWidgetId)
         }
 
-        fun queryNotes(context: Context, appWidgetId: Int): List<NoteEntity>? {
+        fun queryNotes(context: Context, appWidgetId: Int): List<com.jackbarkerapps.openkeep.data.NoteEntity>? {
             return try {
                 val prefs = getFilterPrefs(context, appWidgetId) ?: return emptyList()
                 val keyManager = KeyManager(context)
@@ -45,7 +47,8 @@ class NoteCollectionWidget : AppWidgetProvider() {
                 NoteRepository.reset()
                 NoteRepository.initialize(context, masterKey)
                 val repo = NoteRepository(context)
-                val allNotes = kotlinx.coroutines.flow.firstOrNull(repo.getAllNotes()) ?: emptyList()
+
+                val allNotes = runBlocking { repo.getAllNotes().first() }
                 NoteRepository.reset()
 
                 val filtered = when (prefs.type) {
@@ -68,29 +71,29 @@ class NoteCollectionWidget : AppWidgetProvider() {
                 }
 
                 filtered.sortedWith(
-                    compareByDescending<NoteEntity> { it.isPinned }
+                    compareByDescending<com.jackbarkerapps.openkeep.data.NoteEntity> { it.isPinned }
                         .thenByDescending { it.updatedAt }
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to query notes", e)
+                android.util.Log.e(TAG, "Failed to query notes", e)
                 null
             }
         }
 
-        fun toggleCheckboxInNote(context: Context, noteId: String, lineIndex: Int): Boolean {
-            return try {
+        fun toggleCheckboxInNote(context: Context, noteId: String, lineIndex: Int) {
+            try {
                 val keyManager = KeyManager(context)
-                val masterKey = keyManager.getMasterKey() ?: return false
+                val masterKey = keyManager.getMasterKey() ?: return
 
                 NoteRepository.reset()
                 NoteRepository.initialize(context, masterKey)
                 val repo = NoteRepository(context)
 
-                val notes = kotlinx.coroutines.flow.firstOrNull(repo.getAllNotes()) ?: emptyList()
-                val note = notes.find { it.id == noteId } ?: return false
+                val notes = runBlocking { repo.getAllNotes().first() }
+                val note = notes.find { it.id == noteId } ?: return
 
                 val lines = note.content.split("\n").toMutableList()
-                if (lineIndex < 0 || lineIndex >= lines.size) return false
+                if (lineIndex < 0 || lineIndex >= lines.size) return
 
                 val line = lines[lineIndex]
                 val checkboxRegex = Regex("^(\\s*)-\\s\\[([ xX])\\]\\s(.*)$")
@@ -106,14 +109,12 @@ class NoteCollectionWidget : AppWidgetProvider() {
                         content = newContent,
                         updatedAt = System.currentTimeMillis()
                     )
-                    repo.saveNote(updatedNote)
+                    runBlocking { repo.saveNote(updatedNote) }
                 }
 
                 NoteRepository.reset()
-                true
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to toggle checkbox", e)
-                false
+                android.util.Log.e(TAG, "Failed to toggle checkbox", e)
             }
         }
 
@@ -133,8 +134,8 @@ class NoteCollectionWidget : AppWidgetProvider() {
             if (prefs == null) {
                 val views = RemoteViews(context.packageName, R.layout.note_collection_widget_layout)
                 views.setTextViewText(R.id.widget_title, "Note Collection")
-                views.setViewVisibility(R.id.widget_note_list, View.GONE)
-                views.setViewVisibility(R.id.widget_empty_state, View.VISIBLE)
+                views.setViewVisibility(R.id.widget_note_list, android.view.View.GONE)
+                views.setViewVisibility(R.id.widget_empty_state, android.view.View.VISIBLE)
                 views.setTextViewText(R.id.widget_empty_state, "Tap to configure")
                 views.setTextViewText(R.id.widget_note_count, "")
                 appWidgetManager.updateAppWidget(appWidgetId, views)
@@ -145,9 +146,9 @@ class NoteCollectionWidget : AppWidgetProvider() {
             if (testKey == null) {
                 val views = RemoteViews(context.packageName, R.layout.note_collection_widget_layout)
                 views.setTextViewText(R.id.widget_title, prefs.displayName())
-                views.setViewVisibility(R.id.widget_note_list, View.GONE)
-                views.setViewVisibility(R.id.widget_empty_state, View.GONE)
-                views.setViewVisibility(R.id.widget_locked_state, View.VISIBLE)
+                views.setViewVisibility(R.id.widget_note_list, android.view.View.GONE)
+                views.setViewVisibility(R.id.widget_empty_state, android.view.View.GONE)
+                views.setViewVisibility(R.id.widget_locked_state, android.view.View.VISIBLE)
                 views.setTextViewText(R.id.widget_note_count, "")
                 appWidgetManager.updateAppWidget(appWidgetId, views)
                 return
@@ -165,18 +166,18 @@ class NoteCollectionWidget : AppWidgetProvider() {
             val noteCount = notes?.size ?: 0
 
             if (noteCount == 0) {
-                views.setViewVisibility(R.id.widget_note_list, View.GONE)
-                views.setViewVisibility(R.id.widget_locked_state, View.GONE)
-                views.setViewVisibility(R.id.widget_empty_state, View.VISIBLE)
+                views.setViewVisibility(R.id.widget_note_list, android.view.View.GONE)
+                views.setViewVisibility(R.id.widget_locked_state, android.view.View.GONE)
+                views.setViewVisibility(R.id.widget_empty_state, android.view.View.VISIBLE)
                 views.setTextViewText(
                     R.id.widget_empty_state,
                     if (notes == null) "Open Keep to unlock" else "No notes found"
                 )
                 views.setTextViewText(R.id.widget_note_count, "")
             } else {
-                views.setViewVisibility(R.id.widget_note_list, View.VISIBLE)
-                views.setViewVisibility(R.id.widget_empty_state, View.GONE)
-                views.setViewVisibility(R.id.widget_locked_state, View.GONE)
+                views.setViewVisibility(R.id.widget_note_list, android.view.View.VISIBLE)
+                views.setViewVisibility(R.id.widget_empty_state, android.view.View.GONE)
+                views.setViewVisibility(R.id.widget_locked_state, android.view.View.GONE)
                 views.setTextViewText(R.id.widget_note_count, "${noteCount} notes")
                 views.setRemoteAdapter(R.id.widget_note_list, intent)
 
@@ -207,7 +208,11 @@ class NoteCollectionWidget : AppWidgetProvider() {
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         val filter = IntentFilter(ACTION_TOGGLE_CHECKBOX)
-        context.registerReceiver(checkboxToggleReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.registerReceiver(checkboxToggleReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            context.registerReceiver(checkboxToggleReceiver, filter)
+        }
     }
 
     override fun onDisabled(context: Context) {
@@ -246,7 +251,7 @@ class NoteCollectionWidget : AppWidgetProvider() {
 // -----------------------------------------------------------------------------
 
 class NoteCollectionWidgetService : RemoteViewsService() {
-    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory {
+    override fun onGetViewFactory(intent: Intent): RemoteViewsService.RemoteViewsFactory {
         val appWidgetId = intent.getIntExtra(
             AppWidgetManager.EXTRA_APPWIDGET_ID,
             AppWidgetManager.INVALID_APPWIDGET_ID
@@ -258,9 +263,9 @@ class NoteCollectionWidgetService : RemoteViewsService() {
 class NoteCollectionViewsFactory(
     private val context: Context,
     private val appWidgetId: Int
-) : RemoteViewsFactory {
+) : RemoteViewsService.RemoteViewsFactory {
 
-    private var notes: List<NoteEntity> = emptyList()
+    private var notes: List<com.jackbarkerapps.openkeep.data.NoteEntity> = emptyList()
 
     override fun onCreate() { loadNotes() }
     override fun onDataSetChanged() { loadNotes() }
@@ -303,19 +308,21 @@ class NoteCollectionViewsFactory(
         }
 
         if (checkboxLines.isEmpty()) {
-            // Plain text note
-            itemViews.setViewVisibility(R.id.widget_note_content, View.VISIBLE)
+            // Plain text note — show content preview
+            itemViews.setViewVisibility(R.id.widget_note_content, android.view.View.VISIBLE)
             itemViews.setTextViewText(R.id.widget_note_content, firstContentLine ?: "")
-            hideAllCheckboxRows(itemViews)
-            itemViews.setViewVisibility(R.id.widget_more_items, View.GONE)
+            for (i in 1..3) {
+                itemViews.setViewVisibility(checkboxRowId(i), android.view.View.GONE)
+            }
+            itemViews.setViewVisibility(R.id.widget_more_items, android.view.View.GONE)
 
             val fillIntent = Intent().apply {
                 data = Uri.parse("openkeep://open-note/${note.id}")
             }
             itemViews.setOnClickFillInIntent(R.id.widget_note_item_root, fillIntent)
         } else {
-            // Checkbox note — show up to 3 checkbox rows
-            itemViews.setViewVisibility(R.id.widget_note_content, View.GONE)
+            // Checklist note — show up to 3 checkbox items
+            itemViews.setViewVisibility(R.id.widget_note_content, android.view.View.GONE)
 
             val visibleCount = minOf(checkboxLines.size, 3)
             for (i in 0 until visibleCount) {
@@ -324,7 +331,7 @@ class NoteCollectionViewsFactory(
                 val iconId = checkboxIconId(i + 1)
                 val textId = checkboxTextId(i + 1)
 
-                itemViews.setViewVisibility(rowId, View.VISIBLE)
+                itemViews.setViewVisibility(rowId, android.view.View.VISIBLE)
                 itemViews.setImageViewResource(
                     iconId,
                     if (checked) R.drawable.ic_checkbox_checked else R.drawable.ic_checkbox_unchecked
@@ -345,15 +352,16 @@ class NoteCollectionViewsFactory(
                 itemViews.setOnClickPendingIntent(rowId, togglePendingIntent)
             }
 
+            // Hide remaining empty slots
             for (i in visibleCount until 3) {
-                itemViews.setViewVisibility(checkboxRowId(i + 1), View.GONE)
+                itemViews.setViewVisibility(checkboxRowId(i + 1), android.view.View.GONE)
             }
 
             if (checkboxLines.size > 3) {
-                itemViews.setViewVisibility(R.id.widget_more_items, View.VISIBLE)
+                itemViews.setViewVisibility(R.id.widget_more_items, android.view.View.VISIBLE)
                 itemViews.setTextViewText(R.id.widget_more_items, "+${checkboxLines.size - 3} more items")
             } else {
-                itemViews.setViewVisibility(R.id.widget_more_items, View.GONE)
+                itemViews.setViewVisibility(R.id.widget_more_items, android.view.View.GONE)
             }
 
             val fillIntent = Intent().apply {
@@ -363,12 +371,6 @@ class NoteCollectionViewsFactory(
         }
 
         return itemViews
-    }
-
-    private fun hideAllCheckboxRows(views: RemoteViews) {
-        for (i in 1..3) {
-            views.setViewVisibility(checkboxRowId(i), View.GONE)
-        }
     }
 
     private fun checkboxRowId(slot: Int): Int = when (slot) {

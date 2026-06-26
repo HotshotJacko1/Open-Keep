@@ -7,10 +7,7 @@
     android:paddingStart="12dp"
     android:paddingEnd="12dp"
     android:paddingTop="8dp"
-    android:paddingBottom="8dp"
-    android:background="@android:color/white"
-    android:clickable="true"
-    android:focusable="true">
+    android:paddingBottom="8dp">
 
     <!-- Note Title -->
     <TextView
@@ -19,11 +16,10 @@
         android:layout_height="wrap_content"
         android:textSize="14sp"
         android:textColor="#202124"
-        android:fontFamily="sans-serif-medium"
         android:maxLines="1"
         android:ellipsize="end" />
 
-    <!-- Note Content Preview (for non-checklist content or summary) -->
+    <!-- Note Content Preview (for non-checklist content) -->
     <TextView
         android:id="@+id/widget_note_content"
         android:layout_width="match_parent"
@@ -31,12 +27,9 @@
         android:layout_marginTop="2dp"
         android:textSize="12sp"
         android:textColor="#5F6368"
-        android:fontFamily="sans-serif"
         android:maxLines="1"
         android:ellipsize="end"
         android:visibility="gone" />
-
-    <!-- Predefined checkbox row slots (filled via RemoteViewsFactory) -->
 
     <!-- Checkbox Row 1 -->
     <LinearLayout
@@ -46,16 +39,13 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingTop="1dp"
-        android:visibility="gone"
-        android:clickable="true"
-        android:focusable="true">
+        android:visibility="gone">
 
         <ImageView
             android:id="@+id/widget_checkbox_icon_1"
             android:layout_width="18dp"
             android:layout_height="18dp"
-            android:layout_marginEnd="6dp"
-            android:contentDescription="Checkbox" />
+            android:layout_marginEnd="6dp" />
 
         <TextView
             android:id="@+id/widget_checkbox_text_1"
@@ -64,7 +54,6 @@
             android:layout_weight="1"
             android:textSize="12sp"
             android:textColor="#3C4043"
-            android:fontFamily="sans-serif"
             android:maxLines="1"
             android:ellipsize="end" />
     </LinearLayout>
@@ -77,16 +66,13 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingTop="1dp"
-        android:visibility="gone"
-        android:clickable="true"
-        android:focusable="true">
+        android:visibility="gone">
 
         <ImageView
             android:id="@+id/widget_checkbox_icon_2"
             android:layout_width="18dp"
             android:layout_height="18dp"
-            android:layout_marginEnd="6dp"
-            android:contentDescription="Checkbox" />
+            android:layout_marginEnd="6dp" />
 
         <TextView
             android:id="@+id/widget_checkbox_text_2"
@@ -95,7 +81,6 @@
             android:layout_weight="1"
             android:textSize="12sp"
             android:textColor="#3C4043"
-            android:fontFamily="sans-serif"
             android:maxLines="1"
             android:ellipsize="end" />
     </LinearLayout>
@@ -108,16 +93,13 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingTop="1dp"
-        android:visibility="gone"
-        android:clickable="true"
-        android:focusable="true">
+        android:visibility="gone">
 
         <ImageView
             android:id="@+id/widget_checkbox_icon_3"
             android:layout_width="18dp"
             android:layout_height="18dp"
-            android:layout_marginEnd="6dp"
-            android:contentDescription="Checkbox" />
+            android:layout_marginEnd="6dp" />
 
         <TextView
             android:id="@+id/widget_checkbox_text_3"
@@ -126,7 +108,6 @@
             android:layout_weight="1"
             android:textSize="12sp"
             android:textColor="#3C4043"
-            android:fontFamily="sans-serif"
             android:maxLines="1"
             android:ellipsize="end" />
     </LinearLayout>
@@ -138,15 +119,7 @@
         android:layout_height="wrap_content"
         android:textSize="11sp"
         android:textColor="#80868B"
-        android:fontFamily="sans-serif"
         android:paddingTop="2dp"
         android:visibility="gone" />
-
-    <!-- Item Divider -->
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="0.5dp"
-        android:layout_marginTop="8dp"
-        android:background="#EEEEEE" />
 
 </LinearLayout>
