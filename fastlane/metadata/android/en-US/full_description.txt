@@ -1,0 +1,16 @@
+Write notes using clean and powerful Markdown (.md), protect sensitive content with passcode protection/biometrics, and keep everything in sync across your devices using your preferred cloud storage provider.
+
+Key Features:
+
+- DeGoogled – No reliance on Google services
+- Cloud sync (Dropbox, Google Drive, OneDrive)
+- Markdown Files (.md) – Write and edit notes in a standard, portable format
+- Password Protection – Secure your notes with passcode/biometrics
+- Import & Export Notes – Easily move your data in or out at any time
+- Encrypted – 256-bit AES encryption, which is an industry standard (often referred to as military-grade encryption)
+
+Unlike Google Keep, Open Keep gives you complete ownership of your notes with no Google dependency, no tracking, and no personal data collection. Your notes stay where you choose.
+
+Open Keep is ideal for users who value privacy, data ownership, and open formats - whether you’re taking quick notes or writing lists. 
+
+Your notes. Your storage. Your control.

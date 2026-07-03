@@ -1,0 +1,3 @@
+- F-Droid release.
+- Coloured notes.
+- E2EE.
