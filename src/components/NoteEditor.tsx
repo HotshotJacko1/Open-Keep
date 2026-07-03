@@ -79,6 +79,7 @@ interface NoteEditorProps {
     initialNote?: Note;
     availableTags: string[];
     autoFocus?: boolean;
+    focusTarget?: "title" | "body";
 }
 
 interface SortableListItemProps {
@@ -397,6 +398,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     initialNote,
     availableTags = [],
     autoFocus = true,
+    focusTarget = "body",
 }) => {
     const isMobile = useIsMobile();
     const isDeleted = initialNote?.isDeleted === true;
@@ -428,6 +430,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const prevIsOpen = useRef(isOpen);
     const handleCloseEditorRef = useRef<() => void>(() => { });
+    // Locked to true between handleCloseEditor() and the dialog finishing its close animation.
+    // Prevents any effect from resetting isChecklistMode while the dialog is still visible.
+    const isClosingRef = useRef(false);
 
     const adjustTitleHeight = () => {
         const textarea = titleTextareaRef.current;
@@ -511,9 +516,15 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         },
     });
 
+    const prevInitialNoteIdRef = useRef<string | undefined>(undefined);
+
     // Initialize form
     useEffect(() => {
-        if (isOpen && !prevIsOpen.current) {
+        const becameOpen = isOpen && !prevIsOpen.current;
+        const noteIdChanged = isOpen && initialNote?.id !== prevInitialNoteIdRef.current;
+
+        if (becameOpen || noteIdChanged) {
+            isClosingRef.current = false; // Reset close lock when (re-)opening
             if (initialNote) {
                 noteIdRef.current = initialNote.id;
                 setTitle(initialNote.title);
@@ -568,6 +579,18 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 adjustTitleHeight();
                 if (!autoFocus) return;
 
+                // If the user prefers to start in the title field, focus that.
+                if (focusTarget === "title") {
+                    if (titleTextareaRef.current) {
+                        titleTextareaRef.current.focus();
+                        titleTextareaRef.current.setSelectionRange(
+                            titleTextareaRef.current.value.length,
+                            titleTextareaRef.current.value.length
+                        );
+                    }
+                    return;
+                }
+
                 // Focus on content as requested.
                 if (editor && !isChecklist(initialNote?.content || "")) {
                     editor.commands.focus();
@@ -592,12 +615,13 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         }
 
         prevIsOpen.current = isOpen;
+        prevInitialNoteIdRef.current = initialNote?.id;
     }, [initialNote, isOpen, editor]);
 
     // Sync Checklist Items -> Content string (Only when in checklist mode)
     // This now writes internal content state.
     useEffect(() => {
-        if (isChecklistMode && isOpen) {
+        if (isChecklistMode && isOpen && !isClosingRef.current) {
             const newContent = checklistItems
                 .map(item => `${item.indentation}- [${item.checked ? 'x' : ' '}] ${item.content}`)
                 .join('\n');
@@ -926,6 +950,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     };
 
     const handleCloseEditor = () => {
+        // Lock effects so nothing resets isChecklistMode during the close animation
+        isClosingRef.current = true;
+
         // Clear any pending auto-save to prevent race conditions
         if (saveTimeoutRef.current) {
             clearTimeout(saveTimeoutRef.current);
@@ -940,7 +967,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 const lastUnticked = untickedItems[untickedItems.length - 1];
                 if (lastUnticked.content.trim() === "") {
                     currentChecklistItems = currentChecklistItems.filter(i => i.id !== lastUnticked.id);
-                    setChecklistItems(currentChecklistItems);
+                    // Don't call setChecklistItems here — we're closing the dialog and only need
+                    // the local variable for the save/delete decision. A state update here would
+                    // trigger a re-render before onClose(), causing the checklist sync effect to
+                    // run and potentially flick the UI to text mode during the close animation.
                     currentContent = currentChecklistItems
                         .map(item => `${item.indentation}- [${item.checked ? 'x' : ' '}] ${item.content}`)
                         .join('\n');

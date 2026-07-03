@@ -26,7 +26,8 @@ import {
   Fingerprint,
   Hash,
   CloudSync,
-  Laptop
+  Laptop,
+  Type
 } from "lucide-react";
 import SyncDialog from "./SyncDialog";
 import ChangePinDialog from "./ChangePinDialog";
@@ -57,6 +58,13 @@ interface SettingsDialogProps {
 const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes, onImportNotes }) => {
   const { theme, setTheme } = useTheme();
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
+  const [defaultTypingArea, setDefaultTypingArea] = useState<"title" | "body">(
+    () => (localStorage.getItem("default-typing-area") as "title" | "body") || "body"
+  );
+
+  useEffect(() => {
+    localStorage.setItem("default-typing-area", defaultTypingArea);
+  }, [defaultTypingArea]);
   const [isAppLockDialogOpen, setIsAppLockDialogOpen] = useState(false);
   const [isChangePinDialogOpen, setIsChangePinDialogOpen] = useState(false);
   const [isKeepGuideOpen, setIsKeepGuideOpen] = useState(false);
@@ -407,6 +415,31 @@ PIN code: ${pinCode || 'Not set'}`;
             </div>
 
             <div className="flex flex-col gap-2 mt-4">
+              <Label>Options</Label>
+              <div className="flex items-center justify-between w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm">
+                <span className="flex items-center gap-2">
+                  <Type className="h-4 w-4" />
+                  Default Typing Area
+                </span>
+                <ToggleGroup
+                  type="single"
+                  value={defaultTypingArea}
+                  onValueChange={(value: "title" | "body") => {
+                    if (value) setDefaultTypingArea(value);
+                  }}
+                >
+                  <ToggleGroupItem value="title" className="h-7 px-3 text-xs data-[state=on]:bg-[#707070] data-[state=on]:text-[#f8fafc]">
+                    Title
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="body" className="h-7 px-3 text-xs data-[state=on]:bg-[#707070] data-[state=on]:text-[#f8fafc]">
+                    Body
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 mt-4">
+              <Label>About</Label>
               <Button
                 variant="outline"
                 onClick={handleFeedbackEmail}

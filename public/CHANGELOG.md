@@ -7,6 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 - F-Droid release.
 - Coloured notes.
+- E2EE.
+
+## [4.2.0] - 2026-06-03
+### Added
+- Widgets
+  - "New note" widget on mobile. Quickly create text and list notes.
+  - "Single note" widget on mobile. Pin a specific note or list to your homescreen.
+  - "Note collection" widget on mobile. View a set of notes or all notes.
+
+### Changed
+- Disabled early access dialog from appearing on first launch. This is because the app is more stable now, and it will further streamline onboarding.
 
 ## [4.1.1] - 2026-06-26
 ### Added
@@ -116,7 +127,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Stopped Google Keep migration dialog from appearing on first launch.
 
 ### Fixed
-- Empty list notes won't be saved anymore.
+- Empty list notes won't be saved any more.
 
 ## [1.0.0] - 2026-04-29
 ### Added

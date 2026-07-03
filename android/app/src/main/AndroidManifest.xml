@@ -12,7 +12,7 @@
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
-            android:label="@string/title_activity_main"
+            android:label="@string/app_name"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustPan"
@@ -38,19 +38,21 @@
 
         <!-- Existing Quick Actions Widget (2x1) -->
         <receiver
-            android:name=".OpenKeepWidget"
+            android:name=".NewNoteWidget"
+            android:label="@string/widget_new_note_name"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/openkeep_widget_info" />
+                android:resource="@xml/new_note_widget_info" />
         </receiver>
 
         <!-- New Single Note Widget (4x3) -->
         <receiver
             android:name=".SingleNoteWidget"
+            android:label="@string/widget_single_note_name"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -71,7 +73,36 @@
         <activity
             android:name=".SingleNoteWidgetConfigureActivity"
             android:exported="true"
-            android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <!-- New Note Collection Widget -->
+        <receiver
+            android:name=".NoteCollectionWidget"
+            android:label="@string/widget_note_collection_name"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/note_collection_widget_info" />
+        </receiver>
+
+        <!-- RemoteViewsService for NoteCollectionWidget -->
+        <service
+            android:name=".NoteCollectionWidgetService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+        <!-- Configuration Activity for NoteCollectionWidget -->
+        <activity
+            android:name=".NoteCollectionWidgetConfigureActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
             </intent-filter>

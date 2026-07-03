@@ -1,195 +1,233 @@
 package com.jackbarkerapps.openkeep
 
-import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
-import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.widget.RemoteViews
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.glance.GlanceId
+import androidx.glance.GlanceModifier
+import androidx.glance.Image
+import androidx.glance.ImageProvider
+import androidx.glance.action.ActionParameters
+import androidx.glance.action.clickable
+import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.action.ActionCallback
+import androidx.glance.appwidget.action.actionRunCallback
+import androidx.glance.appwidget.action.actionStartActivity
+import androidx.glance.action.actionParametersOf
+import androidx.glance.appwidget.appWidgetBackground
+import androidx.glance.appwidget.cornerRadius
+import androidx.glance.appwidget.lazy.LazyColumn
+import androidx.glance.appwidget.lazy.itemsIndexed
+import androidx.glance.appwidget.provideContent
+import androidx.glance.background
+import androidx.glance.color.ColorProvider
+import androidx.glance.layout.Alignment
+import androidx.glance.layout.Column
+import androidx.glance.layout.Row
+import androidx.glance.layout.Spacer
+import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.fillMaxWidth
+import androidx.glance.layout.padding
+import androidx.glance.layout.size
+import androidx.glance.layout.width
+import androidx.glance.text.FontWeight
+import androidx.glance.text.Text
+import androidx.glance.text.TextStyle
 import com.jackbarkerapps.openkeep.data.NoteEntity
 import com.jackbarkerapps.openkeep.data.NoteRepository
 import com.jackbarkerapps.openkeep.security.KeyManager
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.flow.first
 
-class SingleNoteWidget : AppWidgetProvider() {
+class SingleNoteWidget : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = SingleNoteGlanceWidget()
+}
 
-    companion object {
-        const val PREFS_NAME = "single_note_widget_prefs"
-        const val KEY_NOTE_ID = "note_id_"
-        const val ACTION_TOGGLE_CHECKBOX = "com.jackbarkerapps.openkeep.TOGGLE_CHECKBOX"
-        const val EXTRA_NOTE_ID = "extra_note_id"
-        const val EXTRA_LINE_INDEX = "extra_line_index"
-        const val EXTRA_APP_WIDGET_ID = "extra_app_widget_id"
-    }
+class SingleNoteGlanceWidget : GlanceAppWidget() {
 
-    override fun onUpdate(
-        context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetIds: IntArray
-    ) {
-        for (appWidgetId in appWidgetIds) {
-            updateWidgetAppearance(context, appWidgetManager, appWidgetId)
-        }
-    }
-
-    override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-
-        if (ACTION_TOGGLE_CHECKBOX == intent.action) {
-            val noteId = intent.getStringExtra(EXTRA_NOTE_ID) ?: return
-            val lineIndex = intent.getIntExtra(EXTRA_LINE_INDEX, -1)
-            val appWidgetId = intent.getIntExtra(EXTRA_APP_WIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
-            if (lineIndex < 0 || appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return
-
-            toggleCheckbox(context, noteId, lineIndex)
-
-            val appWidgetManager = AppWidgetManager.getInstance(context)
-            updateWidgetAppearance(context, appWidgetManager, appWidgetId)
-        }
-    }
-
-    private fun toggleCheckbox(context: Context, noteId: String, lineIndex: Int) {
-        CoroutineScope(Dispatchers.IO).run {
-            try {
-                val keyManager = KeyManager(context)
-                val masterKey = keyManager.getMasterKey() ?: return@run
-                if (!NoteRepository.isInitialized()) {
-                    NoteRepository.initialize(context, masterKey)
-                }
-
-                val dao = NoteRepository.getDatabase().noteDao()
-                val note = dao.getNoteById(noteId) ?: return@run
-
-                val lines = note.content.split("\n").toMutableList()
-                if (lineIndex < 0 || lineIndex >= lines.size) return@run
-
-                val line = lines[lineIndex]
-                val toggled = when {
-                    line.contains("- [ ]") -> line.replace("- [ ]", "- [x]", ignoreCase = false)
-                    line.contains("- [x]") -> line.replace("- [x]", "- [ ]", ignoreCase = false)
-                    else -> return@run
-                }
-                lines[lineIndex] = toggled
-
-                val updatedNote = NoteEntity(
-                    id = note.id,
-                    title = note.title,
-                    content = lines.joinToString("\n"),
-                    type = note.type,
-                    createdAt = note.createdAt,
-                    updatedAt = System.currentTimeMillis(),
-                    isPinned = note.isPinned,
-                    isArchived = note.isArchived,
-                    deleted = note.deleted,
-                    tags = note.tags,
-                    syncState = "PENDING",
-                    images = note.images,
-                    reminder = note.reminder,
-                    recurrence = note.recurrence
-                )
-                dao.insertNote(updatedNote)
-            } catch (e: Exception) {
-                android.util.Log.e("SingleNoteWidget", "Failed to toggle checkbox", e)
+    override suspend fun provideGlance(context: Context, id: GlanceId) {
+        provideContent {
+            val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
+            val prefsState = androidx.glance.currentState<androidx.datastore.preferences.core.Preferences>()
+            var noteId = prefsState[androidx.datastore.preferences.core.stringPreferencesKey("note_id")]
+            if (noteId == null) {
+                val prefs = context.getSharedPreferences("single_note_widget_prefs", Context.MODE_PRIVATE)
+                noteId = prefs.getString("note_id_$appWidgetId", null)
             }
-        }
-    }
 
-    private fun updateWidgetAppearance(
-        context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetId: Int
-    ) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val noteId = prefs.getString(KEY_NOTE_ID + appWidgetId, null)
-
-        val views = RemoteViews(context.packageName, R.layout.widget_single_note_layout)
-
-        if (noteId == null) {
-            // Unconfigured state
-            views.setTextViewText(R.id.widget_note_title, "")
-            views.setViewVisibility(R.id.widget_note_content, android.view.View.GONE)
-            views.setViewVisibility(R.id.widget_placeholder, android.view.View.VISIBLE)
-
-            val openAppIntent = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            val pendingIntent = PendingIntent.getActivity(
-                context, appWidgetId, openAppIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            views.setOnClickPendingIntent(R.id.widget_placeholder, pendingIntent)
-        } else {
-            var noteAvailable = true
-            try {
-                val keyManager = KeyManager(context)
-                val masterKey = keyManager.getMasterKey()
-                if (masterKey != null) {
-                    if (!NoteRepository.isInitialized()) {
-                        NoteRepository.initialize(context, masterKey)
-                    }
-                    val dao = NoteRepository.getDatabase().noteDao()
-                    val note = runBlocking { dao.getNoteById(noteId) }
-
-                    if (note == null || note.deleted) {
-                        noteAvailable = false
-                    } else {
-                        val title = note.title.ifBlank {
-                            note.content.lines().firstOrNull()?.take(60) ?: "Untitled"
+            var noteEntity: NoteEntity? = null
+            if (noteId != null) {
+                try {
+                    val keyManager = KeyManager(context)
+                    val masterKey = keyManager.getMasterKey()
+                    if (masterKey != null) {
+                        if (!NoteRepository.isInitialized()) {
+                            NoteRepository.initialize(context, masterKey)
                         }
-                        views.setTextViewText(R.id.widget_note_title, title)
-                        views.setViewVisibility(R.id.widget_placeholder, android.view.View.GONE)
-
-                        // Set up RemoteViewsService for scrollable content
-                        val serviceIntent = Intent(context, SingleNoteWidgetRemoteViewsService::class.java).apply {
-                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                            data = Uri.parse("widget://note/$appWidgetId/$noteId")
+                        val dao = NoteRepository.getDatabase().noteDao()
+                        val n = kotlinx.coroutines.runBlocking { dao.getNoteById(noteId) }
+                        if (n != null && !n.deleted) {
+                            noteEntity = n
                         }
-                        views.setRemoteAdapter(R.id.widget_note_content, serviceIntent)
-                        views.setEmptyView(R.id.widget_note_content, R.id.widget_placeholder)
                     }
-                } else {
-                    noteAvailable = false
+                } catch (e: Exception) {
+                    android.util.Log.e("SingleNoteWidget", "Failed to load note", e)
                 }
-            } catch (e: Exception) {
-                android.util.Log.e("SingleNoteWidget", "Failed to load note", e)
-                noteAvailable = false
             }
 
-            if (!noteAvailable) {
-                views.setTextViewText(R.id.widget_note_title, "Note unavailable")
-                views.setViewVisibility(R.id.widget_note_content, android.view.View.GONE)
-                views.setViewVisibility(R.id.widget_placeholder, android.view.View.VISIBLE)
-                views.setTextViewText(R.id.widget_placeholder, "Open the app to fix this")
+            WidgetContent(context, noteEntity, noteId)
+        }
+    }
+
+    override suspend fun providePreview(context: Context, widgetCategory: Int) {
+        val fakeNote = NoteEntity(
+            id = "preview", title = "Shopping List", content = "This is a preview\n- [ ] Milk\n- [x] Eggs",
+            type = "list", createdAt = 0L, updatedAt = 0L, tags = "[]", isPinned = false,
+            isArchived = false, deleted = false, syncState = "", images = "[]",
+            reminder = null, recurrence = null
+        )
+        provideContent {
+            WidgetContent(context, fakeNote, "preview")
+        }
+    }
+
+    @Composable
+    private fun WidgetContent(context: Context, note: NoteEntity?, noteId: String?) {
+        Column(
+            modifier = GlanceModifier
+                .fillMaxSize()
+                .appWidgetBackground()
+                .background(ColorProvider(day = Color.White, night = Color(0xFF1C1C1E)))
+                .cornerRadius(16.dp)
+                .padding(top = 24.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
+        ) {
+            if (note == null || noteId == null) {
+                val openAppIntent = Intent(Intent.ACTION_VIEW).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    component = ComponentName(context.packageName, "com.jackbarkerapps.openkeep.MainActivity")
+                }
+                Column(
+                    modifier = GlanceModifier.fillMaxSize().clickable(actionStartActivity(openAppIntent)),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = if (noteId == null) "Not Configured" else "Note Unavailable",
+                        style = TextStyle(fontSize = 14.sp, color = ColorProvider(day = Color.Black, night = Color.White), fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        text = "Tap to open Open Keep",
+                        style = TextStyle(fontSize = 12.sp, color = ColorProvider(day = Color.Gray, night = Color.LightGray))
+                    )
+                }
+                return@Column
             }
 
-            // Tap handler: open note editor via deep link
+            val title = note.title.ifBlank { note.content.lines().firstOrNull()?.take(60) ?: "Untitled" }
             val openNoteIntent = Intent(Intent.ACTION_VIEW).apply {
                 data = Uri.parse("openkeep://open-note/$noteId")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                component = ComponentName(context.packageName, "com.jackbarkerapps.openkeep.MainActivity")
             }
-            val openNotePendingIntent = PendingIntent.getActivity(
-                context, appWidgetId, openNoteIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+
+            Text(
+                text = title,
+                style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = ColorProvider(day = Color.Black, night = Color.White)),
+                modifier = GlanceModifier.fillMaxWidth().clickable(actionStartActivity(openNoteIntent)).padding(bottom = 8.dp)
             )
 
-            // Set template for the list items - captures toggle button clicks
-            val toggleBaseIntent = Intent(context, SingleNoteWidget::class.java).apply {
-                action = ACTION_TOGGLE_CHECKBOX
+            val lines = note.content.split("\n")
+            LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
+                itemsIndexed(lines) { index, line ->
+                    val trimmed = line.trimStart()
+                    when {
+                        trimmed.startsWith("- [ ]") -> {
+                            val text = trimmed.removePrefix("- [ ]").trim()
+                            ChecklistItem(text = text, isChecked = false, noteId = noteId, lineIndex = index)
+                        }
+                        trimmed.startsWith("- [x]") -> {
+                            val text = trimmed.removePrefix("- [x]").trim()
+                            ChecklistItem(text = text, isChecked = true, noteId = noteId, lineIndex = index)
+                        }
+                        trimmed.isNotBlank() -> {
+                            Text(
+                                text = trimmed,
+                                style = TextStyle(fontSize = 14.sp, color = ColorProvider(day = Color.DarkGray, night = Color.LightGray)),
+                                modifier = GlanceModifier.padding(vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
             }
-            val toggleTemplatePendingIntent = PendingIntent.getBroadcast(
-                context, appWidgetId, toggleBaseIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            views.setPendingIntentTemplate(R.id.widget_note_content, toggleTemplatePendingIntent)
-
-            // Whole widget tap opens the note
-            views.setOnClickPendingIntent(R.id.widget_note_title, openNotePendingIntent)
         }
+    }
 
-        appWidgetManager.updateAppWidget(appWidgetId, views)
+    @Composable
+    private fun ChecklistItem(text: String, isChecked: Boolean, noteId: String, lineIndex: Int) {
+        val actionParamNoteId = ActionParameters.Key<String>("noteId")
+        val actionParamLineIndex = ActionParameters.Key<Int>("lineIndex")
+        
+        Row(modifier = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Image(
+                provider = ImageProvider(if (isChecked) android.R.drawable.checkbox_on_background else android.R.drawable.checkbox_off_background),
+                contentDescription = null,
+                modifier = GlanceModifier.size(24.dp).clickable(
+                    actionRunCallback<ToggleCheckboxAction>(
+                        actionParametersOf(actionParamNoteId to noteId, actionParamLineIndex to lineIndex)
+                    )
+                )
+            )
+            Spacer(modifier = GlanceModifier.width(8.dp))
+            Text(
+                text = text,
+                style = TextStyle(fontSize = 14.sp, color = ColorProvider(day = if (isChecked) Color.Gray else Color.DarkGray, night = if (isChecked) Color(0xFF8E8E93) else Color.LightGray))
+            )
+        }
+    }
+}
+
+class ToggleCheckboxAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        val noteId = parameters[ActionParameters.Key<String>("noteId")] ?: return
+        val lineIndex = parameters[ActionParameters.Key<Int>("lineIndex")] ?: return
+
+        try {
+            val keyManager = KeyManager(context)
+            val masterKey = keyManager.getMasterKey() ?: return
+            if (!NoteRepository.isInitialized()) {
+                NoteRepository.initialize(context, masterKey)
+            }
+            val dao = NoteRepository.getDatabase().noteDao()
+            val note = dao.getNoteById(noteId) ?: return
+
+            val lines = note.content.split("\n").toMutableList()
+            if (lineIndex < 0 || lineIndex >= lines.size) return
+
+            val line = lines[lineIndex]
+            val toggled = when {
+                line.contains("- [ ]") -> line.replace("- [ ]", "- [x]", ignoreCase = false)
+                line.contains("- [x]") -> line.replace("- [x]", "- [ ]", ignoreCase = false)
+                else -> return
+            }
+            lines[lineIndex] = toggled
+
+            val updatedNote = note.copy(
+                content = lines.joinToString("\n"),
+                updatedAt = System.currentTimeMillis()
+            )
+            dao.insertNote(updatedNote)
+            
+            // Force widget update
+            SingleNoteGlanceWidget().update(context, glanceId)
+        } catch (e: Exception) {
+            android.util.Log.e("ToggleCheckboxAction", "Error", e)
+        }
     }
 }

@@ -88,7 +88,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
   return (
     <Card
       className={cn(
-        "group block w-full max-w-full relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-card dark:bg-card text-secondary-foreground cursor-pointer border-2 border-input select-none",
+        "note-card group block w-full max-w-full relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-card dark:bg-card text-secondary-foreground cursor-pointer border-2 border-input select-none",
         isSelected && "border-secondary-foreground shadow-lg bg-card",
         note.isDeleted && "opacity-75"
       )}

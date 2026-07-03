@@ -302,11 +302,12 @@ const Index = () => {
       //   setShowInitialMigrationAsk(true);
       // }
 
-      // Early Access welcome dialog â€” show once per user
-      const HAS_SEEN_EARLY_ACCESS = 'has_seen_early_access_dialog_v1';
-      if (!localStorage.getItem(HAS_SEEN_EARLY_ACCESS)) {
-        setShowEarlyAccessDialog(true);
-      }
+      // Early Access welcome dialog – show once per user
+      // DISABLED: comment back in to re-enable on first launch
+      // const HAS_SEEN_EARLY_ACCESS = 'has_seen_early_access_dialog_v1';
+      // if (!localStorage.getItem(HAS_SEEN_EARLY_ACCESS)) {
+      //   setShowEarlyAccessDialog(true);
+      // }
 
       const loadedNotes = await loadNotes();
 
@@ -551,8 +552,18 @@ const Index = () => {
   }, [notes, searchTerm, selectedTag, sortMode]);
 
   const handleNewTextNote = () => {
-    // New note implicitly Text mode, content empty
-    setEditingNote(undefined);
+    const newNoteSkeleton: Note = {
+      id: crypto.randomUUID(),
+      title: "",
+      content: "",
+      type: "text",
+      tags: [],
+      isPinned: false,
+      isArchived: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    setEditingNote(newNoteSkeleton);
     setShouldAutoFocus(true);
     setIsEditorOpen(true);
   };
@@ -568,10 +579,11 @@ const Index = () => {
     // Or just let user can switch.
     // User expects "New List Note" to open in List Mode.
     // Let's seed it.
-    const newNoteSkeleton = {
+    const newNoteSkeleton: Note = {
       id: crypto.randomUUID(),
       title: "",
       content: "- [ ] ", // Seed with one empty item triggers list mode in Editor
+      type: "list",
       tags: [],
       isPinned: false,
       isArchived: false,
@@ -926,7 +938,8 @@ const Index = () => {
       onTouchEnd={handleTouchEnd}
       style={{
         transform: `translateY(${pullChange > 0 ? pullChange : 0}px)`,
-        transition: isRefreshing ? 'transform 0.2s ease-out' : pullChange === 0 ? 'transform 0.3s ease-out' : 'none'
+        transition: isRefreshing ? 'transform 0.2s ease-out' : pullChange === 0 ? 'transform 0.3s ease-out' : 'none',
+        willChange: pullChange > 0 || isRefreshing ? 'transform' : 'auto',
       }}
     >
       {/* Pull to Refresh Indicator */}
@@ -989,6 +1002,7 @@ const Index = () => {
         initialNote={editingNote}
         availableTags={uniqueTags}
         autoFocus={shouldAutoFocus}
+        focusTarget={(localStorage.getItem("default-typing-area") as "title" | "body") || "body"}
       />
 
       <SettingsDialog

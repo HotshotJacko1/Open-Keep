@@ -24,10 +24,8 @@ export function useWidgetDeepLink() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
-    const handler = App.addListener("appUrlOpen", (event) => {
-      const url = event.url;
+    const handleUrl = (url: string) => {
       if (!url) return;
-
       try {
         const parsed = new URL(url);
         if (parsed.protocol !== "openkeep:") return;
@@ -55,6 +53,17 @@ export function useWidgetDeepLink() {
       } catch {
         // Not a valid URL — ignore
       }
+    };
+
+    // Check initial launch URL (cold start)
+    App.getLaunchUrl().then((launch) => {
+      if (launch?.url) {
+        handleUrl(launch.url);
+      }
+    });
+
+    const handler = App.addListener("appUrlOpen", (event) => {
+      handleUrl(event.url);
     });
 
     return () => {

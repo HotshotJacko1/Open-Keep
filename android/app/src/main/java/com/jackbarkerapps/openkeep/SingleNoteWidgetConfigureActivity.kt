@@ -1,6 +1,7 @@
 package com.jackbarkerapps.openkeep
 
 import android.appwidget.AppWidgetManager
+import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
@@ -129,19 +130,37 @@ class SingleNoteWidgetConfigureActivity : AppCompatActivity() {
 
     private fun saveNoteSelection(noteId: String) {
         val prefs = getSharedPreferences(
-            SingleNoteWidget.PREFS_NAME,
+            "single_note_widget_prefs",
             Context.MODE_PRIVATE
         )
-        prefs.edit().putString(SingleNoteWidget.KEY_NOTE_ID + appWidgetId, noteId).apply()
+        android.util.Log.d("SingleNoteWidget", "Configured note $noteId for appWidgetId $appWidgetId")
+        prefs.edit().putString("note_id_$appWidgetId", noteId).apply()
 
-        // Update the widget
-        val appWidgetManager = AppWidgetManager.getInstance(this)
-        val widget = SingleNoteWidget()
-        widget.onUpdate(this, appWidgetManager, intArrayOf(appWidgetId))
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                val glanceId = androidx.glance.appwidget.GlanceAppWidgetManager(this@SingleNoteWidgetConfigureActivity).getGlanceIdBy(appWidgetId)
+                androidx.glance.appwidget.state.updateAppWidgetState(
+                    context = this@SingleNoteWidgetConfigureActivity,
+                    glanceId = glanceId
+                ) { prefs ->
+                    prefs[androidx.datastore.preferences.core.stringPreferencesKey("note_id")] = noteId
+                }
+                SingleNoteGlanceWidget().update(this@SingleNoteWidgetConfigureActivity, glanceId)
+                android.util.Log.d("SingleNoteWidget", "Glance update successful for glanceId: $glanceId")
+            } catch (e: Exception) {
+                android.util.Log.e("SingleNoteWidget", "Glance update failed, falling back to broadcast", e)
+                // Trigger widget update via broadcast (Glance receiver handles it)
+                val updateIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).apply {
+                    component = android.content.ComponentName(this@SingleNoteWidgetConfigureActivity, SingleNoteWidget::class.java)
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, intArrayOf(appWidgetId))
+                }
+                sendBroadcast(updateIntent)
+            }
 
-        // Set result OK and finish
-        val resultValue = Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-        setResult(RESULT_OK, resultValue)
-        finish()
+            // Set result OK and finish
+            val resultValue = Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            setResult(RESULT_OK, resultValue)
+            finish()
+        }
     }
 }

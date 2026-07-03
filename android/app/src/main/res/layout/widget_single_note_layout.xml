@@ -16,12 +16,13 @@
         android:fontFamily="sans-serif-medium"
         android:maxLines="1"
         android:ellipsize="end"
+        android:text="Preview Note"
         android:paddingBottom="4dp" />
 
     <!-- Divider -->
-    <View
+    <ImageView
         android:layout_width="match_parent"
-        android:layout_height="0.5dp"
+        android:layout_height="1dp"
         android:background="#E0E0E0"
         android:layout_marginBottom="8dp" />
 
@@ -39,10 +40,10 @@
         android:id="@+id/widget_placeholder"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:gravity="center"
-        android:text="Select a note..."
+        android:gravity="top|start"
+        android:text="- [ ] Task 1\n- [x] Task 2"
         android:textSize="14sp"
         android:textColor="@android:color/darker_gray"
-        android:visibility="gone" />
+        android:visibility="visible" />
 
 </LinearLayout>

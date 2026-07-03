@@ -19,16 +19,19 @@ import com.jackbarkerapps.openkeep.data.NoteRepository
 import com.jackbarkerapps.openkeep.security.KeyManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+
+import androidx.appcompat.app.AppCompatActivity
 
 /**
  * Configuration Activity for the Note Collection widget.
  * Opens automatically when the widget is added to the home screen.
  * Shows a radio list: All Notes, Pinned Notes, and each distinct user label.
  */
-class NoteCollectionWidgetConfigureActivity : Activity() {
+class NoteCollectionWidgetConfigureActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "NoteCollectionConfig"
@@ -82,6 +85,7 @@ class NoteCollectionWidgetConfigureActivity : Activity() {
 
     private fun buildUI() {
         val scrollView = ScrollView(this)
+        scrollView.fitsSystemWindows = true
         scrollView.setPadding(32, 24, 32, 24)
 
         contentLayout = LinearLayout(this)
@@ -198,7 +202,7 @@ class NoteCollectionWidgetConfigureActivity : Activity() {
         }
     }
 
-    private fun fetchLabels(): List<String> {
+    private suspend fun fetchLabels(): List<String> {
         val keyManager = KeyManager(applicationContext)
         val masterKey = keyManager.getMasterKey()
             ?: throw IllegalStateException("No master key available")
@@ -208,7 +212,7 @@ class NoteCollectionWidgetConfigureActivity : Activity() {
         val repo = NoteRepository(applicationContext)
 
         // Collect all notes to extract unique tags
-        val notes = kotlinx.coroutines.flow.firstOrNull(repo.getAllNotes()) ?: emptyList()
+        val notes = repo.getAllNotes().firstOrNull() ?: emptyList()
 
         val tagSet = mutableSetOf<String>()
         for (note in notes) {
@@ -271,18 +275,29 @@ class NoteCollectionWidgetConfigureActivity : Activity() {
     private fun saveFilterAndFinish(filterType: String, filterValue: String) {
         saveFilterPrefs(this, appWidgetId, filterType, filterValue)
 
-        // Update the widget
-        val appWidgetManager = AppWidgetManager.getInstance(this)
-        val intent = Intent(this, NoteCollectionWidget::class.java).apply {
-            action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, intArrayOf(appWidgetId))
-        }
-        sendBroadcast(intent)
+        scope.launch {
+            try {
+                val glanceId = androidx.glance.appwidget.GlanceAppWidgetManager(this@NoteCollectionWidgetConfigureActivity).getGlanceIdBy(appWidgetId)
+                androidx.glance.appwidget.state.updateAppWidgetState(
+                    context = this@NoteCollectionWidgetConfigureActivity,
+                    glanceId = glanceId
+                ) { prefs ->
+                    prefs[androidx.datastore.preferences.core.stringPreferencesKey("filter_type")] = filterType
+                    prefs[androidx.datastore.preferences.core.stringPreferencesKey("filter_value")] = filterValue
+                }
+                NoteCollectionGlanceWidget().update(this@NoteCollectionWidgetConfigureActivity, glanceId)
+            } catch (e: Exception) {
+                val intent = Intent(this@NoteCollectionWidgetConfigureActivity, NoteCollectionWidget::class.java).apply {
+                    action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, intArrayOf(appWidgetId))
+                }
+                sendBroadcast(intent)
+            }
 
-        // Return success
-        val resultValue = Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-        setResult(Activity.RESULT_OK, resultValue)
-        finish()
+            val resultValue = Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            setResult(Activity.RESULT_OK, resultValue)
+            finish()
+        }
     }
 
     /** A simple invisible View used for separators */

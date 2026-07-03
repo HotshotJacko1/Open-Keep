@@ -376,7 +376,7 @@ struct NoteCollectionWidgetIOS: Widget {
         StaticConfiguration(kind: kind, provider: NoteCollectionWidgetProvider()) { entry in
             NoteCollectionWidgetEntryView(entry: entry)
         }
-        .configurationDisplayName("Notes")
+        .configurationDisplayName("Note Collection")
         .description("Browse your notes from the home screen")
         .supportedFamilies([.systemMedium, .systemLarge])
     }

@@ -6,6 +6,9 @@
     <string name="custom_url_scheme">com.jackbarkerapps.openkeep</string>
     <string name="server_client_id">889284625804-5prnhudcoalopvn0ad0au449lo1bn8f8.apps.googleusercontent.com</string>
     <string name="widget_note_collection_description">View a set of notes</string>
-    <string name="widget_openkeep_description">Quickly create new text or list notes</string>
+    <string name="widget_new_note_description">Quickly create new text or list notes</string>
     <string name="widget_single_note_description">Pin a specific note or list to your home screen</string>
+    <string name="widget_new_note_name">New Note</string>
+    <string name="widget_single_note_name">Single Note</string>
+    <string name="widget_note_collection_name">Note Collection</string>
 </resources>

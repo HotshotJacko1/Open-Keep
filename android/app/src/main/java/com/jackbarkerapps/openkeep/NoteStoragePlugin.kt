@@ -27,32 +27,36 @@ class NoteStoragePlugin : Plugin() {
     }
 
     /**
-         * Trigger all widget providers to refresh.
-         */
-        private fun refreshWidgets() {
-                try {
-                    val context = activity ?: return
-                    val appWidgetManager = AppWidgetManager.getInstance(context)
-    
-                    // Refresh existing NoteCollectionWidget
-                    val noteCollectionWidget = ComponentName(context, NoteCollectionWidget::class.java)
-                    val noteCollectionIds = appWidgetManager.getAppWidgetIds(noteCollectionWidget)
-                    NoteCollectionWidget.refreshWidget(context, noteCollectionIds)
-    
-                    // Refresh SingleNoteWidget
-                    val singleNoteWidget = ComponentName(context, SingleNoteWidget::class.java)
-                    val singleNoteIds = appWidgetManager.getAppWidgetIds(singleNoteWidget)
-                    val updateIntent = android.content.Intent(
-                        context, SingleNoteWidget::class.java
-                    ).apply {
-                        action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, singleNoteIds)
-                    }
-                    context.sendBroadcast(updateIntent)
-                } catch (e: Exception) {
-                    android.util.Log.e("NoteStorage", "Failed to refresh widgets", e)
-                }
+     * Trigger all widget providers to refresh by sending ACTION_APPWIDGET_UPDATE broadcast.
+     */
+    private fun refreshWidgets() {
+        try {
+            val context = activity ?: return
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+
+            // Refresh NoteCollectionWidget (Glance)
+            val noteCollectionComp = ComponentName(context, NoteCollectionWidget::class.java)
+            val noteCollectionIds = appWidgetManager.getAppWidgetIds(noteCollectionComp)
+            if (noteCollectionIds.isNotEmpty()) {
+                val intent = android.content.Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE)
+                intent.component = noteCollectionComp
+                intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, noteCollectionIds)
+                context.sendBroadcast(intent)
             }
+
+            // Refresh SingleNoteWidget (Glance)
+            val singleNoteComp = ComponentName(context, SingleNoteWidget::class.java)
+            val singleNoteIds = appWidgetManager.getAppWidgetIds(singleNoteComp)
+            if (singleNoteIds.isNotEmpty()) {
+                val intent = android.content.Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE)
+                intent.component = singleNoteComp
+                intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, singleNoteIds)
+                context.sendBroadcast(intent)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("NoteStorage", "Failed to refresh widgets", e)
+        }
+    }
 
     @PluginMethod
     fun loadNotes(call: PluginCall) {

@@ -2,17 +2,18 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:background="@android:color/white"
+    android:padding="12dp">
 
     <!-- Header: Filter Name -->
     <LinearLayout
         android:id="@+id/widget_header"
         android:layout_width="match_parent"
-        android:layout_height="40dp"
+        android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp">
+        android:paddingBottom="4dp">
 
         <TextView
             android:id="@+id/widget_title"
@@ -20,8 +21,9 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Note Collection"
-            android:textSize="14sp"
-            android:textColor="#202124"
+            android:textSize="16sp"
+            android:textColor="@android:color/black"
+            android:fontFamily="sans-serif-medium"
             android:maxLines="1"
             android:ellipsize="end" />
 
@@ -50,17 +52,17 @@
         android:paddingStart="0dp"
         android:paddingEnd="0dp" />
 
-    <!-- Empty state -->
+    <!-- Fake preview state -->
     <TextView
         android:id="@+id/widget_empty_state"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:gravity="center"
-        android:text="No notes found"
-        android:textSize="13sp"
-        android:textColor="#80868B"
-        android:visibility="gone" />
+        android:gravity="top|start"
+        android:text="Meeting Notes\nDiscuss project timeline\n\nGroceries\n- [ ] Milk\n- [ ] Eggs\n- [x] Bread"
+        android:textSize="14sp"
+        android:textColor="@android:color/darker_gray"
+        android:visibility="visible" />
 
     <!-- Locked state -->
     <TextView

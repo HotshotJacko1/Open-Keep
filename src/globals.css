@@ -37,7 +37,7 @@
 
       --text-primary: 0 0% 0%;
 
-      --yellow: 45 98% 50%;
+      --yellow: 44.71 100% 50%;
 
       --note-editor-background: 18 100% 98%;
       /* In use */
@@ -177,4 +177,30 @@
     float: left;
     height: 0;
     pointer-events: none;
+  }
+
+  /* Accessibility: respect the OS-level reduced motion preference.
+     Uses 0.01ms (not 0s) so transitionend/animationend events still fire,
+     which prevents dialog and toast unmount logic from breaking. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* GPU layer promotion: promote a note card to its own compositing layer
+     only while the user is hovering it, so the 200ms box-shadow transition
+     repaints that card in isolation. Reverts to auto when not hovered so
+     we don't pay the VRAM cost for every card simultaneously. */
+  .note-card {
+    will-change: auto;
+  }
+
+  .note-card:hover {
+    will-change: box-shadow;
   }

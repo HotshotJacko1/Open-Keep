@@ -1,29 +1,29 @@
 import WidgetKit
 import SwiftUI
 
-struct OpenKeepWidgetEntry: TimelineEntry {
+struct NewNoteWidgetEntry: TimelineEntry {
     let date: Date
 }
 
-struct OpenKeepWidgetProvider: TimelineProvider {
-    func placeholder(in context: Context) -> OpenKeepWidgetEntry {
-        OpenKeepWidgetEntry(date: Date())
+struct NewNoteWidgetProvider: TimelineProvider {
+    func placeholder(in context: Context) -> NewNoteWidgetEntry {
+        NewNoteWidgetEntry(date: Date())
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (OpenKeepWidgetEntry) -> Void) {
-        completion(OpenKeepWidgetEntry(date: Date()))
+    func getSnapshot(in context: Context, completion: @escaping (NewNoteWidgetEntry) -> Void) {
+        completion(NewNoteWidgetEntry(date: Date()))
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<OpenKeepWidgetEntry>) -> Void) {
-        let entry = OpenKeepWidgetEntry(date: Date())
+    func getTimeline(in context: Context, completion: @escaping (Timeline<NewNoteWidgetEntry>) -> Void) {
+        let entry = NewNoteWidgetEntry(date: Date())
         // No refresh needed — the widget is purely a launcher
         let timeline = Timeline(entries: [entry], policy: .never)
         completion(timeline)
     }
 }
 
-struct OpenKeepWidgetEntryView: View {
-    var entry: OpenKeepWidgetEntry
+struct NewNoteWidgetEntryView: View {
+    var entry: NewNoteWidgetEntry
 
     var body: some View {
         HStack(spacing: 0) {
@@ -64,14 +64,14 @@ struct OpenKeepWidgetEntryView: View {
     }
 }
 
-struct OpenKeepWidget: Widget {
+struct NewNoteWidget: Widget {
     let kind: String = "com.jackbarkerapps.openkeep.widget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: OpenKeepWidgetProvider()) { entry in
-            OpenKeepWidgetEntryView(entry: entry)
+        StaticConfiguration(kind: kind, provider: NewNoteWidgetProvider()) { entry in
+            NewNoteWidgetEntryView(entry: entry)
         }
-        .configurationDisplayName("New note")
+        .configurationDisplayName("New Note")
         .description("Quickly create new text or list notes")
         .supportedFamilies([.systemSmall])
     }

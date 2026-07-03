@@ -7,7 +7,8 @@
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/widget_layout"
-    android:description="Quickly create new text or list notes"
+    android:previewLayout="@layout/widget_layout"
+    android:description="@string/widget_new_note_description"
     android:widgetCategory="home_screen"
     android:targetCellWidth="2"
     android:targetCellHeight="1" />
