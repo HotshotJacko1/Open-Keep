@@ -1,1 +1,1 @@
-Open Keep is a simple, privacy-focused note-taking app designed for users who want full control over their data. No Google dependency, no personal data collection - just your notes, stored how and where you choose.
+Open Keep is a simple, privacy-focused notes and lists app.

@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Coloured notes.
 - E2EE.
 
-## [4.2.0] - 2026-06-03
+## [4.2.0] - 2026-07-03
 ### Added
 - Widgets
   - "New note" widget on mobile. Quickly create text and list notes.
