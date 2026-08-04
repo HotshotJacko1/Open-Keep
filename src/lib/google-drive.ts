@@ -427,6 +427,15 @@ export const syncNotesWithDrive = async (
             await uploadMasterKey(folderId, masterKeyPayload, keyFileId);
         }
         await uploadNotes(folderId, localNotes, localCustomTags, fileId);
+        
+        // Cleanup old notes_data.json if it exists
+        const legacyFileId = await findFile(folderId, "notes_data.json");
+        if (legacyFileId) {
+            await driveRequest("DELETE", `https://www.googleapis.com/drive/v3/files/${legacyFileId}`, {
+                headers: getHeaders(),
+            });
+        }
+        
         return { notes: localNotes, customTags: localCustomTags };
     }
 
@@ -512,6 +521,18 @@ export const syncNotesWithDrive = async (
 
     // Upload merged data
     await uploadNotes(folderId, mergedNotes, mergedTags, fileId);
+
+    // Cleanup old notes_data.json if it exists
+    const legacyFileId = await findFile(folderId, "notes_data.json");
+    if (legacyFileId) {
+        try {
+            await driveRequest("DELETE", `https://www.googleapis.com/drive/v3/files/${legacyFileId}`, {
+                headers: getHeaders(),
+            });
+        } catch (e) {
+            console.warn("Failed to delete legacy notes_data.json", e);
+        }
+    }
 
     return { notes: mergedNotes, customTags: mergedTags };
 };

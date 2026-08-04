@@ -432,6 +432,18 @@ export const syncNotesWithOneDrive = async (
             await uploadMasterKey(masterKeyPayload, keyFileId);
         }
         await uploadNotes(folderId, localNotes, localCustomTags, fileId);
+
+        // Cleanup old notes_data.json if it exists
+        try {
+            const legacyResponse = await callGraphApi(`/me/drive/special/approot/children?$filter=name eq 'notes_data.json'`);
+            if (legacyResponse && legacyResponse.value && legacyResponse.value.length > 0) {
+                const legacyFileId = legacyResponse.value[0].id;
+                await callGraphApi(`/me/drive/items/${legacyFileId}`, "DELETE");
+            }
+        } catch (e) {
+            console.warn("Failed to delete legacy notes_data.json", e);
+        }
+
         return { notes: localNotes, customTags: localCustomTags };
     }
 
@@ -517,6 +529,17 @@ export const syncNotesWithOneDrive = async (
         await uploadMasterKey(masterKeyPayload, keyFileId);
     }
     await uploadNotes(folderId, mergedNotes, mergedTags, fileId);
+
+    // Cleanup old notes_data.json if it exists
+    try {
+        const legacyResponse = await callGraphApi(`/me/drive/special/approot/children?$filter=name eq 'notes_data.json'`);
+        if (legacyResponse && legacyResponse.value && legacyResponse.value.length > 0) {
+            const legacyFileId = legacyResponse.value[0].id;
+            await callGraphApi(`/me/drive/items/${legacyFileId}`, "DELETE");
+        }
+    } catch (e) {
+        console.warn("Failed to delete legacy notes_data.json", e);
+    }
 
     return { notes: mergedNotes, customTags: mergedTags };
 };
