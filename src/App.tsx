@@ -9,7 +9,6 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
 import LockScreen from "./components/LockScreen";
-import EncryptionSetupScreen from "./components/EncryptionSetupScreen";
 import React, { useState, useEffect, useRef } from "react";
 import { checkDatabaseStatus, initializeDatabase, lockDatabase } from "./lib/note-storage";
 import { Capacitor } from "@capacitor/core";
@@ -33,7 +32,7 @@ const App = () => {
       try {
         const { data: entitlementData } = await supabase
           .from('user_entitlements')
-          .select('created_at, feedback_date, times_logged_in, times_logged_in_when_feedback_requested')
+          .select('times_logged_in')
           .eq('user_id', session.user.id)
           .maybeSingle();
 
@@ -52,21 +51,13 @@ const App = () => {
           console.error("Supabase upsert error:", JSON.stringify(upsertError, null, 2));
         }
 
-        const oneMonthAgo = new Date();
-        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        const { data: statusData } = await supabase
+          .from('user_status')
+          .select('ready_to_ask_for_feedback')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
 
-        const twoMonthsAgo = new Date();
-        twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
-
-        const createdAtDate = entitlementData?.created_at ? new Date(entitlementData.created_at) : new Date();
-        const feedbackDate = entitlementData?.feedback_date ? new Date(entitlementData.feedback_date) : null;
-        const timesWhenRequested = entitlementData?.times_logged_in_when_feedback_requested || 0;
-
-        const isOldEnough = createdAtDate < oneMonthAgo;
-        const isFeedbackOldEnough = !feedbackDate || feedbackDate < twoMonthsAgo;
-        const hasEnoughLogins = newCount > (timesWhenRequested + 9);
-
-        if (isOldEnough && isFeedbackOldEnough && hasEnoughLogins) {
+        if (statusData?.ready_to_ask_for_feedback) {
           setShouldShowFeedback(true);
         }
       } catch (err) {
@@ -88,7 +79,9 @@ const App = () => {
           const status = await checkDatabaseStatus();
 
           if (!status.isConfigured) {
-            setAppState('setup');
+            // Automatically initialize with empty PIN for transparent encryption
+            await initializeDatabase("");
+            setAppState('ready');
             return;
           }
 
@@ -111,6 +104,8 @@ const App = () => {
               setAppState('ready');
             }
           } else {
+            // Unencrypted web flow
+            await initializeDatabase("");
             setAppState('ready');
           }
         }
@@ -193,12 +188,14 @@ const App = () => {
     return <div className="min-h-screen bg-background flex items-center justify-center text-text-primary">Loading...</div>;
   }
 
+  // The 'setup' state is no longer used for initial load, as we auto-initialize transparently.
+  // We keep it as a fallback error state if DB initialization fails catastrophically.
   if (appState === 'setup') {
     return (
-      <React.Fragment>
-        <Toaster />
-        <EncryptionSetupScreen onSetupComplete={handleSetupComplete} />
-      </React.Fragment>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 text-center">
+        <h2 className="text-xl font-bold text-destructive mb-2">Database Error</h2>
+        <p className="text-muted-foreground mb-4">The app failed to initialize its local database.</p>
+      </div>
     );
   }
 

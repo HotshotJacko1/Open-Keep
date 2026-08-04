@@ -1,7 +1,7 @@
 allowBuilds:
   # dyad-default-allow-builds begin
   # dyad-default-allow-builds-schema=v1
-  # dyad-default-allow-builds-data-version=2026-05-21.2
+  # dyad-default-allow-builds-data-version=2026-07-08.1
   # dyad-default-allow-builds-channel=remote
   "@airbnb/node-memwatch": true
   "@anthropic-ai/claude-code": true
@@ -141,6 +141,7 @@ allowBuilds:
   contentlayer: true
   contextify: true
   cordova.plugins.diagnostic: true
+  core-js: true
   couchbase: true
   cpu-features: true
   cwebp-bin: true

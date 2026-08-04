@@ -10,18 +10,18 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/theme-provider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { 
-  Sun, 
-  Moon, 
-  Monitor, 
-  Upload, 
-  Download, 
-  Loader2, 
-  Shield, 
-  FileText, 
-  Mail, 
-  ArrowLeft, 
-  Sparkles, 
+import {
+  Sun,
+  Moon,
+  Monitor,
+  Upload,
+  Download,
+  Loader2,
+  Shield,
+  FileText,
+  Mail,
+  ArrowLeft,
+  Sparkles,
   MessageSquare,
   Fingerprint,
   Hash,
@@ -34,6 +34,8 @@ import ChangePinDialog from "./ChangePinDialog";
 import AppLockDialog from "./AppLockDialog";
 import GoogleKeepMigrationGuide from "./GoogleKeepMigrationGuide";
 import ChangelogDialog from "./ChangelogDialog";
+import EnableEncryptionDialog from "./EnableEncryptionDialog";
+import DisableEncryptionDialog from "./DisableEncryptionDialog";
 import { useSession } from "@/context/session-provider";
 import { Note } from "@/types/note";
 import JSZip from "jszip";
@@ -67,6 +69,9 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
   }, [defaultTypingArea]);
   const [isAppLockDialogOpen, setIsAppLockDialogOpen] = useState(false);
   const [isChangePinDialogOpen, setIsChangePinDialogOpen] = useState(false);
+  const [isEnableEncryptionDialogOpen, setIsEnableEncryptionDialogOpen] = useState(false);
+  const [isDisableEncryptionDialogOpen, setIsDisableEncryptionDialogOpen] = useState(false);
+  const [isEncryptionEnabled, setIsEncryptionEnabled] = useState(false);
   const [isKeepGuideOpen, setIsKeepGuideOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -93,6 +98,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
     };
     if (isOpen) {
       fetchPin();
+      setIsEncryptionEnabled(localStorage.getItem("app-passcode") !== null);
     }
   }, [user?.id, isOpen]);
 
@@ -344,14 +350,38 @@ PIN code: ${pinCode || 'Not set'}`;
             <div className="flex flex-col gap-2 mt-4">
               <Label>Security</Label>
               <div className="flex flex-col gap-2">
-                <Button variant="outline" onClick={() => setIsAppLockDialogOpen(true)} className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    if (!isEncryptionEnabled) {
+                      showError("Please enable encryption first.");
+                      return;
+                    }
+                    setIsAppLockDialogOpen(true);
+                  }} 
+                  className="w-full justify-start"
+                  disabled={!isEncryptionEnabled}
+                >
                   <Fingerprint className="h-4 w-4 mr-2" />
                   App Lock & Biometrics
                 </Button>
-                <Button variant="outline" onClick={() => setIsChangePinDialogOpen(true)} className="w-full justify-start">
-                  <Hash className="h-4 w-4 mr-2" />
-                  Change Encryption PIN
-                </Button>
+                {isEncryptionEnabled ? (
+                  <>
+                    <Button variant="outline" onClick={() => setIsChangePinDialogOpen(true)} className="w-full justify-start">
+                      <Hash className="h-4 w-4 mr-2" />
+                      Change Encryption PIN
+                    </Button>
+                    <Button variant="outline" onClick={() => setIsDisableEncryptionDialogOpen(true)} className="w-full justify-start text-destructive hover:text-destructive">
+                      <Shield className="h-4 w-4 mr-2" />
+                      Disable Encryption
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="outline" onClick={() => setIsEnableEncryptionDialogOpen(true)} className="w-full justify-start text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400">
+                    <Shield className="h-4 w-4 mr-2" />
+                    Enable Encryption
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -401,6 +431,20 @@ PIN code: ${pinCode || 'Not set'}`;
               onClose={() => setIsChangePinDialogOpen(false)}
             />
 
+            <EnableEncryptionDialog
+              isOpen={isEnableEncryptionDialogOpen}
+              onClose={() => {
+                setIsEnableEncryptionDialogOpen(false);
+                setIsEncryptionEnabled(localStorage.getItem("app-passcode") !== null);
+              }}
+            />
+
+            <DisableEncryptionDialog
+              isOpen={isDisableEncryptionDialogOpen}
+              onClose={() => setIsDisableEncryptionDialogOpen(false)}
+              onSuccess={() => setIsEncryptionEnabled(false)}
+            />
+
             <AppLockDialog
               isOpen={isAppLockDialogOpen}
               onClose={() => setIsAppLockDialogOpen(false)}
@@ -416,9 +460,9 @@ PIN code: ${pinCode || 'Not set'}`;
 
             <div className="flex flex-col gap-2 mt-4">
               <Label>Options</Label>
-              <div className="flex items-center justify-between w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm">
+              <div className="flex items-center justify-between w-full rounded-md border border-input bg-transparent px-4 py-2 h-10 text-sm font-medium">
                 <span className="flex items-center gap-2">
-                  <Type className="h-4 w-4" />
+                  <Type className="h-4 w-4 mr-2" />
                   Default Typing Area
                 </span>
                 <ToggleGroup

@@ -209,10 +209,13 @@ export const migrateWebNotes = async (notes: any[]): Promise<void> => {
   }
 };
 
+const getEffectivePin = (pin: string) => pin === "" ? "OPENKEEP_DEFAULT_UNENCRYPTED_PIN" : pin;
+
 export const initializeDatabase = async (key: string): Promise<void> => {
+  const effectiveKey = getEffectivePin(key);
   if (!isNative) {
     try {
-      await initializeDatabaseWeb(key);
+      await initializeDatabaseWeb(effectiveKey);
       return;
     } catch (error) {
       console.error("Error initializing web database:", error);
@@ -220,7 +223,7 @@ export const initializeDatabase = async (key: string): Promise<void> => {
     }
   }
   try {
-    await NoteStorage.initialize({ key });
+    await NoteStorage.initialize({ key: effectiveKey });
   } catch (error) {
     console.error("Error initializing database:", error);
     throw error;
@@ -239,6 +242,10 @@ export const checkDatabaseStatus = async (): Promise<{ isConfigured: boolean; is
 };
 
 export const encryptData = async (data: string): Promise<string> => {
+  if (!localStorage.getItem("app-passcode")) {
+    return data;
+  }
+
   if (!isNative) {
     try {
       return await encryptDataWeb(data);
@@ -305,12 +312,14 @@ export const clearAllData = async (): Promise<void> => {
 };
 
 export const changeEncryptionKey = async (oldPin: string, newPin: string): Promise<void> => {
+  const effectiveOldPin = getEffectivePin(oldPin);
+  const effectiveNewPin = getEffectivePin(newPin);
   if (!isNative) {
-    await changeEncryptionKeyWeb(oldPin, newPin);
+    await changeEncryptionKeyWeb(effectiveOldPin, effectiveNewPin);
     return;
   }
   try {
-    await NoteStorage.changeEncryptionKey({ oldPin, newPin });
+    await NoteStorage.changeEncryptionKey({ oldPin: effectiveOldPin, newPin: effectiveNewPin });
   } catch (error) {
     console.error("Error changing encryption key:", error);
     throw error;
@@ -318,11 +327,12 @@ export const changeEncryptionKey = async (oldPin: string, newPin: string): Promi
 };
 
 export const exportMasterKey = async (pin: string): Promise<string> => {
+  const effectivePin = getEffectivePin(pin);
   if (!isNative) {
-    return await exportCloudMasterKeyWeb(pin);
+    return await exportCloudMasterKeyWeb(effectivePin);
   }
   try {
-    const result = await NoteStorage.exportMasterKey({ pin });
+    const result = await NoteStorage.exportMasterKey({ pin: effectivePin });
     return result.payload;
   } catch (error) {
     console.error("Error exporting master key:", error);
@@ -331,17 +341,18 @@ export const exportMasterKey = async (pin: string): Promise<string> => {
 };
 
 export const importMasterKey = async (payload: string, pin: string): Promise<void> => {
+  const effectivePin = getEffectivePin(pin);
   const normalizedPayload = normalizeCloudMasterKeyPayload(payload);
   if (!normalizedPayload) {
     throw new Error("Invalid cloud master key payload");
   }
 
   if (!isNative) {
-    await importCloudMasterKeyWeb(normalizedPayload, pin);
+    await importCloudMasterKeyWeb(normalizedPayload, effectivePin);
     return;
   }
   try {
-    await NoteStorage.importMasterKey({ payload: normalizedPayload, pin });
+    await NoteStorage.importMasterKey({ payload: normalizedPayload, pin: effectivePin });
   } catch (error) {
     console.error("Error importing master key:", error);
     throw error;
@@ -349,14 +360,15 @@ export const importMasterKey = async (payload: string, pin: string): Promise<voi
 };
 
 export const verifyCloudMasterKeyMatch = async (payload: string, pin: string): Promise<boolean> => {
+  const effectivePin = getEffectivePin(pin);
   const normalizedPayload = normalizeCloudMasterKeyPayload(payload);
   if (!normalizedPayload) return false;
 
   if (!isNative) {
-    return await verifyCloudMasterKeyMatchWeb(normalizedPayload, pin);
+    return await verifyCloudMasterKeyMatchWeb(normalizedPayload, effectivePin);
   }
   try {
-    const result = await NoteStorage.verifyCloudMasterKeyMatch({ payload: normalizedPayload, pin });
+    const result = await NoteStorage.verifyCloudMasterKeyMatch({ payload: normalizedPayload, pin: effectivePin });
     return result.isMatch;
   } catch (error) {
     console.error("Error verifying master key match:", error);
@@ -365,20 +377,21 @@ export const verifyCloudMasterKeyMatch = async (payload: string, pin: string): P
 };
 
 export const canDecryptCloudMasterKey = async (payload: string, pin: string): Promise<boolean> => {
+  const effectivePin = getEffectivePin(pin);
   const normalizedPayload = normalizeCloudMasterKeyPayload(payload);
   if (!normalizedPayload) return false;
 
   if (!isNative) {
-    return await canDecryptCloudMasterKeyWeb(normalizedPayload, pin);
+    return await canDecryptCloudMasterKeyWeb(normalizedPayload, effectivePin);
   }
   try {
-    const result = await NoteStorage.canDecryptCloudMasterKey({ payload: normalizedPayload, pin });
+    const result = await NoteStorage.canDecryptCloudMasterKey({ payload: normalizedPayload, pin: effectivePin });
     return result.canDecrypt;
   } catch (error) {
     const err = error as { code?: string };
     // Native plugin not rebuilt yet — same crypto logic runs in JS via Web Crypto.
     if (err.code === "UNIMPLEMENTED") {
-      return await canDecryptCloudMasterKeyWeb(normalizedPayload, pin);
+      return await canDecryptCloudMasterKeyWeb(normalizedPayload, effectivePin);
     }
     console.error("Error checking cloud master key decryption:", error);
     return false;

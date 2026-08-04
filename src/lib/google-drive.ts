@@ -82,6 +82,7 @@ export const setAccessToken = (token: string, expiresIn: number = 3600) => {
         localStorage.removeItem("google-access-token");
         localStorage.removeItem("google-token-expiry");
     }
+    window.dispatchEvent(new Event("google-token-updated"));
 };
 
 export const hasGoogleAccessToken = () => {

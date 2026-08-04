@@ -75,6 +75,7 @@ const nativeGoogleSignIn = async (logoutFirst = false, forcePrompt = false) => {
             scopes: GOOGLE_DRIVE_SCOPES,
             forceRefreshToken: true,
             forcePrompt,
+            filterByAuthorizedAccounts: false,
         },
     });
 
@@ -406,6 +407,29 @@ export const useGoogleDrive = () => {
         showSuccess("Disconnected from Google Drive.");
     };
 
+    const [isTokenExpired, setIsTokenExpired] = useState<boolean>(false);
+
+    useEffect(() => {
+        const checkExpiry = () => {
+            const expiry = localStorage.getItem("google-token-expiry");
+            if (userEmail && expiry && Date.now() > parseInt(expiry, 10)) {
+                setIsTokenExpired(true);
+            } else {
+                setIsTokenExpired(false);
+            }
+        };
+        checkExpiry();
+        const interval = setInterval(checkExpiry, 10000);
+        
+        const handleTokenUpdate = () => checkExpiry();
+        window.addEventListener("google-token-updated", handleTokenUpdate);
+        
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener("google-token-updated", handleTokenUpdate);
+        };
+    }, [userEmail]);
+
     return {
         login,
         sync,
@@ -413,6 +437,7 @@ export const useGoogleDrive = () => {
         isSyncing,
         lastSynced,
         userEmail,
-        isConnected: !!userEmail
+        isConnected: !!userEmail,
+        isTokenExpired
     };
 };

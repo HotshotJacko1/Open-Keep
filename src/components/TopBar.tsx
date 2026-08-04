@@ -123,18 +123,25 @@ const TopBar: React.FC<TopBarProps> = ({
 
             {showSyncButton && (
                 <Button
-                    variant="ghost"
+                    variant={(activeService as any).isTokenExpired ? "destructive" : "ghost"}
                     size="sm"
                     onClick={handleSync}
                     disabled={activeService.isSyncing}
-                    className="flex-shrink-0 text-muted-foreground"
+                    className={cn(
+                        "flex-shrink-0 text-muted-foreground",
+                        (activeService as any).isTokenExpired && "bg-orange-500 hover:bg-orange-600 text-white"
+                    )}
                 >
                     {activeService.isSyncing ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
                         <CloudSync className="mr-2 h-4 w-4" />
                     )}
-                    {activeService.isSyncing ? "Syncing..." : "Sync"}
+                    {activeService.isSyncing 
+                        ? "Syncing..." 
+                        : (activeService as any).isTokenExpired 
+                            ? "Session Expired" 
+                            : "Sync"}
                 </Button>
             )}
 

@@ -21,7 +21,7 @@ export const resolveCloudKeyImport = async (
   providedPin?: string
 ): Promise<CloudKeyImportResult> => {
   if (!forceResolution || !cloudPayload || forceResolution === "local") {
-    return { ok: true, effectivePin: localPin || providedPin || "" };
+    return { ok: true, effectivePin: localPin || "" };
   }
 
   const importPin = (providedPin || localPin)?.trim();
@@ -63,7 +63,11 @@ export const resolveCloudKeyImport = async (
       await wipeDatabaseButKeepKeys();
     }
   } else if (!localPin) {
-    await wipeDatabaseButKeepKeys();
+    try {
+      await changeEncryptionKey("", importPin);
+    } catch {
+      await wipeDatabaseButKeepKeys();
+    }
   }
 
   await importMasterKey(cloudPayload, importPin);
