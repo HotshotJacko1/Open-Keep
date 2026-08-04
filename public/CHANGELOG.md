@@ -9,6 +9,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Coloured notes.
 - E2EE.
 
+## [4.3.0] - 2026-08-05
+### Changed
+- Encryption is now optional. This ensures that users who do not require encryption can enjoy a simpler and faster cloud sync experience. It also makes the onboarding flow smoother for new users.
+
 ## [4.2.0] - 2026-07-03
 ### Added
 - Widgets
