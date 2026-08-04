@@ -74,6 +74,23 @@ const EnableEncryptionDialog: React.FC<EnableEncryptionDialogProps> = ({ isOpen,
 
             // Update local storage passcode
             localStorage.setItem("app-passcode", newPin);
+            localStorage.removeItem("app-lock-passcode");
+
+            // Update biometrics credentials if enabled
+            if (localStorage.getItem("app-biometrics-enabled") === "true") {
+                try {
+                    const { NativeBiometric } = await import("@capgo/capacitor-native-biometric");
+                    if (typeof NativeBiometric.setCredentials === 'function') {
+                        await NativeBiometric.setCredentials({
+                            username: "app-pin",
+                            password: newPin,
+                            server: "open-keep"
+                        });
+                    }
+                } catch (e) {
+                    console.error("Failed to update biometrics credentials on encryption enable", e);
+                }
+            }
             
             showSuccess("Encryption enabled successfully");
             onClose();

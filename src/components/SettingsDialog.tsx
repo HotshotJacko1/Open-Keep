@@ -353,14 +353,9 @@ PIN code: ${pinCode || 'Not set'}`;
                 <Button 
                   variant="outline" 
                   onClick={() => {
-                    if (!isEncryptionEnabled) {
-                      showError("Please enable encryption first.");
-                      return;
-                    }
                     setIsAppLockDialogOpen(true);
                   }} 
                   className="w-full justify-start"
-                  disabled={!isEncryptionEnabled}
                 >
                   <Fingerprint className="h-4 w-4 mr-2" />
                   App Lock & Biometrics

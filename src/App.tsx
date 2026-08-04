@@ -106,7 +106,11 @@ const App = () => {
           } else {
             // Unencrypted web flow
             await initializeDatabase("");
-            setAppState('ready');
+            if (isLockEnabled) {
+              setAppState('locked');
+            } else {
+              setAppState('ready');
+            }
           }
         }
       } catch (e) {
@@ -204,16 +208,31 @@ const App = () => {
       {(appState === 'locked') && (
         <LockScreen
           onUnlock={async (pin) => {
-            if (isNative) {
-              const success = await handleUnlock(pin);
-              if (success) setAppState('ready');
-              return success;
+            const hasPasscode = !!localStorage.getItem("app-passcode");
+            if (hasPasscode) {
+              if (isNative) {
+                const success = await handleUnlock(pin);
+                if (success) setAppState('ready');
+                return success;
+              } else {
+                // Web flow with encryption: initialize database with pin
+                try {
+                  await initializeDatabase(pin);
+                  setAppState('ready');
+                  return true;
+                } catch (e) {
+                  console.error("Unlock failed on web", e);
+                  return false;
+                }
+              }
             } else {
+              // Encryption disabled (transparent/empty PIN database):
+              // Just unlock the UI
               setAppState('ready');
               return true;
             }
           }}
-          isNativeEncryption={isNative}
+          isNativeEncryption={isNative && !!localStorage.getItem("app-passcode")}
           onReset={handleReset}
         />
       )}

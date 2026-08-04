@@ -9,8 +9,9 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { showSuccess, showError } from "@/utils/toast";
-import { Fingerprint, ShieldCheck, ArrowLeft } from "lucide-react";
+import { Fingerprint, ShieldCheck, ArrowLeft, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface AppLockDialogProps {
@@ -23,6 +24,13 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
     const [isBiometricsEnabled, setIsBiometricsEnabled] = useState(false);
     const [isLaunchLockEnabled, setIsLaunchLockEnabled] = useState(false);
 
+    // States for PIN management when encryption is disabled
+    const [isSettingPin, setIsSettingPin] = useState(false);
+    const [isChangingPin, setIsChangingPin] = useState(false);
+    const [newPin, setNewPin] = useState("");
+    const [confirmPin, setConfirmPin] = useState("");
+    const [currentPin, setCurrentPin] = useState("");
+
     useEffect(() => {
         if (isOpen) {
             // Check biometrics availability
@@ -33,6 +41,13 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
             // Load statuses
             setIsBiometricsEnabled(localStorage.getItem("app-biometrics-enabled") === "true");
             setIsLaunchLockEnabled(localStorage.getItem("app-lock-enabled") === "true");
+
+            // Reset sub-states
+            setIsSettingPin(false);
+            setIsChangingPin(false);
+            setNewPin("");
+            setConfirmPin("");
+            setCurrentPin("");
         }
     }, [isOpen]);
 
@@ -57,8 +72,83 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);
 
+    const handleSetPin = () => {
+        if (newPin.length < 4 || newPin.length > 6) {
+            showError("PIN must be 4-6 digits long");
+            return;
+        }
+        if (!/^\d+$/.test(newPin)) {
+            showError("PIN must contain only numbers");
+            return;
+        }
+        if (newPin !== confirmPin) {
+            showError("PINs do not match");
+            return;
+        }
+
+        localStorage.setItem("app-lock-passcode", newPin);
+        localStorage.setItem("app-lock-enabled", "true");
+        setIsLaunchLockEnabled(true);
+        setIsSettingPin(false);
+        setNewPin("");
+        setConfirmPin("");
+        showSuccess("App Lock PIN set successfully!");
+    };
+
+    const handleChangePin = async () => {
+        const storedPasscode = localStorage.getItem("app-lock-passcode");
+        if (currentPin !== storedPasscode) {
+            showError("Current PIN is incorrect");
+            return;
+        }
+        if (newPin.length < 4 || newPin.length > 6) {
+            showError("New PIN must be 4-6 digits long");
+            return;
+        }
+        if (!/^\d+$/.test(newPin)) {
+            showError("New PIN must contain only numbers");
+            return;
+        }
+        if (newPin !== confirmPin) {
+            showError("New PINs do not match");
+            return;
+        }
+        if (newPin === currentPin) {
+            showError("New PIN must be different from current PIN");
+            return;
+        }
+
+        localStorage.setItem("app-lock-passcode", newPin);
+
+        // Update biometrics credentials if enabled
+        if (isBiometricsEnabled && typeof NativeBiometric.setCredentials === 'function') {
+            try {
+                await NativeBiometric.setCredentials({
+                    username: "app-pin",
+                    password: newPin,
+                    server: "open-keep"
+                });
+            } catch (e) {
+                console.error("Failed to update biometrics credentials", e);
+            }
+        }
+
+        setIsChangingPin(false);
+        setCurrentPin("");
+        setNewPin("");
+        setConfirmPin("");
+        showSuccess("App Lock PIN changed successfully!");
+    };
+
     const handleToggleBiometrics = async (checked: boolean) => {
         if (checked) {
+            const pin = localStorage.getItem("app-passcode") || localStorage.getItem("app-lock-passcode");
+            if (!pin) {
+                showError("Please set a PIN first");
+                setIsSettingPin(true);
+                return;
+            }
+
             try {
                 await NativeBiometric.verifyIdentity({
                     reason: "Enable biometric authentication",
@@ -69,8 +159,7 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
                 localStorage.setItem("app-biometrics-enabled", "true");
 
                 // Store PIN in secure storage for biometric unlock on native
-                const pin = localStorage.getItem("app-passcode");
-                if (pin && typeof NativeBiometric.setCredentials === 'function') {
+                if (typeof NativeBiometric.setCredentials === 'function') {
                     await NativeBiometric.setCredentials({
                         username: "app-pin",
                         password: pin,
@@ -99,15 +188,17 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
     };
 
     const handleToggleLaunchLock = (checked: boolean) => {
-        // Check if encryption PIN is set
-        const pin = localStorage.getItem("app-passcode");
-        if (checked && !pin) {
-            showError("Please set an Encryption PIN first");
-            return;
-        }
-
         if (checked) {
+            const hasEncryptionPin = localStorage.getItem("app-passcode");
+            const hasAppLockPin = localStorage.getItem("app-lock-passcode");
+            
+            if (!hasEncryptionPin && !hasAppLockPin) {
+                setIsSettingPin(true);
+                return;
+            }
+
             localStorage.setItem("app-lock-enabled", "true");
+            setIsLaunchLockEnabled(true);
             showSuccess("Launch lock enabled");
         } else {
             localStorage.removeItem("app-lock-enabled");
@@ -118,13 +209,131 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
                 localStorage.removeItem("app-biometrics-enabled");
                 setIsBiometricsEnabled(false);
             }
+            setIsLaunchLockEnabled(false);
         }
-        setIsLaunchLockEnabled(checked);
     };
 
-    return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[425px] bg-background text-primary-foreground">
+    const isEncryptionEnabled = localStorage.getItem("app-passcode") !== null;
+
+    const renderContent = () => {
+        if (isSettingPin) {
+            return (
+                <>
+                    <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
+                        <Button variant="ghost" size="icon" onClick={() => setIsSettingPin(false)} className="shrink-0 mt-0 h-8 w-8">
+                            <ArrowLeft className="h-5 w-5 text-secondary" />
+                            <span className="sr-only">Back</span>
+                        </Button>
+                        <DialogTitle>Set App Lock PIN</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <p className="text-sm text-muted-foreground">
+                            Choose a 4-6 digit PIN to lock the app on launch.
+                        </p>
+                        <div className="flex flex-col gap-2">
+                            <Label htmlFor="new-pin">Enter PIN</Label>
+                            <Input
+                                id="new-pin"
+                                type="password"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                value={newPin}
+                                onChange={(e) => setNewPin(e.target.value)}
+                                placeholder="4-6 digits"
+                                maxLength={6}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <Label htmlFor="confirm-pin">Confirm PIN</Label>
+                            <Input
+                                id="confirm-pin"
+                                type="password"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                value={confirmPin}
+                                onChange={(e) => setConfirmPin(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && newPin && confirmPin) {
+                                        handleSetPin();
+                                    }
+                                }}
+                                placeholder="Retype PIN"
+                                maxLength={6}
+                            />
+                        </div>
+                        <Button onClick={handleSetPin} disabled={!newPin || !confirmPin} className="w-full mt-2">
+                            Set PIN
+                        </Button>
+                    </div>
+                </>
+            );
+        }
+
+        if (isChangingPin) {
+            return (
+                <>
+                    <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
+                        <Button variant="ghost" size="icon" onClick={() => setIsChangingPin(false)} className="shrink-0 mt-0 h-8 w-8">
+                            <ArrowLeft className="h-5 w-5 text-secondary" />
+                            <span className="sr-only">Back</span>
+                        </Button>
+                        <DialogTitle>Change App Lock PIN</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="flex flex-col gap-2">
+                            <Label htmlFor="current-pin">Current PIN</Label>
+                            <Input
+                                id="current-pin"
+                                type="password"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                value={currentPin}
+                                onChange={(e) => setCurrentPin(e.target.value)}
+                                placeholder="Enter current PIN"
+                                maxLength={6}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <Label htmlFor="new-pin">New PIN</Label>
+                            <Input
+                                id="new-pin"
+                                type="password"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                value={newPin}
+                                onChange={(e) => setNewPin(e.target.value)}
+                                placeholder="4-6 digits"
+                                maxLength={6}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <Label htmlFor="confirm-pin">Confirm New PIN</Label>
+                            <Input
+                                id="confirm-pin"
+                                type="password"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                value={confirmPin}
+                                onChange={(e) => setConfirmPin(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && currentPin && newPin && confirmPin) {
+                                        handleChangePin();
+                                    }
+                                }}
+                                placeholder="Retype new PIN"
+                                maxLength={6}
+                            />
+                        </div>
+                        <Button onClick={handleChangePin} disabled={!currentPin || !newPin || !confirmPin} className="w-full mt-2">
+                            Change PIN
+                        </Button>
+                    </div>
+                </>
+            );
+        }
+
+        return (
+            <>
                 <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
                     <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
                         <ArrowLeft className="h-5 w-5 text-secondary" />
@@ -151,7 +360,7 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
                     </div>
 
                     {isBiometricsAvailable && (
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between border-b pb-4">
                             <div className="space-y-0.5">
                                 <div className="flex items-center gap-2">
                                     <Fingerprint className="w-4 h-4 text-primary" />
@@ -168,7 +377,26 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
                             />
                         </div>
                     )}
+
+                    {isLaunchLockEnabled && !isEncryptionEnabled && (
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsChangingPin(true)}
+                            className="w-full justify-start mt-2"
+                        >
+                            <Hash className="h-4 w-4 mr-2" />
+                            Change App Lock PIN
+                        </Button>
+                    )}
                 </div>
+            </>
+        );
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-[425px] bg-background text-primary-foreground">
+                {renderContent()}
             </DialogContent>
         </Dialog>
     );

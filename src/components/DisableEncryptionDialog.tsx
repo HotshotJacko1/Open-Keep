@@ -70,18 +70,22 @@ const DisableEncryptionDialog: React.FC<DisableEncryptionDialogProps> = ({ isOpe
             // Re-key to the transparent empty PIN
             await changeEncryptionKey(currentPin, "");
 
+            // If app lock was enabled, transfer the PIN to app-lock-passcode to keep it active
+            const isLockEnabled = localStorage.getItem("app-lock-enabled") === "true";
+            if (isLockEnabled) {
+                localStorage.setItem("app-lock-passcode", currentPin);
+            } else {
+                localStorage.removeItem("app-lock-enabled");
+                localStorage.removeItem("app-biometrics-enabled");
+                try {
+                    await NativeBiometric.deleteCredentials({ server: "open-keep" });
+                } catch (e) {
+                    // Ignore if no credentials found
+                }
+            }
+
             // Update local storage passcode
             localStorage.removeItem("app-passcode");
-            
-            // Disable App Lock / Biometrics as they require encryption
-            localStorage.removeItem("app-lock-enabled");
-            localStorage.removeItem("app-biometrics-enabled");
-            
-            try {
-                await NativeBiometric.deleteCredentials({ server: "open-keep" });
-            } catch (e) {
-                // Ignore if no credentials found
-            }
             
             showSuccess("Encryption disabled successfully");
             onSuccess();
@@ -116,7 +120,7 @@ const DisableEncryptionDialog: React.FC<DisableEncryptionDialogProps> = ({ isOpe
                             Disabling encryption will make your local database and cloud sync payloads readable in plaintext.
                             <br />
                             <br />
-                            This will also disable App Lock and Biometrics.
+                            App Lock and Biometrics will remain enabled using your current PIN.
                         </DialogDescription>
                     </div>
 

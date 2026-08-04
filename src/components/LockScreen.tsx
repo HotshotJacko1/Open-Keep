@@ -31,8 +31,8 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        // Load saved passcode
-        const stored = localStorage.getItem(LOCAL_STORAGE_PASSCODE_KEY);
+        // Load saved passcode (encryption passcode or app lock passcode)
+        const stored = localStorage.getItem("app-passcode") || localStorage.getItem("app-lock-passcode");
         setSavedPasscode(stored);
 
         // Check biometrics
@@ -117,9 +117,9 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
                 showError("Incorrect PIN");
             }
         } else {
-            // Legacy local storage check
+            // Web flow or unencrypted flow check
             if (passcode === savedPasscode) {
-                onUnlock();
+                await onUnlock(passcode);
             } else {
                 setPasscode("");
                 setErrorPing(true);
@@ -142,21 +142,14 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
 
             // 2. Delete cloud data (attempt)
             try {
-                // We need to attempt to delete remote data, but we might not be authenticated if 'gapi' session is fresh?
-                // Actually, if we are fresh launch, gapi might not be initialized with user session unless we do that?
-                // But `initGoogleDrive` does `gapi.client.init`.
-                // Access token? If we haven't signed in, we can't delete.
-                // But if we haven't signed in, we don't have access to their drive anyway.
-                // If they are signed in (token persisted?), we use it.
-                // If not, we just skip.
                 await deleteRemoteData();
             } catch (e) {
                 console.error("Failed to delete remote data or not authenticated", e);
-                // We proceed anyway
             }
 
             // 3. Clear local storage flags
             localStorage.removeItem("app-passcode");
+            localStorage.removeItem("app-lock-passcode");
             localStorage.removeItem("app-lock-enabled");
             localStorage.removeItem("app-biometrics-enabled");
             localStorage.removeItem("custom-tags"); // While we're at it
