@@ -121,8 +121,27 @@ export const hasV2KeyWeb = (): boolean => {
 export const getMasterKeyForPinWeb = async (pin: string): Promise<ArrayBuffer> => {
     const v2Encoded = localStorage.getItem(ENCRYPTED_MASTER_KEY_V2);
     if (v2Encoded) {
-        const kek = await deriveLocalKEK(pin);
-        return await decryptWithKEK(v2Encoded, kek);
+        try {
+            const kek = await deriveLocalKEK(pin);
+            return await decryptWithKEK(v2Encoded, kek);
+        } catch (error) {
+            if (pin === "OPENKEEP_DEFAULT_UNENCRYPTED_PIN") {
+                try {
+                    const legacyKek = await deriveLocalKEK("");
+                    const decrypted = await decryptWithKEK(v2Encoded, legacyKek);
+                    
+                    // Re-encrypt with the new effective pin to migrate it
+                    const newKek = await deriveLocalKEK(pin);
+                    const newEncrypted = await encryptWithKEK(decrypted, newKek);
+                    localStorage.setItem(ENCRYPTED_MASTER_KEY_V2, newEncrypted);
+                    
+                    return decrypted;
+                } catch (legacyError) {
+                    throw error;
+                }
+            }
+            throw error;
+        }
     }
     // Fallback V1 logic
     const kek = await deriveLocalKEK(pin);

@@ -130,37 +130,35 @@ export const useDropbox = () => {
                 }
                 return { status: "error", message: keyImport.reason };
             }
-            const effectivePin = keyImport.effectivePin || pin;
+            const effectivePin = keyImport.effectivePin ?? pin ?? "";
 
             let masterKeyPayload: string | undefined;
 
-            if (effectivePin) {
-                if (forceResolution === "local" || (!forceResolution)) {
-                    masterKeyPayload = await exportMasterKey(effectivePin);
-                }
+            if (forceResolution === "local" || (!forceResolution)) {
+                masterKeyPayload = await exportMasterKey(effectivePin);
+            }
 
-                if (!forceResolution) {
-                    const cloudKey = await checkDropboxMasterKey();
-                    if (cloudKey.exists && cloudKey.payload) {
-                        const localNotes = await loadNotes();
-                        const canDecrypt = await canDecryptCloudMasterKey(cloudKey.payload, effectivePin);
-                        const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, effectivePin);
-                        const isFirstConnect = !localStorage.getItem("dropbox-last-synced");
-                        
-                        if (localNotes.length === 0) {
-                            if (canDecrypt) {
-                                await wipeDatabaseButKeepKeys();
-                                await importMasterKey(cloudKey.payload, effectivePin);
-                                masterKeyPayload = undefined;
-                            } else {
-                                return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
-                            }
+            if (!forceResolution) {
+                const cloudKey = await checkDropboxMasterKey();
+                if (cloudKey.exists && cloudKey.payload) {
+                    const localNotes = await loadNotes();
+                    const canDecrypt = await canDecryptCloudMasterKey(cloudKey.payload, effectivePin);
+                    const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, effectivePin);
+                    const isFirstConnect = !localStorage.getItem("dropbox-last-synced");
+                    
+                    if (localNotes.length === 0) {
+                        if (canDecrypt) {
+                            await wipeDatabaseButKeepKeys();
+                            await importMasterKey(cloudKey.payload, effectivePin);
+                            masterKeyPayload = undefined;
                         } else {
-                            if (!isMatch) {
-                                return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
-                            } else if (isFirstConnect) {
-                                return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
-                            }
+                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
+                        }
+                    } else {
+                        if (!isMatch) {
+                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
+                        } else if (isFirstConnect) {
+                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
                         }
                     }
                 }

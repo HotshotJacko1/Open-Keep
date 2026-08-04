@@ -47,8 +47,14 @@ export const resolveCloudKeyImport = async (
     await wipeDatabaseButKeepKeys();
     await importMasterKey(cloudPayload, importPin);
     if (importPin !== localPin) {
-      localStorage.setItem("app-passcode", importPin);
-      localStorage.setItem("app-lock-enabled", "true");
+      if (!importPin) {
+        localStorage.removeItem("app-passcode");
+        localStorage.removeItem("app-lock-enabled");
+        localStorage.removeItem("app-biometrics-enabled");
+      } else {
+        localStorage.setItem("app-passcode", importPin);
+        localStorage.setItem("app-lock-enabled", "true");
+      }
     }
     return { ok: true, effectivePin: importPin };
   }
@@ -71,8 +77,14 @@ export const resolveCloudKeyImport = async (
   }
 
   await importMasterKey(cloudPayload, importPin);
-  localStorage.setItem("app-passcode", importPin);
-  localStorage.setItem("app-lock-enabled", "true");
+  if (!importPin) {
+    localStorage.removeItem("app-passcode");
+    localStorage.removeItem("app-lock-enabled");
+    localStorage.removeItem("app-biometrics-enabled");
+  } else {
+    localStorage.setItem("app-passcode", importPin);
+    localStorage.setItem("app-lock-enabled", "true");
+  }
   return { ok: true, effectivePin: importPin };
 };
 
@@ -82,11 +94,15 @@ export const getCloudKeyConflictIfNeeded = async (
   forceResolution: "local" | "cloud" | "merge" | undefined,
   checkCloudKey: () => Promise<{ exists: boolean; payload: string | null }>
 ): Promise<{ status: "conflict"; cloudPayload: string; reason: "key_mismatch" } | null> => {
-  if (localPin || forceResolution) return null;
+  if (forceResolution) return null;
 
   const cloudKey = await checkCloudKey();
   if (cloudKey.exists && cloudKey.payload) {
-    return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
+    const effectivePin = localPin || "";
+    const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, effectivePin);
+    if (!isMatch) {
+      return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
+    }
   }
 
   return null;

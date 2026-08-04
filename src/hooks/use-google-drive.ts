@@ -282,41 +282,39 @@ export const useGoogleDrive = () => {
                 }
                 return { status: "error", message: keyImport.reason };
             }
-            const effectivePin = keyImport.effectivePin || pin;
+            const effectivePin = keyImport.effectivePin ?? pin ?? "";
 
             let masterKeyPayload: string | undefined;
 
-            if (effectivePin) {
-                if (forceResolution === "local" || (!forceResolution)) {
-                    masterKeyPayload = await exportMasterKey(effectivePin);
-                }
+            if (forceResolution === "local" || (!forceResolution)) {
+                masterKeyPayload = await exportMasterKey(effectivePin);
+            }
 
-                if (!forceResolution) {
-                    const cloudKey = await checkGoogleDriveMasterKey();
-                    if (cloudKey.exists && cloudKey.payload) {
-                        const localNotes = await loadNotes();
-                        const isFirstConnect = !localStorage.getItem("last-synced-time");
-                        const canDecrypt = await canDecryptCloudMasterKey(cloudKey.payload, effectivePin);
-                        const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, effectivePin);
+            if (!forceResolution) {
+                const cloudKey = await checkGoogleDriveMasterKey();
+                if (cloudKey.exists && cloudKey.payload) {
+                    const localNotes = await loadNotes();
+                    const isFirstConnect = !localStorage.getItem("last-synced-time");
+                    const canDecrypt = await canDecryptCloudMasterKey(cloudKey.payload, effectivePin);
+                    const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, effectivePin);
 
-                        if (localNotes.length === 0) {
-                            if (canDecrypt) {
-                                // Local is empty and we can decrypt the cloud key — auto-restore from cloud
-                                await wipeDatabaseButKeepKeys();
-                                await importMasterKey(cloudKey.payload, effectivePin);
-                                masterKeyPayload = undefined;
-                            } else {
-                                // We cannot decrypt the cloud key. Need the correct PIN.
-                                return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
-                            }
+                    if (localNotes.length === 0) {
+                        if (canDecrypt) {
+                            // Local is empty and we can decrypt the cloud key — auto-restore from cloud
+                            await wipeDatabaseButKeepKeys();
+                            await importMasterKey(cloudKey.payload, effectivePin);
+                            masterKeyPayload = undefined;
                         } else {
-                            if (!isMatch) {
-                                // Keys differ and we have local notes — conflict resolution required
-                                return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
-                            } else if (isFirstConnect) {
-                                // Keys match but this is first connect — ask user which data to keep
-                                return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
-                            }
+                            // We cannot decrypt the cloud key. Need the correct PIN.
+                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
+                        }
+                    } else {
+                        if (!isMatch) {
+                            // Keys differ and we have local notes — conflict resolution required
+                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
+                        } else if (isFirstConnect) {
+                            // Keys match but this is first connect — ask user which data to keep
+                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
                         }
                     }
                 }
