@@ -91,7 +91,7 @@ const nativeGoogleSignIn = async (logoutFirst = false, forcePrompt = false) => {
     };
 };
 
-const nativeGoogleEnsureDriveToken = async (): Promise<string> => {
+const nativeGoogleEnsureDriveToken = async (isExplicitLogin = false): Promise<string> => {
     return runGoogleDriveTokenEnsure(async () => {
         if (isGoogleDriveScopeBlocked()) {
             throw new Error(
@@ -131,18 +131,27 @@ const nativeGoogleEnsureDriveToken = async (): Promise<string> => {
         }
 
         setAccessToken("");
-        // First try a silent sign-in (no account picker prompt)
-        let user = await nativeGoogleSignIn(false, false);
-        setAccessToken(user.accessToken);
-        if (user.email) {
-            localStorage.setItem("google-user-email", user.email);
-        }
-        if (await verifyGoogleDriveAccess()) {
-            clearGoogleDriveScopeBlock();
-            return user.accessToken;
+        
+        let user;
+        try {
+            // First try a silent sign-in (no account picker prompt)
+            user = await nativeGoogleSignIn(false, false);
+            setAccessToken(user.accessToken);
+            if (user.email) {
+                localStorage.setItem("google-user-email", user.email);
+            }
+            if (await verifyGoogleDriveAccess()) {
+                clearGoogleDriveScopeBlock();
+                return user.accessToken;
+            }
+        } catch (e) {
+            console.log("Silent sign-in attempt failed", e);
+            if (!isExplicitLogin) {
+                throw e;
+            }
         }
 
-        console.log("Drive scope still missing — signing out and requesting fresh consent...");
+        console.log("Drive scope still missing or sign-in failed — signing out and requesting fresh consent...");
         // Last resort: force account picker to let user re-consent
         user = await nativeGoogleSignIn(true, true);
         setAccessToken(user.accessToken);
@@ -227,7 +236,7 @@ export const useGoogleDrive = () => {
         if (Capacitor.isNativePlatform()) {
             try {
                 clearGoogleDriveScopeBlock();
-                const accessToken = await nativeGoogleEnsureDriveToken();
+                const accessToken = await nativeGoogleEnsureDriveToken(true);
                 setAccessToken(accessToken);
 
                 const email = localStorage.getItem("google-user-email");
@@ -253,7 +262,7 @@ export const useGoogleDrive = () => {
             await initGoogleDrive();
 
             if (Capacitor.isNativePlatform()) {
-                const accessToken = await nativeGoogleEnsureDriveToken();
+                const accessToken = await nativeGoogleEnsureDriveToken(!silent);
                 setAccessToken(accessToken);
             } else {
                 if (!hasGoogleAccessToken()) {
