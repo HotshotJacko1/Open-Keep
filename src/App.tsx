@@ -15,6 +15,7 @@ import { Capacitor } from "@capacitor/core";
 import { supabase } from "./integrations/supabase/client";
 import FeedbackDialog from "./components/FeedbackDialog";
 import { useSession } from "./context/session-provider";
+import { ensureWidgetDeepLinkCapture } from "./hooks/use-widget-deep-link";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,11 @@ const App = () => {
 
   // We need to know if we are on web or native to decide flow
   const isNative = Capacitor.isNativePlatform();
+
+  // Capture widget deep links even while the lock screen is visible.
+  useEffect(() => {
+    ensureWidgetDeepLinkCapture();
+  }, []);
 
   useEffect(() => {
     const checkEntitlements = async () => {
@@ -237,8 +243,8 @@ const App = () => {
         />
       )}
 
-      {/* Only render app content if ready (or if locked is an overlay, but we want to block access) */}
-      <div style={{ display: appState === 'ready' ? 'block' : 'none' }}>
+      {/* Mount Index only when unlocked so widget deep links aren't consumed behind the lock screen. */}
+      {appState === 'ready' && (
         <TooltipProvider>
           <Toaster />
           <Sonner />
@@ -249,7 +255,7 @@ const App = () => {
             </Routes>
           </BrowserRouter>
         </TooltipProvider>
-      </div>
+      )}
       <FeedbackDialog
         isOpen={shouldShowFeedback}
         onClose={handleFeedbackClose}

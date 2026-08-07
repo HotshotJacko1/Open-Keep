@@ -11,89 +11,144 @@ export type WidgetAction =
   | { type: "toggle-checkbox"; noteId: string; lineIndex: number }
   | null;
 
+type ActionListener = (action: WidgetAction) => void;
+
+const actionListeners = new Set<ActionListener>();
+let nativeListenersReady = false;
+
+/**
+ * Parse openkeep:// widget URLs.
+ * Supports both host form (openkeep://new-text) and path form (openkeep:///new-text).
+ */
+export function parseWidgetDeepLink(url: string): WidgetAction {
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "openkeep:") return null;
+
+    const host = (parsed.hostname || parsed.host || "").toLowerCase();
+    const pathParts = parsed.pathname.replace(/^\//, "").split("/").filter(Boolean);
+
+    // openkeep://new-text  → host=new-text
+    // openkeep:///new-text → host="", path=["new-text"]
+    const actionType = host || pathParts[0] || "";
+    const rest = host ? pathParts : pathParts.slice(1);
+
+    if (actionType === "new-text") {
+      return { type: "new-text" };
+    }
+    if (actionType === "new-list") {
+      return { type: "new-list" };
+    }
+    if (actionType === "open-note" && rest[0]) {
+      return { type: "open-note", noteId: rest[0] };
+    }
+    if (actionType === "toggle-checkbox" && rest.length >= 2) {
+      return {
+        type: "toggle-checkbox",
+        noteId: rest[0],
+        lineIndex: parseInt(rest[1], 10),
+      };
+    }
+  } catch {
+    // Not a valid URL — ignore
+  }
+
+  return null;
+}
+
+function persistAndNotify(url: string) {
+  const parsedAction = parseWidgetDeepLink(url);
+  if (!parsedAction) return;
+
+  // Keep pending until the UI successfully consumes it via clearPendingWidgetDeepLink().
+  localStorage.setItem(pendingWidgetUrlKey, url);
+  actionListeners.forEach((listener) => listener(parsedAction));
+}
+
+function handleNativeReplay(event: Event) {
+  const url = (event as CustomEvent<{ url?: string }>).detail?.url;
+  if (url) {
+    persistAndNotify(url);
+  }
+}
+
+/**
+ * Start capturing widget/OAuth-unrelated openkeep:// URLs as soon as the app loads,
+ * even while the lock screen is showing and Index is unmounted.
+ */
+export function ensureWidgetDeepLinkCapture() {
+  if (!Capacitor.isNativePlatform() || nativeListenersReady) return;
+  nativeListenersReady = true;
+
+  window.addEventListener("openkeep-widget-url", handleNativeReplay);
+
+  const pendingUrl = localStorage.getItem(pendingWidgetUrlKey);
+  if (pendingUrl) {
+    persistAndNotify(pendingUrl);
+  }
+
+  App.getLaunchUrl()
+    .then((launch) => {
+      if (launch?.url) {
+        persistAndNotify(launch.url);
+      }
+    })
+    .catch(() => {
+      // Ignore launch URL errors
+    });
+
+  void App.addListener("appUrlOpen", (event) => {
+    persistAndNotify(event.url);
+  });
+}
+
+export function clearPendingWidgetDeepLink() {
+  localStorage.removeItem(pendingWidgetUrlKey);
+}
+
+export function readPendingWidgetAction(): WidgetAction {
+  const pendingUrl = localStorage.getItem(pendingWidgetUrlKey);
+  return pendingUrl ? parseWidgetDeepLink(pendingUrl) : null;
+}
+
 /**
  * Hook that listens for incoming deep links from the OS widget (or any
  * openkeep:// URL) and returns the parsed action.
  *
- * Returns `null` when idle, or an action object when a corresponding deep
- * link is received. The action resets to `null` after the calling component
- * consumes it by calling `clearAction()`.
+ * The raw URL stays in localStorage until clearAction() so cold starts and
+ * lock-screen unlocks can still consume it after Index mounts.
  */
 export function useWidgetDeepLink() {
-  const [action, setAction] = useState<WidgetAction>(null);
+  const [action, setAction] = useState<WidgetAction>(() => readPendingWidgetAction());
   const handledRef = useRef(false);
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    ensureWidgetDeepLinkCapture();
 
-    const handleUrl = (url: string) => {
-      if (!url) return;
-      try {
-        const parsed = new URL(url);
-        if (parsed.protocol !== "openkeep:") return;
-
-        const host = parsed.hostname || parsed.host;
-        const pathParts = parsed.pathname.replace(/^\//, "").split("/").filter(Boolean);
-
-        if (host === "new-text") {
-          handledRef.current = true;
-          localStorage.removeItem(pendingWidgetUrlKey);
-          setAction({ type: "new-text" });
-        } else if (host === "new-list") {
-          handledRef.current = true;
-          localStorage.removeItem(pendingWidgetUrlKey);
-          setAction({ type: "new-list" });
-        } else if (host === "open-note" && pathParts.length > 0) {
-          handledRef.current = true;
-          localStorage.removeItem(pendingWidgetUrlKey);
-          setAction({ type: "open-note", noteId: pathParts[0] });
-        } else if (host === "toggle-checkbox" && pathParts.length >= 2) {
-          handledRef.current = true;
-          localStorage.removeItem(pendingWidgetUrlKey);
-          setAction({
-            type: "toggle-checkbox",
-            noteId: pathParts[0],
-            lineIndex: parseInt(pathParts[1], 10),
-          });
-        }
-      } catch {
-        // Not a valid URL — ignore
-      }
+    const onAction: ActionListener = (parsedAction) => {
+      handledRef.current = true;
+      setAction(parsedAction);
     };
 
-    const handleNativeReplay = (event: Event) => {
-      const url = (event as CustomEvent<{ url?: string }>).detail?.url;
-      if (url) {
-        handleUrl(url);
-      }
-    };
+    actionListeners.add(onAction);
 
-    window.addEventListener("openkeep-widget-url", handleNativeReplay);
-
-    const pendingUrl = localStorage.getItem(pendingWidgetUrlKey);
-    if (pendingUrl) {
-      handleUrl(pendingUrl);
+    // Re-read in case a URL arrived before this subscriber mounted.
+    const pending = readPendingWidgetAction();
+    if (pending) {
+      handledRef.current = true;
+      setAction(pending);
     }
 
-    // Check initial launch URL (cold start)
-    App.getLaunchUrl().then((launch) => {
-      if (launch?.url) {
-        handleUrl(launch.url);
-      }
-    });
-
-    const handler = App.addListener("appUrlOpen", (event) => {
-      handleUrl(event.url);
-    });
-
     return () => {
-      window.removeEventListener("openkeep-widget-url", handleNativeReplay);
-      handler.then((h) => h.remove());
+      actionListeners.delete(onAction);
     };
   }, []);
 
   const clearAction = () => {
     handledRef.current = false;
+    clearPendingWidgetDeepLink();
     setAction(null);
   };
 

@@ -77,29 +77,42 @@ const Index = () => {
       setSelectedTag(searchParams.get("tag"));
     }, [searchParams]);
   
-    // Widget deep link handling
+    // Widget deep link handling — pending URL is kept until clearAction().
         const { action: widgetAction, clearAction } = useWidgetDeepLink();
-      
+        const notesLoadedRef = useRef(false);
+
         useEffect(() => {
           if (!widgetAction) return;
-    
+
           if (widgetAction.type === "new-text") {
             handleNewTextNote();
             clearAction();
-          } else if (widgetAction.type === "new-list") {
+            return;
+          }
+
+          if (widgetAction.type === "new-list") {
             handleNewListNote();
             clearAction();
-          } else if (widgetAction.type === "open-note") {
+            return;
+          }
+
+          if (widgetAction.type === "open-note") {
+            // Wait until notes have loaded at least once before giving up.
             const note = notes.find((n) => n.id === widgetAction.noteId);
             if (note && !note.isDeleted) {
               handleEditNote(note);
+              clearAction();
+            } else if (notesLoadedRef.current) {
+              clearAction();
             }
-            clearAction();
-          } else if (widgetAction.type === "toggle-checkbox") {
+            return;
+          }
+
+          if (widgetAction.type === "toggle-checkbox") {
             handleToggleListItem(widgetAction.noteId, `line-${widgetAction.lineIndex}`);
             clearAction();
           }
-        }, [widgetAction]);
+        }, [widgetAction, notes]);
 
   const getHeaderContent = () => {
     if (selectedTag === "archive") {
@@ -332,6 +345,7 @@ const Index = () => {
       } else {
         setNotes(loadedNotes);
       }
+      notesLoadedRef.current = true;
     };
 
     initNotes();

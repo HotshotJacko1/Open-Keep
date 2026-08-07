@@ -41,10 +41,26 @@ class BridgeViewController: CAPBridgeViewController {
         window.dispatchEvent(new CustomEvent('openkeep-widget-url', { detail: { url: \(encodedURL) } }));
         """
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-            self?.webView?.evaluateJavaScript(script) { _, error in
+        // Retry a few times — cold start may fire before the web view is ready.
+        attemptWidgetDeepLinkReplay(script: script, remainingAttempts: 5)
+    }
+
+    private func attemptWidgetDeepLinkReplay(script: String, remainingAttempts: Int) {
+        guard remainingAttempts > 0 else { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            guard let self else { return }
+
+            guard self.webView != nil else {
+                self.attemptWidgetDeepLinkReplay(script: script, remainingAttempts: remainingAttempts - 1)
+                return
+            }
+
+            self.webView?.evaluateJavaScript(script) { _, error in
                 if error == nil {
                     UserDefaults.standard.removeObject(forKey: WidgetDeepLinkReplay.pendingURLKey)
+                } else {
+                    self.attemptWidgetDeepLinkReplay(script: script, remainingAttempts: remainingAttempts - 1)
                 }
             }
         }
