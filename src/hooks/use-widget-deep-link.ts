@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 
+const pendingWidgetUrlKey = "openkeep.pendingWidgetUrl";
+
 export type WidgetAction =
   | { type: "new-text" }
   | { type: "new-list" }
@@ -35,15 +37,19 @@ export function useWidgetDeepLink() {
 
         if (host === "new-text") {
           handledRef.current = true;
+          localStorage.removeItem(pendingWidgetUrlKey);
           setAction({ type: "new-text" });
         } else if (host === "new-list") {
           handledRef.current = true;
+          localStorage.removeItem(pendingWidgetUrlKey);
           setAction({ type: "new-list" });
         } else if (host === "open-note" && pathParts.length > 0) {
           handledRef.current = true;
+          localStorage.removeItem(pendingWidgetUrlKey);
           setAction({ type: "open-note", noteId: pathParts[0] });
         } else if (host === "toggle-checkbox" && pathParts.length >= 2) {
           handledRef.current = true;
+          localStorage.removeItem(pendingWidgetUrlKey);
           setAction({
             type: "toggle-checkbox",
             noteId: pathParts[0],
@@ -54,6 +60,20 @@ export function useWidgetDeepLink() {
         // Not a valid URL — ignore
       }
     };
+
+    const handleNativeReplay = (event: Event) => {
+      const url = (event as CustomEvent<{ url?: string }>).detail?.url;
+      if (url) {
+        handleUrl(url);
+      }
+    };
+
+    window.addEventListener("openkeep-widget-url", handleNativeReplay);
+
+    const pendingUrl = localStorage.getItem(pendingWidgetUrlKey);
+    if (pendingUrl) {
+      handleUrl(pendingUrl);
+    }
 
     // Check initial launch URL (cold start)
     App.getLaunchUrl().then((launch) => {
@@ -67,6 +87,7 @@ export function useWidgetDeepLink() {
     });
 
     return () => {
+      window.removeEventListener("openkeep-widget-url", handleNativeReplay);
       handler.then((h) => h.remove());
     };
   }, []);
