@@ -140,7 +140,8 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
             
             try keyManager.upgradeToV2(masterKey: masterKey, pin: pin)
             try keyManager.storeMasterKey(key: masterKey)
-            
+
+            WidgetRefresher.refreshAllWidgets()
             call.resolve()
         } catch {
             NoteDatabase.shared.reset()
@@ -168,6 +169,7 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
                     try NoteDatabase.shared.initialize(dbPath: dbPath, key: storedKey)
                     _ = try NoteDatabase.shared.getAllNotes()
                     ret["isLocked"] = false
+                    WidgetRefresher.refreshAllWidgets()
                 } catch {
                     NoteDatabase.shared.reset()
                 }
@@ -208,6 +210,7 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func lock(_ call: CAPPluginCall) {
         keyManager.clear()
         NoteDatabase.shared.reset()
+        WidgetRefresher.refreshAllWidgets()
         call.resolve()
     }
     
@@ -216,6 +219,7 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
         
         NoteDatabase.shared.reset()
         removeDatabaseFiles(at: getDatabasePath())
+        WidgetRefresher.refreshAllWidgets()
         call.resolve()
     }
     
@@ -230,6 +234,7 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
         
         NoteDatabase.shared.reset()
         removeDatabaseFiles(at: getDatabasePath())
+        WidgetRefresher.refreshAllWidgets()
         call.resolve()
     }
     
@@ -297,7 +302,8 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
             let masterKey = try keyManager.getMasterKeyForPin(pin: pin)
             NoteDatabase.shared.reset()
             try NoteDatabase.shared.initialize(dbPath: getDatabasePath(), key: masterKey)
-            
+
+            WidgetRefresher.refreshAllWidgets()
             call.resolve()
         } catch {
             call.reject("Failed to import master key: \(error.localizedDescription)")
