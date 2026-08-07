@@ -2,9 +2,10 @@ import WidgetKit
 import SwiftUI
 
 @main
-struct NewNoteWidgetBundle: WidgetBundle {
+struct OpenKeepWidgetBundle: WidgetBundle {
     var body: some Widget {
         NewNoteWidget()
         NoteCollectionWidgetIOS()
+        SingleNoteWidget()
     }
 }

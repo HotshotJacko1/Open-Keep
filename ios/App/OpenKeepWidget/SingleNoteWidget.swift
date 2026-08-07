@@ -2,12 +2,9 @@ import WidgetKit
 import SwiftUI
 import AppIntents
 import Foundation
-import SQLite3
 
-// SQLCipher: sqlite3_key is conditionally declared in the header under SQLITE_HAS_CODEC.
-// The pre-compiled SQLCipher module strips it, so we use @_silgen_name to bind directly.
-@_silgen_name("sqlite3_key")
-private func sqlite3_key(_ db: OpaquePointer?, _ pKey: UnsafeRawPointer?, _ nKey: Int32) -> Int32
+// sqlite3_* (including sqlite3_key) is provided by the SQLCipher package via the
+// widget's bridging header (OpenKeepWidget-Bridging-Header.h), matching the main app.
 
 // MARK: - App Group Constants
 
@@ -87,6 +84,14 @@ private func closeDatabase(_ db: OpaquePointer?) {
     sqlite3_close(db)
 }
 
+private func stringColumn(_ stmt: OpaquePointer?, index: Int32) -> String {
+    guard let stmt = stmt,
+          let cString = sqlite3_column_text(stmt, index) else {
+        return ""
+    }
+    return String(cString: cString)
+}
+
 /// Retrieves the master encryption key from the shared App Group UserDefaults.
 /// The main app stores the key there via KeyManager.storeMasterKey().
 private func retrieveMasterKeyFromSharedKeychain() -> [UInt8]? {
@@ -117,13 +122,14 @@ private func fetchAllNotes() -> [(id: String, title: String, preview: String)] {
 
     var notes: [(id: String, title: String, preview: String)] = []
     while sqlite3_step(stmt) == SQLITE_ROW {
-        let id = sqlite3_column_text(stmt, 0).map { String(cString: $0 as! UnsafePointer<CChar>) } ?? ""
-        let title = sqlite3_column_text(stmt, 1).map { String(cString: $0 as! UnsafePointer<CChar>) } ?? ""
-        let content = sqlite3_column_text(stmt, 2).map { String(cString: $0 as! UnsafePointer<CChar>) } ?? ""
+        let id = stringColumn(stmt, index: 0)
+        let title = stringColumn(stmt, index: 1)
+        let content = stringColumn(stmt, index: 2)
 
-        let displayTitle = title.isEmpty
-            ? content.components(separatedBy: "\n").first?.trimmingCharacters(in: .whitespaces).prefix(60) ?? "Untitled"
-            : title
+        let fallbackTitle = content.components(separatedBy: "\n")
+            .first?
+            .trimmingCharacters(in: .whitespaces) ?? "Untitled"
+        let displayTitle = title.isEmpty ? String(fallbackTitle.prefix(60)) : title
         let preview = content.components(separatedBy: "\n")
             .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty })?
             .trimmingCharacters(in: .whitespaces).prefix(80) ?? ""
@@ -148,8 +154,8 @@ private func fetchNoteById(_ noteId: String) -> (title: String, content: String)
 
     guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
 
-    let title = sqlite3_column_text(stmt, 0).map { String(cString: $0 as! UnsafePointer<CChar>) } ?? ""
-    let content = sqlite3_column_text(stmt, 1).map { String(cString: $0 as! UnsafePointer<CChar>) } ?? ""
+    let title = stringColumn(stmt, index: 0)
+    let content = stringColumn(stmt, index: 1)
 
     return (title, content)
 }
@@ -167,7 +173,7 @@ private func toggleChecklistLine(noteId: String, lineIndex: Int) -> Bool {
 
     var content: String?
     if sqlite3_step(selectStmt) == SQLITE_ROW {
-        content = sqlite3_column_text(selectStmt, 0).map { String(cString: $0 as! UnsafePointer<CChar>) }
+        content = stringColumn(selectStmt, index: 0)
     }
     sqlite3_finalize(selectStmt)
 
@@ -177,19 +183,23 @@ private func toggleChecklistLine(noteId: String, lineIndex: Int) -> Bool {
     guard lineIndex >= 0, lineIndex < lines.count else { return false }
 
     let line = lines[lineIndex]
-    let trimmed = line.trimmingCharacters(in: .whitespaces)
-    let indent = String(line.prefix(line.count - trimmed.count))
+    let checkboxRe = try! NSRegularExpression(pattern: "^(\\s*)-\\s\\[([ xX])\\]\\s(.*)$", options: [])
+    let range = NSRange(location: 0, length: line.utf16.count)
 
-    let toggled: String
-    if trimmed.hasPrefix("- [ ]") {
-        toggled = indent + trimmed.replacingOccurrences(of: "- [ ]", with: "- [x]")
-    } else if trimmed.hasPrefix("- [x]") {
-        toggled = indent + trimmed.replacingOccurrences(of: "- [x]", with: "- [ ]")
-    } else {
-        return false // Not a checklist line
+    guard let match = checkboxRe.firstMatch(in: line, options: [], range: range) else {
+        return false
     }
 
-    lines[lineIndex] = toggled
+    let indentRange = Range(match.range(at: 1), in: line)!
+    let checkedRange = Range(match.range(at: 2), in: line)!
+    let textRange = Range(match.range(at: 3), in: line)!
+
+    let indent = String(line[indentRange])
+    let checked = String(line[checkedRange]).lowercased() == "x"
+    let text = String(line[textRange])
+    let newChecked = checked ? " " : "x"
+    lines[lineIndex] = "\(indent)- [\(newChecked)] \(text)"
+
     let newContent = lines.joined(separator: "\n")
     let now = Int64(Date().timeIntervalSince1970 * 1000)
 
@@ -205,22 +215,19 @@ private func toggleChecklistLine(noteId: String, lineIndex: Int) -> Bool {
     return updateResult
 }
 
-/// Store the selected note ID in shared UserDefaults.
-private func storeSelectedNoteId(_ noteId: String) {
-    UserDefaults(suiteName: appGroupIdentifier)?.set(noteId, forKey: "single_note_widget_note_id")
-}
-
-/// Retrieve the selected note ID from shared UserDefaults.
-private func getSelectedNoteId() -> String? {
-    UserDefaults(suiteName: appGroupIdentifier)?.string(forKey: "single_note_widget_note_id")
-}
-
 // MARK: - Note Entity for App Intents
 
 struct NoteEntity: Identifiable, Hashable, AppEntity {
     let id: String
     let title: String
     let preview: String
+
+    var displayRepresentation: DisplayRepresentation {
+        if preview.isEmpty {
+            return DisplayRepresentation(title: "\(title)")
+        }
+        return DisplayRepresentation(title: "\(title)", subtitle: "\(preview)")
+    }
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Note"
     static var defaultQuery = NoteQuery()
@@ -314,7 +321,7 @@ struct SingleNoteWidgetProvider: AppIntentTimelineProvider {
             return SingleNoteWidgetEntry(
                 date: Date(),
                 noteId: note.id,
-                title: noteData?.title ?? note.title,
+                title: noteData.map { displayTitle(title: $0.title, content: $0.content) } ?? note.title,
                 content: noteData?.content ?? "",
                 isUnconfigured: false,
                 isUnavailable: noteData == nil
@@ -325,13 +332,11 @@ struct SingleNoteWidgetProvider: AppIntentTimelineProvider {
 
     func timeline(for configuration: SelectNoteIntent, in context: Context) async -> Timeline<SingleNoteWidgetEntry> {
         if let note = configuration.note {
-            // Also store the selected ID in shared user defaults for the app
-            storeSelectedNoteId(note.id)
             let noteData = fetchNoteById(note.id)
             let entry = SingleNoteWidgetEntry(
                 date: Date(),
                 noteId: note.id,
-                title: noteData?.title ?? note.title,
+                title: noteData.map { displayTitle(title: $0.title, content: $0.content) } ?? note.title,
                 content: noteData?.content ?? "",
                 isUnconfigured: false,
                 isUnavailable: noteData == nil
@@ -355,36 +360,67 @@ struct SingleNoteWidgetProvider: AppIntentTimelineProvider {
     }
 }
 
-// MARK: - Checklist Parsing
+// MARK: - Content parsing
 
-private struct ChecklistItem: Identifiable {
-    let id = UUID()
-    let text: String
-    let isChecked: Bool
-    let indentation: Int
+private func displayTitle(title: String, content: String) -> String {
+    if !title.trimmingCharacters(in: .whitespaces).isEmpty {
+        return title
+    }
+    let firstLine = content
+        .components(separatedBy: "\n")
+        .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty })?
+        .trimmingCharacters(in: .whitespaces) ?? ""
+    if firstLine.isEmpty {
+        return "Untitled"
+    }
+    return String(firstLine.prefix(60))
 }
 
-private func parseChecklist(from content: String) -> (items: [ChecklistItem], nonChecklistLines: [String]) {
-    var items: [ChecklistItem] = []
-    var nonChecklistLines: [String] = []
+private enum NoteLineContent: Identifiable {
+    case text(String)
+    case checkbox(lineIndex: Int, text: String, isChecked: Bool, indentation: Int)
 
-    for line in content.components(separatedBy: "\n") {
+    var id: String {
+        switch self {
+        case .text(let value):
+            return "text-\(value.hashValue)"
+        case .checkbox(let lineIndex, let text, let isChecked, _):
+            return "checkbox-\(lineIndex)-\(isChecked)-\(text)"
+        }
+    }
+}
+
+private func parseNoteLines(from content: String) -> [NoteLineContent] {
+    let checkboxRegex = try! NSRegularExpression(pattern: "^(\\s*)-\\s\\[([ xX])\\]\\s(.*)$", options: [])
+    var result: [NoteLineContent] = []
+
+    for (lineIndex, line) in content.components(separatedBy: "\n").enumerated() {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
-        let leadingSpaces = line.prefix(while: { $0 == " " }).count
-        let indent = leadingSpaces / 2
+        let range = NSRange(location: 0, length: line.utf16.count)
 
-        if trimmed.hasPrefix("- [ ]") {
-            let text = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
-            items.append(ChecklistItem(text: String(text), isChecked: false, indentation: indent))
-        } else if trimmed.hasPrefix("- [x]") {
-            let text = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
-            items.append(ChecklistItem(text: String(text), isChecked: true, indentation: indent))
+        if let match = checkboxRegex.firstMatch(in: line, options: [], range: range) {
+            let checkedStr = String(line[Range(match.range(at: 2), in: line)!]).lowercased()
+            let text = String(line[Range(match.range(at: 3), in: line)!])
+            let indent = line.prefix(while: { $0 == " " }).count / 2
+            result.append(.checkbox(
+                lineIndex: lineIndex,
+                text: text,
+                isChecked: checkedStr == "x",
+                indentation: indent
+            ))
         } else if !trimmed.isEmpty {
-            nonChecklistLines.append(trimmed)
+            result.append(.text(trimmed))
         }
     }
 
-    return (items, nonChecklistLines)
+    return result
+}
+
+private func noteHasChecklist(_ content: String) -> Bool {
+    parseNoteLines(from: content).contains { line in
+        if case .checkbox = line { return true }
+        return false
+    }
 }
 
 // MARK: - Widget Entry View
@@ -402,43 +438,54 @@ struct SingleNoteWidgetEntryView: View {
                 noteContentView
             }
         }
-        .background(Color(.systemBackground))
+        .containerBackground(for: .widget) {
+            Color(.systemBackground)
+        }
     }
 
     // MARK: Unconfigured State
     private var unconfiguredView: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "note.text")
-                .font(.system(size: 28))
-                .foregroundColor(.secondary)
-            Text("Select a note...")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.secondary)
+        Link(destination: URL(string: "openkeep://")!) {
+            VStack(spacing: 8) {
+                Image(systemName: "note.text")
+                    .font(.system(size: 28))
+                    .foregroundColor(.secondary)
+                Text("Not Configured")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.primary)
+                Text("Tap to open Open Keep")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: Unavailable State
     private var unavailableView: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 24))
-                .foregroundColor(.secondary)
-            Text("Note unavailable")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.secondary)
+        Link(destination: URL(string: "openkeep://")!) {
+            VStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 24))
+                    .foregroundColor(.secondary)
+                Text("Note Unavailable")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.primary)
+                Text("Tap to open Open Keep")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: Note Content View
     private var noteContentView: some View {
         let noteId = entry.noteId ?? ""
-        let parsed = parseChecklist(from: entry.content)
-        let hasChecklist = !parsed.items.isEmpty
+        let lines = parseNoteLines(from: entry.content)
+        let hasChecklist = noteHasChecklist(entry.content)
 
         return VStack(alignment: .leading, spacing: 6) {
-            // Header
             HStack {
                 Text(entry.title)
                     .font(.system(size: 16, weight: .bold))
@@ -454,37 +501,36 @@ struct SingleNoteWidgetEntryView: View {
                 }
             }
 
-            // Divider
             Rectangle()
                 .fill(Color(.separator))
                 .frame(height: 0.5)
 
-            // Scrollable content
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 4) {
-                    if hasChecklist {
-                        ForEach(parsed.items) { item in
+                    ForEach(lines) { line in
+                        switch line {
+                        case .text(let text):
+                            Text(text)
+                                .font(.system(size: 13))
+                                .foregroundColor(.primary)
+                                .padding(.vertical, 2)
+
+                        case .checkbox(let lineIndex, let text, let isChecked, let indentation):
                             HStack(spacing: 6) {
-                                // Checkbox button
-                                Button(intent: ToggleCheckboxIntent(noteId: noteId, lineIndex: findLineIndex(for: item.text, in: entry.content, isChecked: item.isChecked))) {
-                                    Image(systemName: item.isChecked ? "checkmark.square.fill" : "square")
+                                Button(intent: ToggleCheckboxIntent(noteId: noteId, lineIndex: lineIndex)) {
+                                    Image(systemName: isChecked ? "checkmark.square.fill" : "square")
                                         .font(.system(size: 16))
-                                        .foregroundColor(item.isChecked ? .green : .secondary)
+                                        .foregroundColor(isChecked ? .green : .secondary)
                                 }
                                 .buttonStyle(.plain)
 
-                                Text(item.text)
+                                Text(text)
                                     .font(.system(size: 13))
-                                    .strikethrough(item.isChecked)
-                                    .foregroundColor(item.isChecked ? .secondary : .primary)
+                                    .strikethrough(isChecked)
+                                    .foregroundColor(isChecked ? .secondary : .primary)
                             }
-                            .padding(.leading, CGFloat(item.indentation * 16))
-                        }
-                    } else {
-                        ForEach(parsed.nonChecklistLines, id: \.self) { line in
-                            Text(line)
-                                .font(.system(size: 13))
-                                .foregroundColor(.primary)
+                            .padding(.leading, CGFloat(indentation * 16))
+                            .padding(.vertical, 2)
                         }
                     }
                 }
@@ -494,22 +540,6 @@ struct SingleNoteWidgetEntryView: View {
         }
         .padding(12)
         .widgetURL(URL(string: "openkeep://open-note/\(noteId)"))
-    }
-
-    /// Find the line index of a specific checklist item to pass to the toggle intent.
-    private func findLineIndex(for text: String, in content: String, isChecked: Bool) -> Int {
-        let lines = content.components(separatedBy: "\n")
-        for (index, line) in lines.enumerated() {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            let prefix = isChecked ? "- [x]" : "- [ ]"
-            if trimmed.hasPrefix(prefix) {
-                let itemText = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
-                if itemText == text {
-                    return index
-                }
-            }
-        }
-        return 0
     }
 }
 

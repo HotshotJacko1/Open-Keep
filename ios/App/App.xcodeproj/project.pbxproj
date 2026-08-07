@@ -3,67 +3,134 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 60;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		09DF53A92FF84E1800864350 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 09DF53A82FF84E1800864350 /* WidgetKit.framework */; };
+		09DF53AB2FF84E1800864350 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 09DF53AA2FF84E1800864350 /* SwiftUI.framework */; };
+		09DF53B82FF84E1800864350 /* OpenKeepWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 09DF53A62FF84E1800864350 /* OpenKeepWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		222086F5680546C687DCDF6F /* KeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57D154AB35424EDE8D613C1B /* KeyManager.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
-		B7E4A1C02F1A4B8D009C3D21 /* BridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E4A1BF2F1A4B8D009C3D21 /* BridgeViewController.swift */; };
 		504EC30D1FED79650016851F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
-
-		91CD641DC6DB4E4BBD1258E0 /* NoteDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99932BC3A916440AA6F36D1A /* NoteDatabase.swift */; };
-		222086F5680546C687DCDF6F /* KeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57D154AB35424EDE8D613C1B /* KeyManager.swift */; };
-		A0271B6F93D34488BB305151 /* NoteStoragePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371C4E7E4C164740BE50FF83 /* NoteStoragePlugin.swift */; };
-		91ED39A63EFB4970A88D64A9 /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 03DF8A2F73FD487E91F2A933 /* SQLCipher */; };
-
 		8359635C54C845AAB901B623 /* NoteStoragePlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = A1CF4D41D1384F6AA42FA10C /* NoteStoragePlugin.m */; };
+		91CD641DC6DB4E4BBD1258E0 /* NoteDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99932BC3A916440AA6F36D1A /* NoteDatabase.swift */; };
+		91ED39A63EFB4970A88D64A9 /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 03DF8A2F73FD487E91F2A933 /* SQLCipher */; };
+		A0271B6F93D34488BB305151 /* NoteStoragePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371C4E7E4C164740BE50FF83 /* NoteStoragePlugin.swift */; };
+		AA0153C12FF84E1800864350 /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = AA0153C22FF84E1800864350 /* SQLCipher */; };
+		B7E4A1C02F1A4B8D009C3D21 /* BridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E4A1BF2F1A4B8D009C3D21 /* BridgeViewController.swift */; };
+		F1A2B3C4D5E6478890A1B2C4 /* SharedAppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6478890A1B2C3 /* SharedAppGroup.swift */; };
+		F1A2B3C4D5E6478890A1B2C6 /* WidgetRefresher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6478890A1B2C5 /* WidgetRefresher.swift */; };
+		F1A2B3C4D5E6478890A1B2C7 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 09DF53A82FF84E1800864350 /* WidgetKit.framework */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		09DF53B62FF84E1800864350 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 09DF53A52FF84E1800864350;
+			remoteInfo = OpenKeepWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		09DF53B92FF84E1800864350 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				09DF53B82FF84E1800864350 /* OpenKeepWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		09DF53A62FF84E1800864350 /* OpenKeepWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OpenKeepWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		09DF53A82FF84E1800864350 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		09DF53AA2FF84E1800864350 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
+		371C4E7E4C164740BE50FF83 /* NoteStoragePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteStoragePlugin.swift; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC3071FED79650016851F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		B7E4A1BF2F1A4B8D009C3D21 /* BridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeViewController.swift; sourceTree = "<group>"; };
 		504EC30C1FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		504EC30E1FED79650016851F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
-		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
-
-		99932BC3A916440AA6F36D1A /* NoteDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteDatabase.swift; sourceTree = "<group>"; };
 		57D154AB35424EDE8D613C1B /* KeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyManager.swift; sourceTree = "<group>"; };
-		371C4E7E4C164740BE50FF83 /* NoteStoragePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteStoragePlugin.swift; sourceTree = "<group>"; };
-
+		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+		99932BC3A916440AA6F36D1A /* NoteDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteDatabase.swift; sourceTree = "<group>"; };
 		A1CF4D41D1384F6AA42FA10C /* NoteStoragePlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = NoteStoragePlugin.m; sourceTree = "<group>"; };
+		B7E4A1BF2F1A4B8D009C3D21 /* BridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeViewController.swift; sourceTree = "<group>"; };
+		F1A2B3C4D5E6478890A1B2C3 /* SharedAppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedAppGroup.swift; sourceTree = "<group>"; };
+		F1A2B3C4D5E6478890A1B2C5 /* WidgetRefresher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetRefresher.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		09DF53BC2FF84E1800864350 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 09DF53A52FF84E1800864350 /* OpenKeepWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		09DF53AC2FF84E1800864350 /* OpenKeepWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (09DF53BC2FF84E1800864350 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = OpenKeepWidget; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
 /* Begin PBXFrameworksBuildPhase section */
+		09DF53A32FF84E1800864350 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				09DF53AB2FF84E1800864350 /* SwiftUI.framework in Frameworks */,
+				09DF53A92FF84E1800864350 /* WidgetKit.framework in Frameworks */,
+				AA0153C12FF84E1800864350 /* SQLCipher in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		504EC3011FED79650016851F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				91ED39A63EFB4970A88D64A9 /* SQLCipher in Frameworks */,
-
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
+				F1A2B3C4D5E6478890A1B2C7 /* WidgetKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		09DF53A72FF84E1800864350 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				09DF53A82FF84E1800864350 /* WidgetKit.framework */,
+				09DF53AA2FF84E1800864350 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		504EC2FB1FED79650016851F = {
 			isa = PBXGroup;
 			children = (
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
+				09DF53AC2FF84E1800864350 /* OpenKeepWidget */,
+				09DF53A72FF84E1800864350 /* Frameworks */,
 				504EC3051FED79650016851F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -72,6 +139,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				09DF53A62FF84E1800864350 /* OpenKeepWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -80,11 +148,11 @@
 			isa = PBXGroup;
 			children = (
 				A1CF4D41D1384F6AA42FA10C /* NoteStoragePlugin.m */,
-
 				99932BC3A916440AA6F36D1A /* NoteDatabase.swift */,
 				57D154AB35424EDE8D613C1B /* KeyManager.swift */,
+				F1A2B3C4D5E6478890A1B2C3 /* SharedAppGroup.swift */,
+				F1A2B3C4D5E6478890A1B2C5 /* WidgetRefresher.swift */,
 				371C4E7E4C164740BE50FF83 /* NoteStoragePlugin.swift */,
-
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				B7E4A1BF2F1A4B8D009C3D21 /* BridgeViewController.swift */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
@@ -101,6 +169,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		09DF53A52FF84E1800864350 /* OpenKeepWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 09DF53BD2FF84E1800864350 /* Build configuration list for PBXNativeTarget "OpenKeepWidgetExtension" */;
+			buildPhases = (
+				09DF53A22FF84E1800864350 /* Sources */,
+				09DF53A32FF84E1800864350 /* Frameworks */,
+				09DF53A42FF84E1800864350 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				09DF53AC2FF84E1800864350 /* OpenKeepWidget */,
+			);
+			name = OpenKeepWidgetExtension;
+			packageProductDependencies = (
+				AA0153C22FF84E1800864350 /* SQLCipher */,
+			);
+			productName = OpenKeepWidgetExtension;
+			productReference = 09DF53A62FF84E1800864350 /* OpenKeepWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		504EC3031FED79650016851F /* App */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 504EC3161FED79650016851F /* Build configuration list for PBXNativeTarget "App" */;
@@ -108,15 +199,16 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				09DF53B92FF84E1800864350 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				09DF53B72FF84E1800864350 /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
 				03DF8A2F73FD487E91F2A933 /* SQLCipher */,
-
 				4D22ABE82AF431CB00220026 /* CapApp-SPM */,
 			);
 			productName = App;
@@ -129,9 +221,12 @@
 		504EC2FC1FED79650016851F /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastSwiftUpdateCheck = 0920;
+				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 0920;
 				TargetAttributes = {
+					09DF53A52FF84E1800864350 = {
+						CreatedOnToolsVersion = 26.6;
+					};
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
 						LastSwiftMigration = 1100;
@@ -149,8 +244,7 @@
 			);
 			mainGroup = 504EC2FB1FED79650016851F;
 			packageReferences = (
-				6D4C262034454EA2A71B709D /* XCRemoteSwiftPackageReference "SQLCipher" */,
-
+				6D4C262034454EA2A71B709D /* XCRemoteSwiftPackageReference "SQLCipher.swift" */,
 				D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
@@ -158,11 +252,19 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				09DF53A52FF84E1800864350 /* OpenKeepWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		09DF53A42FF84E1800864350 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		504EC3021FED79650016851F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -179,22 +281,37 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		09DF53A22FF84E1800864350 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		504EC3001FED79650016851F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				8359635C54C845AAB901B623 /* NoteStoragePlugin.m in Sources */,
-
 				91CD641DC6DB4E4BBD1258E0 /* NoteDatabase.swift in Sources */,
 				222086F5680546C687DCDF6F /* KeyManager.swift in Sources */,
 				A0271B6F93D34488BB305151 /* NoteStoragePlugin.swift in Sources */,
-
 				B7E4A1C02F1A4B8D009C3D21 /* BridgeViewController.swift in Sources */,
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				F1A2B3C4D5E6478890A1B2C4 /* SharedAppGroup.swift in Sources */,
+				F1A2B3C4D5E6478890A1B2C6 /* WidgetRefresher.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		09DF53B72FF84E1800864350 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 09DF53A52FF84E1800864350 /* OpenKeepWidgetExtension */;
+			targetProxy = 09DF53B62FF84E1800864350 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		504EC30B1FED79650016851F /* Main.storyboard */ = {
@@ -216,6 +333,103 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		09DF53BA2FF84E1800864350 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CODE_SIGN_ENTITLEMENTS = OpenKeepWidget/OpenKeepWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QV58P4B785;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"SQLITE_HAS_CODEC=1",
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = OpenKeepWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = OpenKeepWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 4.2.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jackbarkerapps.openkeep.OpenKeepWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "OpenKeepWidget/OpenKeepWidget-Bridging-Header.h";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		09DF53BB2FF84E1800864350 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CODE_SIGN_ENTITLEMENTS = OpenKeepWidget/OpenKeepWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QV58P4B785;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"SQLITE_HAS_CODEC=1",
+					"$(inherited)",
+				);
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = OpenKeepWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = OpenKeepWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 4.2.0;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jackbarkerapps.openkeep.OpenKeepWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "OpenKeepWidget/OpenKeepWidget-Bridging-Header.h";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		504EC3141FED79650016851F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 958DCC722DB07C7200EA8C5F /* debug.xcconfig */;
@@ -335,16 +549,17 @@
 			baseConfigurationReference = 958DCC722DB07C7200EA8C5F /* debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/OpenKeep.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				VERSIONING_SYSTEM = "apple-generic";
+				DEVELOPMENT_TEAM = QV58P4B785;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.2.1;
+				MARKETING_VERSION = 4.2.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = com.jackbarkerapps.openkeep;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -352,6 +567,7 @@
 				SWIFT_OBJC_BRIDGING_HEADER = "App/App-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Debug;
 		};
@@ -359,28 +575,39 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/OpenKeep.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				VERSIONING_SYSTEM = "apple-generic";
+				DEVELOPMENT_TEAM = QV58P4B785;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.2.1;
+				MARKETING_VERSION = 4.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jackbarkerapps.openkeep;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
 				SWIFT_OBJC_BRIDGING_HEADER = "App/App-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		09DF53BD2FF84E1800864350 /* Build configuration list for PBXNativeTarget "OpenKeepWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				09DF53BA2FF84E1800864350 /* Debug */,
+				09DF53BB2FF84E1800864350 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		504EC2FF1FED79650016851F /* Build configuration list for PBXProject "App" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -408,9 +635,8 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
-
 /* Begin XCRemoteSwiftPackageReference section */
-		6D4C262034454EA2A71B709D /* XCRemoteSwiftPackageReference "SQLCipher" */ = {
+		6D4C262034454EA2A71B709D /* XCRemoteSwiftPackageReference "SQLCipher.swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sqlcipher/SQLCipher.swift.git";
 			requirement = {
@@ -421,15 +647,19 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		03DF8A2F73FD487E91F2A933 /* SQLCipher */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6D4C262034454EA2A71B709D /* XCRemoteSwiftPackageReference "SQLCipher.swift" */;
+			productName = SQLCipher;
+		};
 		4D22ABE82AF431CB00220026 /* CapApp-SPM */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */;
 			productName = "CapApp-SPM";
 		};
-
-		03DF8A2F73FD487E91F2A933 /* SQLCipher */ = {
+		AA0153C22FF84E1800864350 /* SQLCipher */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 6D4C262034454EA2A71B709D /* XCRemoteSwiftPackageReference "SQLCipher" */;
+			package = 6D4C262034454EA2A71B709D /* XCRemoteSwiftPackageReference "SQLCipher.swift" */;
 			productName = SQLCipher;
 		};
 /* End XCSwiftPackageProductDependency section */
