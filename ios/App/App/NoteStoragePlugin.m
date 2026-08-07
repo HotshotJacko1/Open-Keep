@@ -16,4 +16,5 @@ CAP_PLUGIN(NoteStoragePlugin, "NoteStorage",
     CAP_PLUGIN_METHOD(exportMasterKey, CAPPluginReturnPromise);
     CAP_PLUGIN_METHOD(importMasterKey, CAPPluginReturnPromise);
     CAP_PLUGIN_METHOD(verifyCloudMasterKeyMatch, CAPPluginReturnPromise);
+    CAP_PLUGIN_METHOD(canDecryptCloudMasterKey, CAPPluginReturnPromise);
 )
