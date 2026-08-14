@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { showSuccess, showError } from "@/utils/toast";
 import { ArrowLeft, Lock } from "lucide-react";
 import { changeEncryptionKey } from "@/lib/note-storage";
+import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 
 interface EnableEncryptionDialogProps {
     isOpen: boolean;
@@ -79,7 +80,6 @@ const EnableEncryptionDialog: React.FC<EnableEncryptionDialogProps> = ({ isOpen,
             // Update biometrics credentials if enabled
             if (localStorage.getItem("app-biometrics-enabled") === "true") {
                 try {
-                    const { NativeBiometric } = await import("@capgo/capacitor-native-biometric");
                     if (typeof NativeBiometric.setCredentials === 'function') {
                         await NativeBiometric.setCredentials({
                             username: "app-pin",
