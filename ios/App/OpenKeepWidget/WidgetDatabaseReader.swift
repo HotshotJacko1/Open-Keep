@@ -1,5 +1,7 @@
 import Foundation
-import SQLite3
+
+// sqlite3_* (including sqlite3_key) is provided by the SQLCipher package via the
+// widget's bridging header (OpenKeepWidget-Bridging-Header.h), matching the main app.
 
 /// Lightweight SQLCipher reader used by the widget extension to query notes
 /// from the encrypted database. Does NOT use the app's NoteDatabase singleton
@@ -129,7 +131,7 @@ class WidgetDatabaseReader {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
 
         var updateStmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, "UPDATE notes SET content = ?, updatedAt = ? WHERE id = ?;", -1, &updateStmt, nil) == SQLITE_OK else {
+        guard sqlite3_prepare_v2(db, "UPDATE notes SET content = ?, updatedAt = ?, syncState = 'PENDING' WHERE id = ?;", -1, &updateStmt, nil) == SQLITE_OK else {
             return
         }
         sqlite3_bind_text(updateStmt, 1, (newContent as NSString).utf8String, -1, nil)
@@ -137,6 +139,18 @@ class WidgetDatabaseReader {
         sqlite3_bind_text(updateStmt, 3, (noteId as NSString).utf8String, -1, nil)
         sqlite3_step(updateStmt)
         sqlite3_finalize(updateStmt)
+    }
+
+    /// Returns sorted unique tag names from all non-deleted, non-archived notes.
+    func fetchDistinctTags() -> [String] {
+        let notes = fetchFilteredNotes()
+        var tagSet = Set<String>()
+        for note in notes {
+            if let tags = note["tags"] as? [String] {
+                tags.forEach { tagSet.insert($0) }
+            }
+        }
+        return tagSet.sorted()
     }
 
     func close() {

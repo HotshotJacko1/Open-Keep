@@ -1,6 +1,76 @@
 import WidgetKit
 import SwiftUI
-import Intents
+import AppIntents
+
+// MARK: - Filter configuration (matches Android FilterPrefs)
+
+enum CollectionFilterType: String, AppEnum {
+    case all
+    case pinned
+    case label
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Filter"
+
+    static var caseDisplayRepresentations: [CollectionFilterType: DisplayRepresentation] = [
+        .all: "All Notes",
+        .pinned: "Pinned Notes",
+        .label: "By Label"
+    ]
+}
+
+struct LabelEntity: AppEntity, Identifiable, Hashable {
+    let id: String
+    let name: String
+
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(title: "\(name)")
+    }
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Label"
+    static var defaultQuery = LabelQuery()
+}
+
+struct LabelQuery: EntityQuery {
+    func entities(for identifiers: [LabelEntity.ID]) async throws -> [LabelEntity] {
+        fetchDistinctLabels()
+            .filter { identifiers.contains($0) }
+            .map { LabelEntity(id: $0, name: $0) }
+    }
+
+    func suggestedEntities() async throws -> [LabelEntity] {
+        fetchDistinctLabels().map { LabelEntity(id: $0, name: $0) }
+    }
+}
+
+private func fetchDistinctLabels() -> [String] {
+    guard let dbPath = AppGroupHelper.databasePath,
+          let masterKey = SharedKeyManager.shared.getMasterKey() else {
+        return []
+    }
+
+    let reader = WidgetDatabaseReader()
+    defer { reader.close() }
+    guard reader.open(path: dbPath, key: masterKey) else { return [] }
+    return reader.fetchDistinctTags()
+}
+
+struct SelectCollectionFilterIntent: WidgetConfigurationIntent {
+    static var title: LocalizedStringResource = "Note Collection"
+    static var description = IntentDescription("Choose which notes to display on the home screen")
+
+    @Parameter(title: "Show", default: .all)
+    var filterType: CollectionFilterType
+
+    @Parameter(title: "Label")
+    var label: LabelEntity?
+
+    init() {}
+
+    init(filterType: CollectionFilterType, label: LabelEntity?) {
+        self.filterType = filterType
+        self.label = label
+    }
+}
 
 // MARK: - Timeline Entry
 
@@ -9,6 +79,7 @@ struct NoteCollectionEntry: TimelineEntry {
     let notes: [WidgetNote]
     let filterName: String
     let isLocked: Bool
+    let needsLabelSelection: Bool
     let errorMessage: String?
 }
 
@@ -24,7 +95,7 @@ struct WidgetNote: Identifiable {
 }
 
 struct CheckboxItem: Identifiable {
-    let id: String  // "lineIndex" as string
+    let id: String
     let lineIndex: Int
     let isChecked: Bool
     let text: String
@@ -32,38 +103,50 @@ struct CheckboxItem: Identifiable {
 
 // MARK: - Provider
 
-struct NoteCollectionWidgetProvider: TimelineProvider {
+struct NoteCollectionWidgetProvider: AppIntentTimelineProvider {
 
     func placeholder(in context: Context) -> NoteCollectionEntry {
         NoteCollectionEntry(
             date: Date(),
             notes: [],
-            filterName: "Notes",
+            filterName: "All Notes",
             isLocked: false,
+            needsLabelSelection: false,
             errorMessage: nil
         )
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (NoteCollectionEntry) -> Void) {
-        let entry = loadNotes()
-        completion(entry)
+    func snapshot(for configuration: SelectCollectionFilterIntent, in context: Context) async -> NoteCollectionEntry {
+        loadNotes(configuration: configuration)
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<NoteCollectionEntry>) -> Void) {
-        let entry = loadNotes()
-        // Refresh every 15 minutes (widgets can be refreshed more frequently in practice)
+    func timeline(for configuration: SelectCollectionFilterIntent, in context: Context) async -> Timeline<NoteCollectionEntry> {
+        let entry = loadNotes(configuration: configuration)
         let nextUpdate = Date().addingTimeInterval(15 * 60)
-        let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
-        completion(timeline)
+        return Timeline(entries: [entry], policy: .after(nextUpdate))
     }
 
-    private func loadNotes() -> NoteCollectionEntry {
+    private func loadNotes(configuration: SelectCollectionFilterIntent) -> NoteCollectionEntry {
+        let filterName = displayName(for: configuration)
+
+        if configuration.filterType == .label && configuration.label == nil {
+            return NoteCollectionEntry(
+                date: Date(),
+                notes: [],
+                filterName: filterName,
+                isLocked: false,
+                needsLabelSelection: true,
+                errorMessage: nil
+            )
+        }
+
         guard let dbPath = AppGroupHelper.databasePath else {
             return NoteCollectionEntry(
                 date: Date(),
                 notes: [],
-                filterName: "Notes",
+                filterName: filterName,
                 isLocked: false,
+                needsLabelSelection: false,
                 errorMessage: "Could not locate database"
             )
         }
@@ -72,9 +155,10 @@ struct NoteCollectionWidgetProvider: TimelineProvider {
             return NoteCollectionEntry(
                 date: Date(),
                 notes: [],
-                filterName: "Notes",
+                filterName: filterName,
                 isLocked: true,
-                errorMessage: "Unlock Open Keep first"
+                needsLabelSelection: false,
+                errorMessage: nil
             )
         }
 
@@ -85,33 +169,63 @@ struct NoteCollectionWidgetProvider: TimelineProvider {
             return NoteCollectionEntry(
                 date: Date(),
                 notes: [],
-                filterName: "Notes",
+                filterName: filterName,
                 isLocked: true,
+                needsLabelSelection: false,
                 errorMessage: "Unable to open database"
             )
         }
 
         let rawNotes = reader.fetchFilteredNotes()
-        let notes = rawNotes.compactMap { parseNote($0) }
+        let allNotes = rawNotes.compactMap { parseNote($0) }
+        let notes = applyFilter(allNotes, configuration: configuration)
 
         return NoteCollectionEntry(
             date: Date(),
             notes: notes,
-            filterName: "Notes",
+            filterName: filterName,
             isLocked: false,
-            errorMessage: notes.isEmpty ? "No notes" : nil
+            needsLabelSelection: false,
+            errorMessage: notes.isEmpty ? "No notes found" : nil
         )
+    }
+
+    private func displayName(for configuration: SelectCollectionFilterIntent) -> String {
+        switch configuration.filterType {
+        case .all:
+            return "All Notes"
+        case .pinned:
+            return "Pinned Notes"
+        case .label:
+            if let label = configuration.label?.name, !label.isEmpty {
+                return "Label: \(label)"
+            }
+            return "By Label"
+        }
+    }
+
+    private func applyFilter(_ notes: [WidgetNote], configuration: SelectCollectionFilterIntent) -> [WidgetNote] {
+        switch configuration.filterType {
+        case .all:
+            return notes
+        case .pinned:
+            return notes.filter { $0.isPinned }
+        case .label:
+            guard let labelName = configuration.label?.name, !labelName.isEmpty else {
+                return notes
+            }
+            return notes.filter { $0.tags.contains(labelName) }
+        }
     }
 
     private func parseNote(_ dict: [String: Any]) -> WidgetNote? {
         guard let id = dict["id"] as? String else { return nil }
         let title = dict["title"] as? String ?? ""
         let content = dict["content"] as? String ?? ""
-        let type = dict["type"] as? String ?? "TEXT"
+        let type = dict["type"] as? String ?? "text"
         let isPinned = dict["isPinned"] as? Bool ?? false
         let updatedAt = dict["updatedAt"] as? Int64 ?? 0
         let tags = dict["tags"] as? [String] ?? []
-
         let checkboxes = parseCheckboxes(from: content)
 
         return WidgetNote(
@@ -148,12 +262,9 @@ struct NoteCollectionWidgetProvider: TimelineProvider {
     }
 }
 
-// MARK: - URL Scheme Actions (iOS 17+ interactive widgets)
+// MARK: - Interactive checkbox toggle
 
-/// App Intent to toggle a checkbox in a note (iOS 17+).
-/// The system handles the intent and the widget timeline is reloaded automatically.
-@available(iOS 17.0, *)
-struct ToggleCheckboxIntent: AppIntent {
+struct ToggleCollectionCheckboxIntent: AppIntent {
     static var title: LocalizedStringResource = "Toggle Checkbox"
     static var description = IntentDescription("Mark a checkbox as done or undone")
 
@@ -184,13 +295,7 @@ struct ToggleCheckboxIntent: AppIntent {
         reader.toggleCheckbox(noteId: noteId, lineIndex: lineIndex)
         reader.close()
 
-        // Reload timelines
-        let kind = "com.jackbarkerapps.openkeep.notecollection"
-        if #available(iOS 17.0, *) {
-            ControlCenter.shared.reloadControls(ofKind: kind)
-        }
-        WidgetCenter.shared.reloadTimelines(ofKind: kind)
-
+        WidgetCenter.shared.reloadTimelines(ofKind: "com.jackbarkerapps.openkeep.notecollection")
         return .result()
     }
 }
@@ -202,34 +307,41 @@ struct NoteCollectionWidgetEntryView: View {
     @Environment(\.widgetFamily) var family
 
     var body: some View {
-        if entry.isLocked {
-            lockedView
-        } else if let error = entry.errorMessage {
-            emptyView(message: error)
-        } else if entry.notes.isEmpty {
-            emptyView(message: "No notes found")
-        } else {
-            noteListView
+        Group {
+            if entry.isLocked {
+                lockedView
+            } else if entry.needsLabelSelection {
+                emptyView(message: "Tap to configure", opensApp: true)
+            } else if let error = entry.errorMessage {
+                emptyView(message: error, opensApp: false)
+            } else {
+                noteListView
+            }
+        }
+        .containerBackground(for: .widget) {
+            Color(.systemBackground)
         }
     }
 
     private var lockedView: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "lock.fill")
-                .font(.system(size: 28))
-                .foregroundColor(.secondary)
-            Text("Unlock Open Keep first")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
+        Link(destination: URL(string: "openkeep://")!) {
+            VStack(spacing: 8) {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(.secondary)
+                Text("Open Keep to unlock")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground))
     }
 
-    private func emptyView(message: String) -> some View {
-        VStack(spacing: 8) {
+    @ViewBuilder
+    private func emptyView(message: String, opensApp: Bool) -> some View {
+        let content = VStack(spacing: 8) {
             Image(systemName: "note.text")
                 .font(.system(size: 28))
                 .foregroundColor(.secondary)
@@ -240,19 +352,23 @@ struct NoteCollectionWidgetEntryView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground))
+
+        if opensApp {
+            Link(destination: URL(string: "openkeep://")!) { content }
+        } else {
+            content
+        }
     }
 
     private var noteListView: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack {
                 Image(systemName: "note.text")
                     .font(.caption)
                 Text(entry.filterName)
                     .font(.caption.weight(.semibold))
                 Spacer()
-                Text("\(entry.notes.count)")
+                Text("\(entry.notes.count) notes")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -261,7 +377,6 @@ struct NoteCollectionWidgetEntryView: View {
 
             Divider()
 
-            // Notes list
             let maxVisible: Int = (family == .systemLarge || family == .systemExtraLarge) ? 8 : 4
             let visibleNotes = entry.notes.prefix(maxVisible)
 
@@ -274,18 +389,15 @@ struct NoteCollectionWidgetEntryView: View {
                 }
             }
         }
-        .background(Color(.systemBackground))
     }
 }
 
 struct NoteRowView: View {
     let note: WidgetNote
-    @Environment(\.widgetFamily) var family
 
     var body: some View {
         Link(destination: URL(string: "openkeep://open-note/\(note.id)")!) {
             VStack(alignment: .leading, spacing: 3) {
-                // Title + pin indicator
                 HStack(spacing: 4) {
                     if note.isPinned {
                         Image(systemName: "pin.fill")
@@ -297,9 +409,7 @@ struct NoteRowView: View {
                         .lineLimit(1)
                 }
 
-                // Content preview
-                if note.type == "LIST" && !note.checkboxes.isEmpty {
-                    // Show up to 3 checkbox items
+                if !note.checkboxes.isEmpty {
                     ForEach(note.checkboxes.prefix(3)) { checkbox in
                         checkboxRow(checkbox)
                     }
@@ -310,7 +420,6 @@ struct NoteRowView: View {
                             .padding(.leading, 4)
                     }
                 } else {
-                    // Show first line of content as preview
                     let preview = note.content
                         .split(separator: "\n")
                         .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty })
@@ -319,7 +428,7 @@ struct NoteRowView: View {
                         Text(preview)
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
-                            .lineLimit(2)
+                            .lineLimit(3)
                     }
                 }
             }
@@ -330,40 +439,24 @@ struct NoteRowView: View {
 
     @ViewBuilder
     private func checkboxRow(_ checkbox: CheckboxItem) -> some View {
-        if #available(iOS 17.0, *) {
-            HStack(spacing: 4) {
-                Button(intent: ToggleCheckboxIntent(
-                    noteId: note.id,
-                    lineIndex: checkbox.lineIndex
-                )) {
-                    Image(systemName: checkbox.isChecked ? "checkmark.square.fill" : "square")
-                        .font(.system(size: 11))
-                        .foregroundColor(checkbox.isChecked ? .green : .secondary)
-                }
-                .buttonStyle(.plain)
-
-                Text(checkbox.text)
-                    .font(.system(size: 11))
-                    .foregroundColor(checkbox.isChecked ? .secondary : .primary)
-                    .strikethrough(checkbox.isChecked)
-                    .lineLimit(1)
-            }
-            .padding(.leading, 4)
-        } else {
-            // iOS 14-16 fallback: tappable row opens the note
-            HStack(spacing: 4) {
+        HStack(spacing: 4) {
+            Button(intent: ToggleCollectionCheckboxIntent(
+                noteId: note.id,
+                lineIndex: checkbox.lineIndex
+            )) {
                 Image(systemName: checkbox.isChecked ? "checkmark.square.fill" : "square")
                     .font(.system(size: 11))
                     .foregroundColor(checkbox.isChecked ? .green : .secondary)
-
-                Text(checkbox.text)
-                    .font(.system(size: 11))
-                    .foregroundColor(checkbox.isChecked ? .secondary : .primary)
-                    .strikethrough(checkbox.isChecked)
-                    .lineLimit(1)
             }
-            .padding(.leading, 4)
+            .buttonStyle(.plain)
+
+            Text(checkbox.text)
+                .font(.system(size: 11))
+                .foregroundColor(checkbox.isChecked ? .secondary : .primary)
+                .strikethrough(checkbox.isChecked)
+                .lineLimit(1)
         }
+        .padding(.leading, 4)
     }
 }
 
@@ -373,7 +466,11 @@ struct NoteCollectionWidgetIOS: Widget {
     let kind: String = "com.jackbarkerapps.openkeep.notecollection"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: NoteCollectionWidgetProvider()) { entry in
+        AppIntentConfiguration(
+            kind: kind,
+            intent: SelectCollectionFilterIntent.self,
+            provider: NoteCollectionWidgetProvider()
+        ) { entry in
             NoteCollectionWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Note Collection")

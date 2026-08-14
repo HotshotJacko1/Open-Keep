@@ -20,9 +20,13 @@ struct AppGroupHelper {
     /// Key used in shared UserDefaults to store the relative DB path.
     private static let dbPathKey = "db_path"
 
+    /// File name the main app uses for the encrypted SQLCipher database.
+    /// Must match `SharedAppGroup.databasePath` / `NoteStoragePlugin.getDatabasePath` in the app target.
+    static let databaseFileName = "open-keep-db.sqlite3"
+
     /// Returns the absolute path to the encrypted database file.
     static var databasePath: String? {
-        // First check shared UserDefaults for an override path
+        // First check shared UserDefaults for an override path (if the app ever sets one)
         if let relativePath = sharedDefaults?.string(forKey: dbPathKey) {
             let fullPath = sharedContainerURL?.appendingPathComponent(relativePath).path
             if let path = fullPath, FileManager.default.fileExists(atPath: path) {
@@ -30,8 +34,8 @@ struct AppGroupHelper {
             }
         }
 
-        // Fallback: standard location in the shared container
-        return sharedContainerURL?.appendingPathComponent("notes.db").path
+        // Default: the shared App Group location written by the main app.
+        return sharedContainerURL?.appendingPathComponent(databaseFileName).path
     }
 
     /// Store the DB path so the widget extension can find it.

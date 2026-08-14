@@ -98,6 +98,12 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
     if (result?.status === "success") {
       setConflictData(null);
       setProvidedPin("");
+    } else if (result?.status === "conflict") {
+      setConflictData({
+        activeService: conflictData.activeService,
+        cloudPayload: (result as any).cloudPayload,
+        reason: (result as any).reason
+      });
     }
   };
 

@@ -24,20 +24,24 @@ export const resolveCloudKeyImport = async (
     return { ok: true, effectivePin: localPin || "" };
   }
 
-  const importPin = providedPin !== undefined ? providedPin.trim() : (localPin?.trim() || "");
+  const importPin = (providedPin || localPin || "")?.trim();
 
   // When using the local PIN, verifyCloudMasterKeyMatch is sufficient and works on all native builds.
   let canDecrypt = false;
-  if (localPin !== null && importPin === localPin) {
+  if (localPin && importPin === localPin) {
     canDecrypt = await verifyCloudMasterKeyMatch(cloudPayload, importPin);
   }
   if (!canDecrypt) {
     canDecrypt = await canDecryptCloudMasterKey(cloudPayload, importPin);
   }
+
   if (!canDecrypt) {
-    showError(importPin === "" 
-      ? "Cloud data is encrypted. Please enter the correct PIN." 
-      : "Incorrect PIN. Enter the App Lock PIN from your other device.");
+    // If we couldn't decrypt, check if we need to request a PIN
+    if (!providedPin && !localPin) {
+      showError("Please enter your App Lock PIN to restore cloud data.");
+      return { ok: false, reason: "missing_pin" };
+    }
+    showError("Incorrect PIN. Enter the App Lock PIN from your other device.");
     return { ok: false, reason: "invalid_pin" };
   }
 
@@ -47,11 +51,10 @@ export const resolveCloudKeyImport = async (
     if (importPin !== localPin) {
       if (!importPin) {
         localStorage.removeItem("app-passcode");
-        localStorage.removeItem("app-lock-enabled");
-        localStorage.removeItem("app-biometrics-enabled");
       } else {
         localStorage.setItem("app-passcode", importPin);
         localStorage.setItem("app-lock-enabled", "true");
+        localStorage.removeItem("app-lock-passcode");
       }
     }
     return { ok: true, effectivePin: importPin };
@@ -77,11 +80,10 @@ export const resolveCloudKeyImport = async (
   await importMasterKey(cloudPayload, importPin);
   if (!importPin) {
     localStorage.removeItem("app-passcode");
-    localStorage.removeItem("app-lock-enabled");
-    localStorage.removeItem("app-biometrics-enabled");
   } else {
     localStorage.setItem("app-passcode", importPin);
     localStorage.setItem("app-lock-enabled", "true");
+    localStorage.removeItem("app-lock-passcode");
   }
   return { ok: true, effectivePin: importPin };
 };

@@ -60,7 +60,9 @@ struct NewNoteWidgetEntryView: View {
             }
         }
         .padding(8)
-        .background(Color(.systemBackground))
+        .containerBackground(for: .widget) {
+            Color(.systemBackground)
+        }
     }
 }
 

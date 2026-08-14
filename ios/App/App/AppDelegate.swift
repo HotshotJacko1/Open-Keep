@@ -1,6 +1,19 @@
 import UIKit
 import Capacitor
 
+enum WidgetDeepLinkReplay {
+    static let pendingURLKey = "openkeep.pendingWidgetUrl"
+    static let notification = Notification.Name("OpenKeepWidgetDeepLinkReceived")
+
+    static func store(_ url: URL) {
+        guard url.scheme == "openkeep" else { return }
+
+        let urlString = url.absoluteString
+        UserDefaults.standard.set(urlString, forKey: pendingURLKey)
+        NotificationCenter.default.post(name: notification, object: urlString)
+    }
+}
+
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
@@ -36,7 +49,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
         // Called when the app was launched with a url. Feel free to add additional processing here,
         // but if you want the App API to support tracking app url opens, make sure to keep this call
-        return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+        WidgetDeepLinkReplay.store(url)
+        let handledByCapacitor = ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+        return handledByCapacitor || url.scheme == "openkeep"
     }
 
     func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
