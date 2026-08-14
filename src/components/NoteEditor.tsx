@@ -58,7 +58,6 @@ import { ImageIcon } from "lucide-react";
 
 import { useEditor, EditorContent, Extension } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import UnderlineExtension from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
 
 // Make Enter insert a line break (<br>) instead of a new paragraph
@@ -498,7 +497,6 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const editor = useEditor({
         extensions: [
             StarterKit.configure({}),
-            UnderlineExtension,
             Placeholder.configure({
                 placeholder: 'Take a note...',
             }),
