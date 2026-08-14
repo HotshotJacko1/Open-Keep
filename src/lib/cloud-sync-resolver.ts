@@ -24,22 +24,20 @@ export const resolveCloudKeyImport = async (
     return { ok: true, effectivePin: localPin || "" };
   }
 
-  const importPin = (providedPin || localPin)?.trim();
-  if (!importPin) {
-    showError("Please enter your App Lock PIN to restore cloud data.");
-    return { ok: false, reason: "missing_pin" };
-  }
+  const importPin = providedPin !== undefined ? providedPin.trim() : (localPin?.trim() || "");
 
   // When using the local PIN, verifyCloudMasterKeyMatch is sufficient and works on all native builds.
   let canDecrypt = false;
-  if (localPin && importPin === localPin) {
+  if (localPin !== null && importPin === localPin) {
     canDecrypt = await verifyCloudMasterKeyMatch(cloudPayload, importPin);
   }
   if (!canDecrypt) {
     canDecrypt = await canDecryptCloudMasterKey(cloudPayload, importPin);
   }
   if (!canDecrypt) {
-    showError("Incorrect PIN. Enter the App Lock PIN from your other device.");
+    showError(importPin === "" 
+      ? "Cloud data is encrypted. Please enter the correct PIN." 
+      : "Incorrect PIN. Enter the App Lock PIN from your other device.");
     return { ok: false, reason: "invalid_pin" };
   }
 

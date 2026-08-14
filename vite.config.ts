@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 
 // Read version from build.gradle
-const buildGradlePath = path.resolve(__dirname, 'android/app/build.gradle');
+const buildGradlePath = path.resolve(import.meta.dirname, 'android/app/build.gradle');
 let appVersion = 'Unknown';
 try {
   if (fs.existsSync(buildGradlePath)) {
@@ -30,7 +30,7 @@ export default defineConfig(() => ({
   plugins: [dyadComponentTagger(), react()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
 }));

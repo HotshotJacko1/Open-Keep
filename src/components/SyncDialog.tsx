@@ -93,7 +93,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
     const result = await conflictData.activeService.sync(
       resolution,
       conflictData.cloudPayload,
-      providedPin.trim() || undefined
+      providedPin !== undefined ? providedPin.trim() : ""
     );
     if (result?.status === "success") {
       setConflictData(null);
@@ -185,7 +185,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                   <Button 
                     variant="default" 
                     onClick={() => resolveConflict("merge")}
-                    disabled={isAnySyncing || (conflictData.reason === "key_mismatch" && !providedPin)}
+                    disabled={isAnySyncing}
                   >
                      {isAnySyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Merge Both Together (Keep All Notes)
@@ -193,7 +193,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                   <Button 
                     variant="destructive" 
                     onClick={() => resolveConflict("cloud")}
-                    disabled={isAnySyncing || (conflictData.reason === "key_mismatch" && !providedPin)}
+                    disabled={isAnySyncing}
                   >
                      {isAnySyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Keep Cloud Data (Deletes Local Notes)

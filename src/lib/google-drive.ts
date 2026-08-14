@@ -11,6 +11,7 @@ const ENCRYPTED_KEY_FILE_NAME = "encrypted_master_key.json";
 
 let isInitialized = false;
 let globalAccessToken: string | null = null;
+let globalTokenExpiry: number | null = null;
 
 const formatDriveError = (error: unknown): string => {
     if (error instanceof Error && error.message) return error.message;
@@ -76,9 +77,12 @@ export const initGoogleDrive = async () => {
 export const setAccessToken = (token: string, expiresIn: number = 3600) => {
     globalAccessToken = token;
     if (token) {
+        const expiry = Date.now() + expiresIn * 1000;
+        globalTokenExpiry = expiry;
         localStorage.setItem("google-access-token", token);
-        localStorage.setItem("google-token-expiry", (Date.now() + expiresIn * 1000).toString());
+        localStorage.setItem("google-token-expiry", expiry.toString());
     } else {
+        globalTokenExpiry = null;
         localStorage.removeItem("google-access-token");
         localStorage.removeItem("google-token-expiry");
     }
@@ -90,13 +94,18 @@ export const hasGoogleAccessToken = () => {
 };
 
 export const getGoogleAccessToken = (): string | null => {
-    if (globalAccessToken) return globalAccessToken;
+    if (globalAccessToken && globalTokenExpiry && Date.now() < globalTokenExpiry) {
+        return globalAccessToken;
+    }
     const token = localStorage.getItem("google-access-token");
     const expiry = localStorage.getItem("google-token-expiry");
     if (token && expiry && Date.now() < parseInt(expiry, 10)) {
         globalAccessToken = token;
+        globalTokenExpiry = parseInt(expiry, 10);
         return token;
     }
+    globalAccessToken = null;
+    globalTokenExpiry = null;
     return null;
 };
 
@@ -127,17 +136,12 @@ export const verifyGoogleDriveAccess = async (): Promise<boolean> => {
 };
 
 const getHeaders = () => {
-    if (!globalAccessToken) {
-        const token = localStorage.getItem("google-access-token");
-        const expiry = localStorage.getItem("google-token-expiry");
-        if (token && expiry && Date.now() < parseInt(expiry, 10)) {
-            globalAccessToken = token;
-        } else {
-            throw new Error("No access token found");
-        }
+    const token = getGoogleAccessToken();
+    if (!token) {
+        throw new Error("No access token found");
     }
     return {
-        Authorization: `Bearer ${globalAccessToken}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
     };
 };
@@ -214,8 +218,10 @@ export const checkGoogleDriveMasterKey = async (): Promise<{ exists: boolean, fi
 
 const downloadMasterKey = async (fileId: string): Promise<string | null> => {
     try {
+        const token = getGoogleAccessToken();
+        if (!token) throw new Error("No access token found");
         const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-            headers: { Authorization: `Bearer ${globalAccessToken}` },
+            headers: { Authorization: `Bearer ${token}` },
         });
         return normalizeCloudMasterKeyPayload(body);
     } catch (error: unknown) {
@@ -226,8 +232,10 @@ const downloadMasterKey = async (fileId: string): Promise<string | null> => {
 
 const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTags: string[] }> => {
     try {
+        const token = getGoogleAccessToken();
+        if (!token) throw new Error("No access token found");
         const { body: text } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-            headers: { Authorization: `Bearer ${globalAccessToken}` },
+            headers: { Authorization: `Bearer ${token}` },
         });
         let result: any;
         try {
@@ -317,7 +325,7 @@ const uploadFileContent = async (
     content: string,
     fileId: string | null
 ): Promise<void> => {
-    const accessToken = globalAccessToken;
+    const accessToken = getGoogleAccessToken();
     if (!accessToken) throw new Error("No access token found");
 
     if (fileId) {
@@ -519,7 +527,7 @@ export const syncNotesWithDrive = async (
 export const deleteRemoteData = async (): Promise<void> => {
     if (!isInitialized) await initGoogleDrive();
 
-    const token = globalAccessToken;
+    const token = getGoogleAccessToken();
     if (!token) {
         return;
     }

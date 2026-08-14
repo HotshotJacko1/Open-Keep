@@ -1,5 +1,5 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 interface UseLongPressOptions {
     shouldPreventDefault?: boolean;
@@ -14,6 +14,14 @@ const useLongPress = (
     const longPressTriggered = useRef(false);
     const timeout = useRef<NodeJS.Timeout>();
     const startPosition = useRef<{ x: number, y: number } | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (timeout.current) {
+                clearTimeout(timeout.current);
+            }
+        };
+    }, []);
 
     const start = useCallback(
         (event: React.TouchEvent | React.MouseEvent) => {

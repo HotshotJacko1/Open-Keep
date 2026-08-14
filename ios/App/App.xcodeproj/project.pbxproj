@@ -23,6 +23,9 @@
 		91ED39A63EFB4970A88D64A9 /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 03DF8A2F73FD487E91F2A933 /* SQLCipher */; };
 
 		8359635C54C845AAB901B623 /* NoteStoragePlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = A1CF4D41D1384F6AA42FA10C /* NoteStoragePlugin.m */; };
+
+		0F66563533F3487DA444B4FE /* SharedAppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6749BE68364B407DA82BEFCD /* SharedAppGroup.swift */; };
+		E1FA5B757940490B8ED58B58 /* WidgetRefresher.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE1000F41B4447E489BBBF3B /* WidgetRefresher.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -43,6 +46,9 @@
 		371C4E7E4C164740BE50FF83 /* NoteStoragePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteStoragePlugin.swift; sourceTree = "<group>"; };
 
 		A1CF4D41D1384F6AA42FA10C /* NoteStoragePlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = NoteStoragePlugin.m; sourceTree = "<group>"; };
+
+		6749BE68364B407DA82BEFCD /* SharedAppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedAppGroup.swift; sourceTree = "<group>"; };
+		FE1000F41B4447E489BBBF3B /* WidgetRefresher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetRefresher.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -79,6 +85,9 @@
 		504EC3061FED79650016851F /* App */ = {
 			isa = PBXGroup;
 			children = (
+				6749BE68364B407DA82BEFCD /* SharedAppGroup.swift */,
+				FE1000F41B4447E489BBBF3B /* WidgetRefresher.swift */,
+
 				A1CF4D41D1384F6AA42FA10C /* NoteStoragePlugin.m */,
 
 				99932BC3A916440AA6F36D1A /* NoteDatabase.swift */,
@@ -183,6 +192,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0F66563533F3487DA444B4FE /* SharedAppGroup.swift in Sources */,
+				E1FA5B757940490B8ED58B58 /* WidgetRefresher.swift in Sources */,
+
 				8359635C54C845AAB901B623 /* NoteStoragePlugin.m in Sources */,
 
 				91CD641DC6DB4E4BBD1258E0 /* NoteDatabase.swift in Sources */,
@@ -344,7 +356,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.2.1;
+				MARKETING_VERSION = 4.3.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = com.jackbarkerapps.openkeep;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -368,7 +380,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.2.1;
+				MARKETING_VERSION = 4.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jackbarkerapps.openkeep;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";

@@ -9,9 +9,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Coloured notes.
 - E2EE.
 
-## [4.3.0] - 2026-08-05
+## [4.3.0] - 2026-08-14
+
+### Added
+- Sidebar width is now remembered between sessions instead of resetting each time you open the app.
+
 ### Changed
 - Encryption is now optional. This ensures that users who do not require encryption can enjoy a simpler and faster cloud sync experience. It also makes the onboarding flow smoother for new users.
+- Feedback pop-up now asks for reviews and plays confetti.
+- Toast notifications now follow the app's own theme setting rather than your device theme.
+- Google Keep and Markdown importing rebuilt around a shared import manager.
+- Reminders: "Later today" is now only offered when it is genuinely still today and still in the future.
+
+### Fixed
+- OneDrive stability improvements.
+- Various bug fixes/improvements.
+- OneDrive could overwrite your cloud notes with local-only data if a download failed. Failed downloads now stop the sync instead of continuing with an empty note list.
+- Repeating reminders no longer stop firing after a missed occurrence — they now roll forward to the next one.
+- Long-pressing a note that disappeared mid-press no longer leaves the press active.
+- Restoring images from a cloud sync now validates image names before writing them.
+- Note content is no longer written to the debug console.
+- Sidebar and dialog fixes: toggle buttons in Settings now show the correct selected state.
 
 ## [4.2.0] - 2026-07-03
 ### Added

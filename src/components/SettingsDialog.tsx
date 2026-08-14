@@ -329,10 +329,9 @@ PIN code: ${pinCode || 'Not set'}`;
                 onValueChange={(value: "light" | "dark" | "system") => {
                   if (value) setTheme(value);
                 }}
-                className="justify-start"
+                className="justify-start [&>*]:data-[state=on]:bg-[#707070] [&>*]:data-[state=on]:text-[#f8fafc]"
               >
                 <ToggleGroupItem value="light"
-                  className="data-[state=on]:bg-[#707070] data-[state=on]:text-[#f8fafc]"
                   aria-label="Toggle light theme">
                   <Sun className="h-4 w-4 mr-2" /> Light
                 </ToggleGroupItem>
@@ -466,11 +465,12 @@ PIN code: ${pinCode || 'Not set'}`;
                   onValueChange={(value: "title" | "body") => {
                     if (value) setDefaultTypingArea(value);
                   }}
+                  className="[&>*]:data-[state=on]:bg-[#707070] [&>*]:data-[state=on]:text-[#f8fafc]"
                 >
-                  <ToggleGroupItem value="title" className="h-7 px-3 text-xs data-[state=on]:bg-[#707070] data-[state=on]:text-[#f8fafc]">
+                  <ToggleGroupItem value="title" className="h-7 px-3 text-xs">
                     Title
                   </ToggleGroupItem>
-                  <ToggleGroupItem value="body" className="h-7 px-3 text-xs data-[state=on]:bg-[#707070] data-[state=on]:text-[#f8fafc]">
+                  <ToggleGroupItem value="body" className="h-7 px-3 text-xs">
                     Body
                   </ToggleGroupItem>
                 </ToggleGroup>

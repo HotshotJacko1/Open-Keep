@@ -1145,7 +1145,7 @@ const Index = () => {
         ) : (
           <div className="flex flex-1 min-w-0">
             {!isSidebarCollapsed ? (
-              <ResizablePanelGroup direction="horizontal" className="h-full">
+              <ResizablePanelGroup direction="horizontal" className="h-full" autoSaveId="openkeep-sidebar">
                 <ResizablePanel defaultSize={15} minSize={10} maxSize={25} className="bg-sidebar dark:bg-sidebar text-sidebar-foreground border-r-sidebar-border pt-4 flex flex-col">
                   <SidebarNav
                     uniqueTags={uniqueTags}

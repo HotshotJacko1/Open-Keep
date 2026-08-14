@@ -291,7 +291,8 @@ const downloadMasterKey = async (fileId: string): Promise<string | null> => {
     });
 
     if (!response.ok) {
-        return null;
+        const detail = await response.text().catch(() => "");
+        throw new Error(`Failed to download OneDrive master key (${response.status}): ${detail}`);
     }
     const result = await response.json();
     const raw = typeof result === 'string' ? result : JSON.stringify(result);
@@ -305,8 +306,8 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
     });
 
     if (!response.ok) {
-        console.error("Error downloading notes content");
-        return { notes: [], customTags: [] };
+        const detail = await response.text().catch(() => "");
+        throw new Error(`Failed to download OneDrive notes (${response.status}): ${detail}`);
     }
 
     let result = await response.json();

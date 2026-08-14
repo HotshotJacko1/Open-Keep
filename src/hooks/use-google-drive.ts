@@ -249,6 +249,7 @@ export const useGoogleDrive = () => {
                 return await doInternalSync();
             } catch (error) {
                 console.error("Native Login Failed:", error);
+                console.error("Stringified error:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
                 showError((error as Error).message || "Google Sign-In Failed");
             }
         } else {

@@ -736,10 +736,6 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 const tempDiv = document.createElement('div');
                 tempDiv.innerHTML = tempHtml;
                 textContent = tempDiv.textContent || tempDiv.innerText || "";
-
-                // DEBUG: Inspect values
-                console.log('Toggle Debug:', { content, tempHtml, textContent });
-                (window as any).debugContent = { content, tempHtml, textContent };
             }
 
             const newContent = convertTextToList(textContent);

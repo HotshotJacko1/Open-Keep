@@ -91,6 +91,10 @@ export const restoreImagesFromBase64 = async (
   const paths: string[] = [];
   for (const { id, data } of syncImages) {
     try {
+      if (!/^images\/img_[a-zA-Z0-9-]+\\.jpg$/.test(id)) {
+        console.warn("Invalid image id for sync restore, skipping:", id);
+        continue;
+      }
       const base64 = data.includes(",") ? data.split(",")[1] : data;
       await Filesystem.writeFile({
         path: id,

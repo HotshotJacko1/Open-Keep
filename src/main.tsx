@@ -21,7 +21,7 @@ Sentry.init(
     // Distributed tracing targets
     tracePropagationTargets: ["localhost", /^https:\/\/qrckwhokwhgwnfpsnude\.supabase\.co/],
     // Send console logs to Sentry
-    enableLogs: true,
+    enableLogs: false,
   },
   // Forward the init method from @sentry/react
   SentryReact.init

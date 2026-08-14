@@ -3,8 +3,8 @@ workflows:
     name: iOS App Build
     instance_type: mac_mini_m2
     environment:
-      node: latest
-      xcode: latest
+      node: 22.22.2
+      xcode: 16.4
       cocoapods: default
       ios_signing:
         distribution_type: app_store
@@ -12,9 +12,8 @@ workflows:
     triggering:
       events:
         - push
-        - pull_request
       branch_patterns:
-        - pattern: '*'
+        - pattern: 'main'
           include: true
           source: true
     integrations:

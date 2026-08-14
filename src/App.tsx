@@ -145,7 +145,6 @@ const App = () => {
   };
 
   const handleFeedbackSubmit = async (feedback: "happy" | "sad", comments: string) => {
-    setShouldShowFeedback(false);
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) return;
 

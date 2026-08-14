@@ -2,6 +2,7 @@
 import { Capacitor } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { Note } from "@/types/note";
+import { saveNote } from "@/lib/note-storage";
 
 export interface ReminderOption {
   label: string;   // e.g. "Later today"
@@ -16,21 +17,26 @@ export function getReminderOptions(now: Date): ReminderOption[] {
   const options: ReminderOption[] = [];
 
   // --- Later today ---
-  // Round up to the next even hour, capped at 18:00 today
   const laterToday = new Date(now);
   laterToday.setMinutes(0, 0, 0);
-  laterToday.setHours(laterToday.getHours() + 2); // at least 1h away, round to even
+  laterToday.setHours(laterToday.getHours() + 2);
   if (laterToday.getHours() % 2 !== 0) {
     laterToday.setHours(laterToday.getHours() + 1);
   }
-  if (laterToday.getHours() > 18) {
+
+  const sameDay = laterToday.getDate() === now.getDate();
+  if (sameDay && laterToday.getHours() > 18) {
     laterToday.setHours(18);
   }
-  options.push({
-    label: "Later today",
-    time: formatTime(laterToday),
-    ts: laterToday.getTime(),
-  });
+
+  // Only offer "Later today" if it is actually still today and still in the future
+  if (sameDay && laterToday.getTime() > now.getTime()) {
+    options.push({
+      label: "Later today",
+      time: formatTime(laterToday),
+      ts: laterToday.getTime(),
+    });
+  }
 
   // --- Tomorrow morning ---
   const tomorrowMorning = new Date(now);
@@ -219,10 +225,62 @@ export async function cancelReminderNotification(noteId: string): Promise<void> 
 }
 
 
+/** Calculate the next occurrence for a recurring reminder */
+function nextOccurrenceAfter(reminder: number, recurrence: Note['recurrence'], now: number): number {
+  if (!recurrence || recurrence.type === 'none') return reminder;
+  const date = new Date(reminder);
+
+  // Failsafe limit to avoid infinite loops with corrupted data
+  let iterations = 0;
+  while (date.getTime() <= now && iterations < 10000) {
+    iterations++;
+    if (recurrence.type === 'daily') {
+      date.setDate(date.getDate() + 1);
+    } else if (recurrence.type === 'weekly') {
+      date.setDate(date.getDate() + 7);
+    } else if (recurrence.type === 'monthly') {
+      date.setMonth(date.getMonth() + 1);
+    } else if (recurrence.type === 'yearly') {
+      date.setFullYear(date.getFullYear() + 1);
+    } else if (recurrence.type === 'custom') {
+      const interval = recurrence.interval || 1;
+      const unit = recurrence.unit || 'day';
+      if (unit === 'day') date.setDate(date.getDate() + interval);
+      else if (unit === 'week') date.setDate(date.getDate() + (interval * 7));
+      else if (unit === 'month') date.setMonth(date.getMonth() + interval);
+      else if (unit === 'year') date.setFullYear(date.getFullYear() + interval);
+    } else {
+      break;
+    }
+  }
+  return date.getTime();
+}
+
 /** Reschedule all pending reminders (e.g. on app cold start) */
 export async function rescheduleAllReminders(notes: Note[]): Promise<void> {
   const now = Date.now();
-  const pending = notes.filter((n) => n.reminder && n.reminder > now);
+  const pending: Note[] = [];
+
+  for (const n of notes) {
+    if (!n.reminder || n.isDeleted) continue;
+
+    if (n.reminder > now) {
+      pending.push(n);
+    } else if (n.recurrence && n.recurrence.type !== 'none') {
+      // Past-due but recurring — roll forward to the next occurrence
+      const nextTime = nextOccurrenceAfter(n.reminder, n.recurrence, now);
+      
+      // Update in-memory so Index.tsx sees the new time
+      n.reminder = nextTime;
+      n.updatedAt = Math.max(Date.now(), n.updatedAt + 1);
+      
+      // Save it to update the database
+      await saveNote(n);
+      
+      pending.push(n);
+    }
+  }
+
   await Promise.all(pending.map(scheduleReminderNotification));
 }
 
