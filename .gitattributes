@@ -1,0 +1,54 @@
+# Normalize all text files to LF in the repository.
+# Working-tree files are checked out with LF too (core.eol=lf is already set).
+* text=auto eol=lf
+
+# Windows scripts must keep CRLF or they break
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
+gradlew.bat text eol=crlf
+
+# Shell scripts / gradle wrapper must stay LF
+gradlew     text eol=lf
+*.sh        text eol=lf
+
+# Xcode project file - text, but treat conflicts manually (never hand-merge)
+*.pbxproj   text eol=lf
+
+# Images
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+
+# Archives and build outputs
+*.zip   binary
+*.jar   binary
+*.aab   binary
+*.apk   binary
+*.aar   binary
+*.dex   binary
+
+# Media
+*.mp4   binary
+*.mov   binary
+*.mp3   binary
+
+# Signing / certs
+*.jks       binary
+*.keystore  binary
+*.p8        binary
+*.p12       binary
+*.mobileprovision binary
+
+# Fonts
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
+
+# Prebuilt frameworks
+*.xcframework/** binary
+SQLCipher_Framework/** binary
