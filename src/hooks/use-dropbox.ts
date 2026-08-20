@@ -169,10 +169,6 @@ export const useDropbox = () => {
             const dropboxForceResolution = forceResolution === "merge" ? undefined : forceResolution;
             const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithDropbox(localNotes, localCustomTags, { masterKeyPayload, forceResolution: dropboxForceResolution });
 
-            if (forceResolution === "cloud") {
-                await wipeDatabaseButKeepKeys();
-            }
-
             // Re-read local DB after sync in case local notes changed while sync was in-flight.
             const currentLocalNotes = await loadNotes();
             const currentLocalMap = new Map(currentLocalNotes.map(n => [n.id, n]));
@@ -201,11 +197,6 @@ export const useDropbox = () => {
             const message = (error as Error).message || "";
             if (!message.includes("Cannot parse synced data")) {
                 console.error("Dropbox sync failed:", error);
-            }
-            // Check for local DB errors first — don't confuse them with cloud issues
-            if (message.includes("database") || message.includes("INSTANCE") || message.includes("not initialized") || message.includes("sqlcipher")) {
-                if (!silent) showError("Local database access failed. Notes are safe — please restart the app.");
-                return { status: "error", message: "Local database access failed" };
             }
             if ((error as any).status === 401) {
                 showError("Dropbox session expired. Please reconnect.");

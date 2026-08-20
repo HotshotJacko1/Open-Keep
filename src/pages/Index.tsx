@@ -1,7 +1,7 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Note } from "@/types/note";
-import { loadNotes, saveNote as localSaveNote, deleteNote as localDeleteNote, getLegacyWebNotes, migrateWebNotes, clearLegacyWebNotes, isWebReadFailed } from "@/lib/note-storage";
+import { loadNotes, saveNote as localSaveNote, deleteNote as localDeleteNote, getLegacyWebNotes, migrateWebNotes, clearLegacyWebNotes } from "@/lib/note-storage";
 import { deleteImage } from "@/lib/image-storage";
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import { Capacitor } from "@capacitor/core";
@@ -29,7 +29,7 @@ import TopBar from "@/components/TopBar";
 import { useSession } from '@/context/session-provider';
 import { BulbIcon } from "@/components/BulbIcon";
 
-import { showSuccess, showError } from "@/utils/toast";
+import { showSuccess } from "@/utils/toast";
 import { SelectionActionBar } from "@/components/SelectionActionBar";
 import FileInfo from "@/components/FileInfo";
 import JSZip from "jszip";
@@ -41,7 +41,6 @@ import { useWidgetDeepLink } from "@/hooks/use-widget-deep-link";
 
 const Index = () => {
   const [notes, setNotes] = useState<Note[]>([]);
-  const [dbUnavailable, setDbUnavailable] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [shouldAutoFocus, setShouldAutoFocus] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | undefined>(undefined);
@@ -202,79 +201,14 @@ const Index = () => {
     }, 30000); // 30 seconds
   }, [activeService, performAutoSync]);
 
-  const handleExportAllNotes = async () => {
-    const zip = new JSZip();
-
-    await Promise.all(notes.map(async (note) => {
-      const content = note.content;
-      const safeTitle = note.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'untitled';
-      const filename = `${safeTitle}_${note.id.substring(0, 4)}.md`;
-
-      zip.file(filename, `# ${note.title}\n\n${content}`);
-
-      if (note.images && note.images.length > 0) {
-        const imgFolder = zip.folder(`${safeTitle}_images`);
-        if (imgFolder) {
-          for (const imgPath of note.images) {
-            try {
-              const { data } = await Filesystem.readFile({ path: imgPath, directory: Directory.Data });
-              imgFolder.file(imgPath.split('/').pop() || 'image.jpg', data, { base64: true });
-            } catch (e) {
-              console.warn("Failed to export image", imgPath);
-            }
-          }
-        }
-      }
-    }));
-
-    const content = await zip.generateAsync({ type: "blob" });
-    saveAs(content, "notes_export.zip");
-    showSuccess("Exported all notes");
-  };
-
   const saveNote = async (note: Note) => {
-    try {
-      await localSaveNote(note);
-      triggerEditAutoSync();
-    } catch (error) {
-      console.error("Failed to save note:", error);
-      if (error instanceof Error && error.message.includes("Browser storage is full")) {
-        showError("Storage is full. Your change was not saved.", {
-          action: {
-            label: 'Export All',
-            onClick: () => handleExportAllNotes()
-          },
-          duration: 10000
-        });
-      } else {
-        showError("Failed to save note. Your change was not persisted.");
-      }
-      // Revert: reload notes from truth to undo optimistic UI
-      try {
-        const truthNotes = await loadNotes();
-        setNotes(truthNotes);
-      } catch {
-        // DB is unavailable
-        setDbUnavailable(true);
-      }
-    }
+    await localSaveNote(note);
+    triggerEditAutoSync();
   };
 
   const deleteNote = async (id: string) => {
-    try {
-      await localDeleteNote(id);
-      triggerEditAutoSync();
-    } catch (error) {
-      console.error("Failed to delete note:", error);
-      showError("Failed to delete note.");
-      // Revert: reload notes from truth
-      try {
-        const truthNotes = await loadNotes();
-        setNotes(truthNotes);
-      } catch {
-        setDbUnavailable(true);
-      }
-    }
+    await localDeleteNote(id);
+    triggerEditAutoSync();
   };
 
   // Auto-sync on App Launch
@@ -361,54 +295,57 @@ const Index = () => {
   // Load notes on mount + Migration Logic
   useEffect(() => {
     const initNotes = async () => {
-      try {
-        // MIGRATION CHECK
-        const MIGRATION_KEY = 'migrated_to_native_v1';
-        const hasMigrated = localStorage.getItem(MIGRATION_KEY);
+      // MIGRATION CHECK
+      const MIGRATION_KEY = 'migrated_to_native_v1';
+      const hasMigrated = localStorage.getItem(MIGRATION_KEY);
 
-        if (!hasMigrated) {
-          const legacyNotes = getLegacyWebNotes();
-          if (legacyNotes.length > 0) {
-            console.log("Migrating notes to native database...", legacyNotes.length);
-            await migrateWebNotes(legacyNotes);
-          }
-          localStorage.setItem(MIGRATION_KEY, 'true');
+      if (!hasMigrated) {
+        const legacyNotes = getLegacyWebNotes();
+        if (legacyNotes.length > 0) {
+          console.log("Migrating notes to native database...", legacyNotes.length);
+          await migrateWebNotes(legacyNotes);
+          // clearLegacyWebNotes(); // Optional: keep for safety for now
         }
-
-        const loadedNotes = await loadNotes();
-
-        // Reschedule any pending reminders (isolated so one bad reminder doesn't blank the list)
-        try {
-          await rescheduleAllReminders(loadedNotes);
-        } catch (reminderError) {
-          console.error("Failed to reschedule reminders:", reminderError);
-        }
-
-        // AUTO-DELETE CLEANUP (30 days)
-        const now = Date.now();
-        const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-        const notesToPermanentlyDelete = loadedNotes.filter(n => n.isDeleted && n.deletedAt && (now - n.deletedAt > thirtyDays));
-
-        if (notesToPermanentlyDelete.length > 0) {
-          console.log(`Cleaning up ${notesToPermanentlyDelete.length} old deleted notes`);
-          await Promise.all(notesToPermanentlyDelete.map(async n => {
-            if (n.images && n.images.length > 0) {
-              await Promise.all(n.images.map(deleteImage));
-            }
-            await deleteNote(n.id);
-          }));
-          const idsToDelete = new Set(notesToPermanentlyDelete.map(n => n.id));
-          setNotes(loadedNotes.filter(n => !idsToDelete.has(n.id)));
-        } else {
-          setNotes(loadedNotes);
-        }
-        setDbUnavailable(false);
-      } catch (error) {
-        console.error("Failed to load notes:", error);
-        setDbUnavailable(true);
-      } finally {
-        notesLoadedRef.current = true;
+        localStorage.setItem(MIGRATION_KEY, 'true');
       }
+
+      // Check for first launch / Keep Migration prompt (disabled â€” kept for future use)
+      // const HAS_SEEN_MIGRATION_PROMPT = 'has_seen_keep_migration_prompt';
+      // if (!localStorage.getItem(HAS_SEEN_MIGRATION_PROMPT)) {
+      //   setShowInitialMigrationAsk(true);
+      // }
+
+      // Early Access welcome dialog – show once per user
+      // DISABLED: comment back in to re-enable on first launch
+      // const HAS_SEEN_EARLY_ACCESS = 'has_seen_early_access_dialog_v1';
+      // if (!localStorage.getItem(HAS_SEEN_EARLY_ACCESS)) {
+      //   setShowEarlyAccessDialog(true);
+      // }
+
+      const loadedNotes = await loadNotes();
+
+      // Reschedule any pending reminders
+      await rescheduleAllReminders(loadedNotes);
+
+      // AUTO-DELETE CLEANUP (30 days)
+      const now = Date.now();
+      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+      const notesToPermanentlyDelete = loadedNotes.filter(n => n.isDeleted && n.deletedAt && (now - n.deletedAt > thirtyDays));
+
+      if (notesToPermanentlyDelete.length > 0) {
+        console.log(`Cleaning up ${notesToPermanentlyDelete.length} old deleted notes`);
+        await Promise.all(notesToPermanentlyDelete.map(async n => {
+          if (n.images && n.images.length > 0) {
+            await Promise.all(n.images.map(deleteImage));
+          }
+          await deleteNote(n.id);
+        }));
+        const idsToDelete = new Set(notesToPermanentlyDelete.map(n => n.id));
+        setNotes(loadedNotes.filter(n => !idsToDelete.has(n.id)));
+      } else {
+        setNotes(loadedNotes);
+      }
+      notesLoadedRef.current = true;
     };
 
     initNotes();
@@ -417,15 +354,8 @@ const Index = () => {
   // Reload notes whenever cloud sync writes to the DB
   useEffect(() => {
     const handleNotesUpdated = async () => {
-      try {
-        const reloadedNotes = await loadNotes();
-        setNotes(reloadedNotes);
-        setDbUnavailable(false);
-      } catch (error) {
-        console.error("Failed to reload notes after sync:", error);
-        // Keep existing notes in state — don't clear them
-        setDbUnavailable(true);
-      }
+      const reloadedNotes = await loadNotes();
+      setNotes(reloadedNotes);
 
       const savedTags = localStorage.getItem("custom-tags");
       if (savedTags) {
@@ -467,17 +397,6 @@ const Index = () => {
   }, [isEditLabelsOpen, isSheetOpen, selectedNoteIds]);
 
   const handleSaveNote = async (noteToSave: Note) => {
-    if (notes.length === 0 && !localStorage.getItem('has_seen_early_access_dialog_v1')) {
-      if (!Capacitor.isNativePlatform()) {
-        setShowEarlyAccessDialog(true);
-        if (navigator.storage && navigator.storage.persist) {
-          navigator.storage.persist().catch(console.error);
-        }
-      } else {
-        localStorage.setItem('has_seen_early_access_dialog_v1', 'true');
-      }
-    }
-
     // Optimistic Update
     setNotes((prevNotes) => {
       const existingNoteIndex = prevNotes.findIndex((n) => n.id === noteToSave.id);
@@ -1055,37 +974,6 @@ const Index = () => {
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-6 md:px-8 md:pb-8 md:pt-8"
       >
-        {dbUnavailable && isWebReadFailed() && (
-          <div className="bg-destructive/15 border border-destructive/30 rounded-lg p-4 mb-4 text-sm text-destructive dark:text-red-400">
-            <p className="font-semibold mb-1">Local notes storage is unreadable</p>
-            <p>Your notes could not be loaded. A backup of the corrupt data has been quarantined.</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3 bg-background"
-              onClick={() => {
-                const data = localStorage.getItem("open-keep-notes-corrupt");
-                if (data) {
-                  const blob = new Blob([data], { type: "text/plain" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = "corrupt-notes-backup.txt";
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }
-              }}
-            >
-              Download backup copy
-            </Button>
-          </div>
-        )}
-        {dbUnavailable && !isWebReadFailed() && (
-          <div className="bg-destructive/15 border border-destructive/30 rounded-lg p-4 mb-4 text-sm text-destructive dark:text-red-400">
-            <p className="font-semibold mb-1">Unable to read notes</p>
-            <p>Your notes have not been deleted. Cloud sync is paused. Please restart the app. Do not use &quot;Reset&quot; or &quot;Forgot PIN&quot;.</p>
-          </div>
-        )}
         {selectedTag === "bin" && (
           <div className="text-center italic text-muted-foreground mb-4">
             Notes in the bin will be deleted after 30 days.

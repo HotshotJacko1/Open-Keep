@@ -68,7 +68,9 @@ class SingleNoteGlanceWidget : GlanceAppWidget() {
                     val keyManager = KeyManager(context)
                     val masterKey = keyManager.getMasterKey()
                     if (masterKey != null) {
-                        NoteRepository.initializeIfNeeded(context, masterKey)
+                        if (!NoteRepository.isInitialized()) {
+                            NoteRepository.initialize(context, masterKey)
+                        }
                         val dao = NoteRepository.getDatabase().noteDao()
                         val n = kotlinx.coroutines.runBlocking { dao.getNoteById(noteId) }
                         if (n != null && !n.deleted) {
@@ -199,7 +201,9 @@ class ToggleCheckboxAction : ActionCallback {
         try {
             val keyManager = KeyManager(context)
             val masterKey = keyManager.getMasterKey() ?: return
-            NoteRepository.initializeIfNeeded(context, masterKey)
+            if (!NoteRepository.isInitialized()) {
+                NoteRepository.initialize(context, masterKey)
+            }
             val dao = NoteRepository.getDatabase().noteDao()
             val note = dao.getNoteById(noteId) ?: return
 

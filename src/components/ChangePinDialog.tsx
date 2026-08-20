@@ -14,7 +14,6 @@ import { ArrowLeft } from "lucide-react";
 import { changeEncryptionKey, clearAllData } from "@/lib/note-storage";
 import { deleteRemoteData } from "@/lib/google-drive";
 import { NativeBiometric } from "@capgo/capacitor-native-biometric";
-import { Capacitor } from "@capacitor/core";
 import ResetDialog from "./ResetDialog";
 
 interface ChangePinDialogProps {
@@ -129,30 +128,16 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
     const confirmReset = async () => {
         setIsResetting(true);
         try {
-            const isNativeEncryption = Capacitor.isNativePlatform();
-            if (isNativeEncryption) {
-                await clearAllData();
-                try {
-                    await deleteRemoteData();
-                } catch (e) {
-                    console.error("Failed to delete remote data or not authenticated", e);
-                }
+            await clearAllData();
+            try {
+                await deleteRemoteData();
+            } catch (e) {
+                console.error("Failed to delete remote data or not authenticated", e);
             }
-
             localStorage.removeItem("app-passcode");
             localStorage.removeItem("app-lock-enabled");
             localStorage.removeItem("app-biometrics-enabled");
             localStorage.removeItem("custom-tags");
-            
-            // Clear sync state
-            localStorage.removeItem("last-synced-time");
-            localStorage.removeItem("google-access-token");
-            localStorage.removeItem("google-token-expiry");
-            localStorage.removeItem("google-user-email");
-            localStorage.removeItem("dropbox-access-token");
-            localStorage.removeItem("dropbox-last-synced");
-            localStorage.removeItem("onedrive-user-email");
-            localStorage.removeItem("onedrive-last-synced");
 
             showSuccess("App reset successfully");
             
@@ -248,7 +233,6 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
                     onOpenChange={setIsResetDialogOpen}
                     onConfirm={confirmReset}
                     isResetting={isResetting}
-                    isNativeEncryption={Capacitor.isNativePlatform()}
                 />
             </DialogContent>
         </Dialog>

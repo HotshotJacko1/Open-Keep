@@ -207,9 +207,8 @@ class NoteCollectionWidgetConfigureActivity : AppCompatActivity() {
         val masterKey = keyManager.getMasterKey()
             ?: throw IllegalStateException("No master key available")
 
-        if (!NoteRepository.isInitialized()) {
-            NoteRepository.initialize(applicationContext, masterKey)
-        }
+        NoteRepository.reset()
+        NoteRepository.initialize(applicationContext, masterKey)
         val repo = NoteRepository(applicationContext)
 
         // Collect all notes to extract unique tags
@@ -228,6 +227,7 @@ class NoteCollectionWidgetConfigureActivity : AppCompatActivity() {
             }
         }
 
+        NoteRepository.reset()
         return tagSet.sorted()
     }
 

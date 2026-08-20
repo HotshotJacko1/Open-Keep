@@ -91,7 +91,7 @@ export const restoreImagesFromBase64 = async (
   const paths: string[] = [];
   for (const { id, data } of syncImages) {
     try {
-      if (!/^images\/img_[a-zA-Z0-9-]+\.jpg$/.test(id)) {
+      if (!/^images\/img_[a-zA-Z0-9-]+\\.jpg$/.test(id)) {
         console.warn("Invalid image id for sync restore, skipping:", id);
         continue;
       }

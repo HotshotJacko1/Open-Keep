@@ -23,7 +23,6 @@ import { Plus, X, GripVertical, ArrowLeft, Pin, Archive, Type, Tag, Trash2, File
 import NoteLabels from "@/components/NoteLabels";
 import ReminderSheet from "@/components/ReminderSheet";
 import FileInfo from "@/components/FileInfo";
-import { LinkHighlightedTextarea } from "@/components/LinkHighlightedTextarea";
 import { scheduleReminderNotification, cancelReminderNotification, formatReminderLabel } from "@/utils/reminder";
 import {
     DndContext,
@@ -60,7 +59,6 @@ import { ImageIcon } from "lucide-react";
 import { useEditor, EditorContent, Extension } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import Link from '@tiptap/extension-link'
 
 // Make Enter insert a line break (<br>) instead of a new paragraph
 const HardBreakOnEnter = Extension.create({
@@ -497,17 +495,13 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
 
     const editor = useEditor({
-            extensions: [
-                StarterKit.configure({}),
-                Placeholder.configure({
-                    placeholder: 'Take a note...',
-                }),
-                HardBreakOnEnter,
-                Link.configure({
-                    autolink: true,
-                    openOnClick: false,
-                }),
-            ],
+        extensions: [
+            StarterKit.configure({}),
+            Placeholder.configure({
+                placeholder: 'Take a note...',
+            }),
+            HardBreakOnEnter,
+        ],
         content: content,
         editable: !isDeleted,
         editorProps: {
@@ -1279,34 +1273,34 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         )}
 
                         {/* Title */}
-                                                <LinkHighlightedTextarea
-                                                    id="title"
-                                                    ref={titleTextareaRef}
-                                                    value={title}
-                                                    onChange={(e) => {
-                                                        setTitle(e.target.value);
-                                                        adjustTitleHeight();
-                                                    }}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === "Enter") {
-                                                            e.preventDefault();
-                                                            if (isChecklistMode) {
-                                                                const bodyTextareas = document.querySelectorAll<HTMLTextAreaElement>('div[role="dialog"] textarea:not(#title)');
-                                                                if (bodyTextareas.length > 0) {
-                                                                    const target = bodyTextareas[0];
-                                                                    target.focus();
-                                                                    target.setSelectionRange(target.value.length, target.value.length);
-                                                                }
-                                                            } else if (editor) {
-                                                                editor.commands.focus();
-                                                            }
-                                                        }
-                                                    }}
-                                                    rows={1}
-                                                    readOnly={isDeleted}
-                                                    className="w-full bg-transparent text-black dark:text-white border-0 focus:outline-none text-xl font-semibold px-0 mb-2 placeholder:text-gray-400 resize-none overflow-hidden h-auto"
-                                                    placeholder="Title"
-                                                />
+                        <textarea
+                            id="title"
+                            ref={titleTextareaRef}
+                            value={title}
+                            onChange={(e) => {
+                                setTitle(e.target.value);
+                                adjustTitleHeight();
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    if (isChecklistMode) {
+                                        const bodyTextareas = document.querySelectorAll<HTMLTextAreaElement>('div[role="dialog"] textarea:not(#title)');
+                                        if (bodyTextareas.length > 0) {
+                                            const target = bodyTextareas[0];
+                                            target.focus();
+                                            target.setSelectionRange(target.value.length, target.value.length);
+                                        }
+                                    } else if (editor) {
+                                        editor.commands.focus();
+                                    }
+                                }
+                            }}
+                            rows={1}
+                            readOnly={isDeleted}
+                            className="w-full bg-transparent text-black dark:text-white border-0 focus:outline-none text-xl font-semibold px-0 mb-2 placeholder:text-gray-400 resize-none overflow-hidden h-auto"
+                            placeholder="Title"
+                        />
 
                         {/* Reminder chip */}
                         {reminder && (

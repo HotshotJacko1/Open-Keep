@@ -64,10 +64,12 @@ class NoteCollectionGlanceWidget : GlanceAppWidget() {
                 val keyManager = KeyManager(context)
                 val masterKey = keyManager.getMasterKey() ?: return null
 
-                NoteRepository.initializeIfNeeded(context, masterKey)
+                NoteRepository.reset()
+                NoteRepository.initialize(context, masterKey)
                 val repo = NoteRepository(context)
 
                 val allNotes = runBlocking { repo.getAllNotes().first() }
+                NoteRepository.reset()
 
                 val filtered = when (prefs.type) {
                     FilterPrefs.FILTER_ALL -> allNotes.filter { !it.deleted && !it.isArchived }
@@ -270,7 +272,8 @@ class CollectionToggleCheckboxAction : ActionCallback {
             val keyManager = KeyManager(context)
             val masterKey = keyManager.getMasterKey() ?: return
 
-            NoteRepository.initializeIfNeeded(context, masterKey)
+            NoteRepository.reset()
+            NoteRepository.initialize(context, masterKey)
             val repo = NoteRepository(context)
 
             val notes = repo.getAllNotes().first()
@@ -300,6 +303,8 @@ class CollectionToggleCheckboxAction : ActionCallback {
             }
         } catch (e: Exception) {
             android.util.Log.e("ToggleCheckboxAction", "Error", e)
+        } finally {
+            NoteRepository.reset()
         }
     }
 }

@@ -24,14 +24,12 @@ const EnableEncryptionDialog: React.FC<EnableEncryptionDialogProps> = ({ isOpen,
     const [newPin, setNewPin] = useState("");
     const [confirmPin, setConfirmPin] = useState("");
     const [isLoading, setIsLoading] = useState(false);
-    const [isSuccessView, setIsSuccessView] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
             setNewPin("");
             setConfirmPin("");
             setIsLoading(false);
-            setIsSuccessView(false);
         }
     }, [isOpen]);
 
@@ -95,7 +93,7 @@ const EnableEncryptionDialog: React.FC<EnableEncryptionDialogProps> = ({ isOpen,
             }
             
             showSuccess("Encryption enabled successfully");
-            setIsSuccessView(true);
+            onClose();
         } catch (error) {
             console.error(error);
             showError("Failed to enable encryption. Please try again.");
@@ -111,89 +109,64 @@ const EnableEncryptionDialog: React.FC<EnableEncryptionDialogProps> = ({ isOpen,
                 className="sm:max-w-[425px] bg-background text-primary-foreground"
             >
                 <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
-                    {!isSuccessView && (
-                        <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
-                            <ArrowLeft className="h-5 w-5 text-secondary" />
-                            <span className="sr-only">Back</span>
-                        </Button>
-                    )}
-                    <DialogTitle>{isSuccessView ? "Encryption Enabled" : "Enable Encryption"}</DialogTitle>
+                    <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
+                        <ArrowLeft className="h-5 w-5 text-secondary" />
+                        <span className="sr-only">Back</span>
+                    </Button>
+                    <DialogTitle>Enable Encryption</DialogTitle>
                 </DialogHeader>
-
-                {isSuccessView ? (
-                    <div className="grid gap-4 py-4 text-center">
-                        <div className="w-12 h-12 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-2">
-                            <Lock className="w-6 h-6 text-green-500" />
+                <div className="grid gap-4 py-4">
+                    <div className="flex flex-col items-center justify-center text-center space-y-2 mb-2">
+                        <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-2">
+                            <Lock className="w-6 h-6 text-primary" />
                         </div>
-                        <p className="text-sm">
-                            Your database is now encrypted. 
-                        </p>
-                        <div className="bg-muted p-4 rounded-md">
-                            <p className="font-semibold text-lg tracking-widest">{newPin}</p>
-                        </div>
-                        <p className="text-sm font-medium text-destructive">
-                            Please write this PIN down and keep it safe. It is your only recovery key if you are logged out or reinstall the app.
-                        </p>
-                        <Button onClick={onClose} className="w-full mt-2">
-                            I have saved my PIN
-                        </Button>
+                        <DialogDescription className="text-sm">
+                            Choose a 4-6 digit PIN to encrypt your database.
+                            <br />
+                            <span className="text-destructive font-medium">Warning: If you lose this PIN, your cloud notes cannot be recovered.</span>
+                        </DialogDescription>
                     </div>
-                ) : (
-                    <>
-                        <div className="grid gap-4 py-4">
-                            <div className="flex flex-col items-center justify-center text-center space-y-2 mb-2">
-                                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-2">
-                                    <Lock className="w-6 h-6 text-primary" />
-                                </div>
-                                <DialogDescription className="text-sm">
-                                    Choose a 4-6 digit PIN to encrypt your database.
-                                    <br />
-                                    <span className="text-destructive font-medium">Warning: If you lose this PIN, your cloud notes cannot be recovered.</span>
-                                </DialogDescription>
-                            </div>
 
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="new-pin">Enter PIN</Label>
-                                <Input
-                                    id="new-pin"
-                                    type="password"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    value={newPin}
-                                    onChange={(e) => setNewPin(e.target.value)}
-                                    placeholder="4-6 digits"
-                                    disabled={isLoading}
-                                    maxLength={6}
-                                />
-                            </div>
+                    <div className="flex flex-col gap-2">
+                        <Label htmlFor="new-pin">Enter PIN</Label>
+                        <Input
+                            id="new-pin"
+                            type="password"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={newPin}
+                            onChange={(e) => setNewPin(e.target.value)}
+                            placeholder="4-6 digits"
+                            disabled={isLoading}
+                            maxLength={6}
+                        />
+                    </div>
 
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="confirm-pin">Confirm PIN</Label>
-                                <Input
-                                    id="confirm-pin"
-                                    type="password"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    value={confirmPin}
-                                    onChange={(e) => setConfirmPin(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === "Enter" && !isLoading && newPin && confirmPin) {
-                                            handleEnable();
-                                        }
-                                    }}
-                                    placeholder="Retype PIN"
-                                    disabled={isLoading}
-                                    maxLength={6}
-                                />
-                            </div>
-                        </div>
-                        <div className="flex flex-col items-center mt-2">
-                            <Button onClick={handleEnable} disabled={isLoading || !newPin || !confirmPin} className="w-full">
-                                {isLoading ? "Enabling..." : "Enable Encryption"}
-                            </Button>
-                        </div>
-                    </>
-                )}
+                    <div className="flex flex-col gap-2">
+                        <Label htmlFor="confirm-pin">Confirm PIN</Label>
+                        <Input
+                            id="confirm-pin"
+                            type="password"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={confirmPin}
+                            onChange={(e) => setConfirmPin(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" && !isLoading && newPin && confirmPin) {
+                                    handleEnable();
+                                }
+                            }}
+                            placeholder="Retype PIN"
+                            disabled={isLoading}
+                            maxLength={6}
+                        />
+                    </div>
+                </div>
+                <div className="flex flex-col items-center mt-2">
+                    <Button onClick={handleEnable} disabled={isLoading || !newPin || !confirmPin} className="w-full">
+                        {isLoading ? "Enabling..." : "Enable Encryption"}
+                    </Button>
+                </div>
             </DialogContent>
         </Dialog>
     );

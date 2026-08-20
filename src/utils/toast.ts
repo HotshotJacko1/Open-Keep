@@ -5,8 +5,8 @@ export const showSuccess = (message: string) => {
   toast.success(message);
 };
 
-export const showError = (message: string, options?: any) => {
-  toast.error(message, options);
+export const showError = (message: string) => {
+  toast.error(message);
 };
 
 export const showLoading = (message: string) => {

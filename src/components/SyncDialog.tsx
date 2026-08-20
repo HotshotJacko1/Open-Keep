@@ -15,7 +15,6 @@ import { useDropbox } from "@/hooks/use-dropbox";
 
 import { Loader2, FolderSync, ArrowLeft, AlertCircle } from "lucide-react";
 import { showSuccess, showError } from "@/utils/toast";
-import { loadNotes } from "@/lib/note-storage";
 
 interface SyncDialogProps {
   isOpen: boolean;
@@ -29,13 +28,6 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
 
   const [conflictData, setConflictData] = useState<{ activeService: any, cloudPayload: string, reason?: "key_mismatch" | "first_connect" } | null>(null);
   const [providedPin, setProvidedPin] = useState("");
-  const [localNotesCount, setLocalNotesCount] = useState<number | null>(null);
-
-  React.useEffect(() => {
-    if (conflictData) {
-      loadNotes().then(notes => setLocalNotesCount(notes.length)).catch(() => setLocalNotesCount(0));
-    }
-  }, [conflictData]);
 
   React.useEffect(() => {
     const handleGlobalConflict = ((e: CustomEvent) => {
@@ -173,11 +165,6 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                   Cloud data was found. Which version would you like to keep?
                   Choosing <strong>Cloud</strong> will replace your local notes with the cloud backup.
                   Choosing <strong>Local</strong> will overwrite the cloud with your device's notes.
-                  {localNotesCount !== null && (
-                    <span className="block mt-2 font-semibold">
-                      Local notes: {localNotesCount}
-                    </span>
-                  )}
                 </p>
                 <p className="text-sm font-medium text-primary-foreground">How would you like to resolve this?</p>
                 
@@ -220,7 +207,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                   <Button 
                     variant="outline" 
                     onClick={() => resolveConflict("local")}
-                    disabled={isAnySyncing || localNotesCount === 0}
+                    disabled={isAnySyncing}
                   >
                      {isAnySyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Keep Local Data (Overwrites Cloud)

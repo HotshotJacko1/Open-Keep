@@ -12,12 +12,8 @@ class WidgetDatabaseReader {
     /// Open the encrypted database with the given master key.
     /// - Returns: true if opened and keyed successfully.
     func open(path: String, key: [UInt8]) -> Bool {
-        guard FileManager.default.fileExists(atPath: path) else {
-            return false
-        }
-
         var connection: OpaquePointer?
-        let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX
+        let flags = SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX
 
         guard sqlite3_open_v2(path, &connection, flags, nil) == SQLITE_OK else {
             return false
