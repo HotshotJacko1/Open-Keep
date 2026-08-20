@@ -41,18 +41,46 @@ const isNative = Capacitor.isNativePlatform();
 
 // ── Web (localStorage) storage helpers ──────────────────────────────
 const WEB_NOTES_KEY = "open-keep-notes";
+const CORRUPT_KEY = `${WEB_NOTES_KEY}-corrupt`;
+let webReadFailed = false;   // module-level; blocks writes until reload
+export const isWebReadFailed = () => webReadFailed;
 
-const webLoadNotes = (): any[] => {
+/** Preserve the raw blob once. Returns false if it could not be preserved. */
+const preserveCorrupt = (key: string, raw: string): boolean => {
   try {
-    const json = localStorage.getItem(WEB_NOTES_KEY);
-    return json ? JSON.parse(json) : [];
-  } catch {
-    return [];
+    const existing = localStorage.getItem(key);
+    if (existing === raw) return true;
+    if (existing !== null) return false;      // already hold a different snapshot; don't clobber it
+    localStorage.setItem(key, raw);
+    return localStorage.getItem(key) === raw; // verify the write landed
+  } catch (e) {
+    console.error("Could not preserve corrupt notes blob", e);
+    return false;                              // never let this mask the original fault
   }
 };
 
+const webLoadNotes = (): any[] => {
+  const json = localStorage.getItem(WEB_NOTES_KEY);
+  if (json === null || json === "") return [];        // genuinely absent
+  let parsed: unknown;
+  try { parsed = JSON.parse(json); }
+  catch { parsed = undefined; }
+  if (!Array.isArray(parsed)) {                        // covers "null", "{}", '"x"', truncated
+    preserveCorrupt(CORRUPT_KEY, json);
+    webReadFailed = true;
+    throw new Error("Local notes storage is unreadable");
+  }
+  return parsed;
+};
+
 const webSaveAllNotes = (notes: any[]): void => {
-  localStorage.setItem(WEB_NOTES_KEY, JSON.stringify(notes));
+  if (webReadFailed) throw new Error("Refusing to overwrite unreadable notes storage");
+  try {
+    localStorage.setItem(WEB_NOTES_KEY, JSON.stringify(notes));
+  } catch (e) {                                        // G12, folded in — quota / private mode / blocked
+    console.error("Failed to persist web notes", e);
+    throw new Error("Browser storage is full or unavailable; notes were not saved");
+  }
 };
 
 // Helper to parse tags safely
@@ -122,13 +150,10 @@ export const loadNotes = async (): Promise<Note[]> => {
   if (!isNative) {
     return webLoadNotes().map(parseNote);
   }
-  try {
-    const { notes } = await NoteStorage.loadNotes();
-    return notes.map(parseNote);
-  } catch (error) {
-    console.error("Error loading notes from native storage:", error);
-    return [];
-  }
+  // Let native errors propagate — callers must handle them.
+  // Swallowing here made DB corruption indistinguishable from empty DB.
+  const { notes } = await NoteStorage.loadNotes();
+  return notes.map(parseNote);
 };
 
 export const saveNote = async (note: Note): Promise<void> => {
@@ -143,18 +168,12 @@ export const saveNote = async (note: Note): Promise<void> => {
     webSaveAllNotes(all);
     return;
   }
-  try {
-    // We send the plain object. 
-    // The native plugin might expect 'type' field still if it validates schemas.
-    // For safety, we can send type='text' implicitly to satisfy any strict validation on the native side if it exists.
-    const noteToSave = {
-      ...note,
-      type: 'text' // Implicitly set type for compatibility
-    };
-    await NoteStorage.saveNote({ note: noteToSave });
-  } catch (error) {
-    console.error("Error saving note to native storage:", error);
-  }
+  // Let native errors propagate to caller for proper error handling.
+  const noteToSave = {
+    ...note,
+    type: 'text' // Implicitly set type for compatibility
+  };
+  await NoteStorage.saveNote({ note: noteToSave });
 };
 
 export const deleteNote = async (id: string): Promise<void> => {
@@ -163,11 +182,8 @@ export const deleteNote = async (id: string): Promise<void> => {
     webSaveAllNotes(all);
     return;
   }
-  try {
-    await NoteStorage.deleteNote({ id });
-  } catch (error) {
-    console.error("Error deleting note from native storage:", error);
-  }
+  // Let native errors propagate to caller for proper error handling.
+  await NoteStorage.deleteNote({ id });
 };
 
 export const migrateWebNotes = async (notes: any[]): Promise<void> => {
@@ -419,12 +435,16 @@ export type SyncResult =
 // Legacy LocalStorage helpers
 const LOCAL_STORAGE_KEY = "markdown-notes-app";
 export const getLegacyWebNotes = (): any[] => {
-  try {
-    const json = localStorage.getItem(LOCAL_STORAGE_KEY);
-    return json ? JSON.parse(json) : [];
-  } catch {
+  const json = localStorage.getItem(LOCAL_STORAGE_KEY);
+  if (json === null || json === "") return [];
+  let parsed: unknown;
+  try { parsed = JSON.parse(json); }
+  catch { parsed = undefined; }
+  if (!Array.isArray(parsed)) {
+    preserveCorrupt(`${LOCAL_STORAGE_KEY}-corrupt`, json);
     return [];
   }
+  return parsed;
 };
 
 export const clearLegacyWebNotes = () => {

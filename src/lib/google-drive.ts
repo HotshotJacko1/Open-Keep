@@ -149,7 +149,7 @@ const getHeaders = () => {
 const findFolder = async (): Promise<string | null> => {
     try {
         const q = encodeURIComponent(`mimeType='application/vnd.google-apps.folder' and name='${FOLDER_NAME}' and trashed=false`);
-        const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+        const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&orderBy=modifiedTime%20desc`, {
             headers: getHeaders(),
         });
         const result = JSON.parse(body);
@@ -177,7 +177,7 @@ const createFolder = async (): Promise<string> => {
 const findNotesFile = async (folderId: string): Promise<string | null> => {
     try {
         const q = encodeURIComponent(`name='${NOTES_FILE_NAME}' and '${folderId}' in parents and trashed=false`);
-        const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+        const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&orderBy=modifiedTime%20desc`, {
             headers: getHeaders(),
         });
         const result = JSON.parse(body);
@@ -185,14 +185,14 @@ const findNotesFile = async (folderId: string): Promise<string | null> => {
         return files && files.length > 0 ? files[0].id : null;
     } catch (error: unknown) {
         console.error("Error finding notes file:", formatDriveError(error));
-        return null;
+        throw error;
     }
 };
 
 const findKeyFile = async (folderId: string): Promise<string | null> => {
     try {
         const q = encodeURIComponent(`name='${ENCRYPTED_KEY_FILE_NAME}' and '${folderId}' in parents and trashed=false`);
-        const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+        const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&orderBy=modifiedTime%20desc`, {
             headers: getHeaders(),
         });
         const result = JSON.parse(body);
@@ -200,7 +200,7 @@ const findKeyFile = async (folderId: string): Promise<string | null> => {
         return files && files.length > 0 ? files[0].id : null;
     } catch (error: unknown) {
         console.error("Error finding master key file:", formatDriveError(error));
-        return null;
+        throw error;
     }
 };
 
@@ -430,6 +430,9 @@ export const syncNotesWithDrive = async (
     
     // If Keep Local, ignore remote notes entirely
     if (forceResolution === "local") {
+        if (localNotes.length === 0) {
+            throw new Error("Refusing to overwrite cloud with an empty local set");
+        }
         if (masterKeyPayload) {
             const keyFileId = await findKeyFile(folderId);
             await uploadMasterKey(folderId, masterKeyPayload, keyFileId);

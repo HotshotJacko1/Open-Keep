@@ -11,6 +11,7 @@ import { isChecklist, parseChecklist, ChecklistItem } from "@/utils/markdown";
 import useLongPress from "@/hooks/use-long-press";
 import { useState, useEffect } from "react";
 import { getImageSrc } from "@/lib/image-storage";
+import { renderTextWithLinks } from "@/components/LinkHighlightedTextarea";
 
 interface NoteCardProps {
   note: Note;
@@ -128,7 +129,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
             </div>
           )}
           <div className="flex flex-row items-start justify-between gap-2 min-w-0 w-full max-w-full">
-            <CardTitle className="text-base sm:text-lg font-semibold break-words flex-1 leading-snug min-w-0 max-w-full overflow-hidden [overflow-wrap:anywhere]">{note.title}</CardTitle>
+            <CardTitle className="text-base sm:text-lg font-semibold break-words flex-1 leading-snug min-w-0 max-w-full overflow-hidden [overflow-wrap:anywhere]">{renderTextWithLinks(note.title) || '\u00A0'}</CardTitle>
             {!note.isDeleted && (
               <div className={cn(
                 "hidden md:flex flex-shrink-0 transition-opacity duration-200",
@@ -175,8 +176,8 @@ const NoteCard: React.FC<NoteCardProps> = ({
                   )}
                 </Button>
                 <span className={cn(item.checked && "line-through opacity-70", "flex-1 min-w-0 break-words overflow-hidden [overflow-wrap:anywhere] leading-tight mt-0.5")}>
-                  {item.content}
-                </span>
+                                  {renderTextWithLinks(item.content)}
+                                </span>
               </li>
             );
           };
@@ -218,9 +219,9 @@ const NoteCard: React.FC<NoteCardProps> = ({
           );
         })() : (
           <div
-            className="text-sm text-secondary-foreground max-h-[300px] overflow-hidden text-ellipsis prose prose-sm max-w-none min-w-0 w-full dark:prose-invert prose-p:my-0 prose-headings:my-1 [overflow-wrap:anywhere] [word-break:break-word] [&_*]:[overflow-wrap:anywhere] [&_*]:[word-break:break-word]"
-            dangerouslySetInnerHTML={{ __html: note.content }}
-          />
+                      className="text-sm text-secondary-foreground max-h-[300px] overflow-hidden text-ellipsis prose prose-sm max-w-none min-w-0 w-full dark:prose-invert prose-p:my-0 prose-headings:my-1 [overflow-wrap:anywhere] [word-break:break-word] [&_*]:[overflow-wrap:anywhere] [&_*]:[word-break:break-word] [&_a]:text-inherit [&_a]:underline"
+                      dangerouslySetInnerHTML={{ __html: note.content }}
+                    />
         )}
         {note.tags.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1 w-full max-w-full overflow-hidden">

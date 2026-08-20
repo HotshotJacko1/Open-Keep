@@ -336,6 +336,10 @@ export const useGoogleDrive = () => {
             const driveForceResolution = forceResolution === "merge" ? undefined : forceResolution;
             const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithDrive(localNotes, localCustomTags, { masterKeyPayload, forceResolution: driveForceResolution });
 
+            if (forceResolution === "cloud") {
+                await wipeDatabaseButKeepKeys();
+            }
+
             // Re-read local DB state now that sync is complete. Local notes may have changed
             // while the sync was in-flight (e.g. user deleted a note during a long sync).
             // Only write back a merged note if it is still newer than (or equal to) the
@@ -371,6 +375,11 @@ export const useGoogleDrive = () => {
             const message = (error as Error).message || "";
             if (!message.includes("Cannot parse synced data")) {
                 console.error("Sync failed:", error);
+            }
+            // Check for local DB errors first — don't confuse them with cloud issues
+            if (message.includes("database") || message.includes("INSTANCE") || message.includes("not initialized") || message.includes("sqlcipher")) {
+                if (!silent) showError("Local database access failed. Notes are safe — please restart the app.");
+                return { status: "error", message: "Local database access failed" };
             }
             if (message.includes("Google Drive permission was not granted")) {
                 showError(message);

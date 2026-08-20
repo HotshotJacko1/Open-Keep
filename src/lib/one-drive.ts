@@ -250,25 +250,17 @@ const createFolder = async (): Promise<string> => {
 };
 
 const findNotesFile = async (folderId: string): Promise<string | null> => {
-    try {
-        const response = await callGraphApi(`/me/drive/special/approot/children?$filter=name eq '${NOTES_FILE_NAME}'`);
-        if (response && response.value && response.value.length > 0) {
-            return response.value[0].id;
-        }
-    } catch (error) {
-        console.warn("special/approot may not exist yet.", error);
+    const response = await callGraphApi(`/me/drive/special/approot/children?$filter=name eq '${NOTES_FILE_NAME}'`);
+    if (response && response.value && response.value.length > 0) {
+        return response.value[0].id;
     }
     return null;
 };
 
 const findKeyFile = async (folderId: string): Promise<string | null> => {
-    try {
-        const response = await callGraphApi(`/me/drive/special/approot/children?$filter=name eq '${ENCRYPTED_KEY_FILE_NAME}'`);
-        if (response && response.value && response.value.length > 0) {
-            return response.value[0].id;
-        }
-    } catch (error) {
-        console.warn("special/approot may not exist yet.", error);
+    const response = await callGraphApi(`/me/drive/special/approot/children?$filter=name eq '${ENCRYPTED_KEY_FILE_NAME}'`);
+    if (response && response.value && response.value.length > 0) {
+        return response.value[0].id;
     }
     return null;
 };
@@ -428,6 +420,9 @@ export const syncNotesWithOneDrive = async (
     
     // If Keep Local, ignore remote notes entirely
     if (forceResolution === "local") {
+        if (localNotes.length === 0) {
+            throw new Error("Refusing to overwrite cloud with an empty local set");
+        }
         if (masterKeyPayload) {
             const keyFileId = await findKeyFile(folderId);
             await uploadMasterKey(masterKeyPayload, keyFileId);
