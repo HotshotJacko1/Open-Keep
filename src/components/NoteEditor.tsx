@@ -446,6 +446,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const isLabelsOpenRef = useRef(isLabelsOpen);
     const isReminderSheetOpenRef = useRef(isReminderSheetOpen);
     const fullscreenImageSrcRef = useRef(fullscreenImageSrc);
+    const fullscreenOverlayRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         isLabelsOpenRef.current = isLabelsOpen;
@@ -457,6 +458,32 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
     useEffect(() => {
         fullscreenImageSrcRef.current = fullscreenImageSrc;
+    }, [fullscreenImageSrc]);
+
+    // TEMPORARY DEBUG: capture-phase listeners reveal which element actually
+    // receives taps while the fullscreen image overlay is open.
+    useEffect(() => {
+        if (!fullscreenImageSrc) return;
+        const logHit = (label: string) => (e: Event) => {
+            const t = e.target as HTMLElement | null;
+            const cls = t && typeof t.className === 'string' ? t.className.slice(0, 70) : '';
+            console.log(`[fullscreen-debug] ${label}`, {
+                type: e.type,
+                target: t ? `${t.tagName} ${cls}` : String(t),
+                targetPE: t ? getComputedStyle(t).pointerEvents : '?',
+                bodyPE: getComputedStyle(document.body).pointerEvents,
+                overlayPE: fullscreenOverlayRef.current ? getComputedStyle(fullscreenOverlayRef.current).pointerEvents : 'no-overlay',
+                hitOverlay: !!(t && fullscreenOverlayRef.current?.contains(t)),
+            });
+        };
+        const pd = logHit('pointerdown');
+        const cl = logHit('click');
+        document.addEventListener('pointerdown', pd, true);
+        document.addEventListener('click', cl, true);
+        return () => {
+            document.removeEventListener('pointerdown', pd, true);
+            document.removeEventListener('click', cl, true);
+        };
     }, [fullscreenImageSrc]);
 
     // Mobile Back Button Handling
@@ -1115,7 +1142,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         <>
             {fullscreenImageSrc && createPortal(
                 <div
-                    className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center cursor-zoom-out p-4"
+                    ref={fullscreenOverlayRef}
+                    className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center cursor-zoom-out p-4 pointer-events-auto"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                         // Stop the native event before it reaches document, so the
