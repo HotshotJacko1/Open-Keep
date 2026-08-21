@@ -25,3 +25,6 @@ dist-ssr
 .dyad/
 .venv/
 .env
+
+# Supabase CLI local project linkage
+supabase/.temp/

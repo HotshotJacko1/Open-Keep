@@ -49,6 +49,18 @@ const isTokenEndpointFailure = (
     res: GoogleTokenEndpointResponse
 ): res is GoogleTokenEndpointFailure => "error" in res && !("access_token" in res);
 
+/**
+ * The token service itself was unreachable (network, CORS, function down).
+ * Distinct from a Google *rejection* — no amount of user interaction fixes it,
+ * and every rung of the token ladder depends on this same endpoint.
+ */
+export class GoogleTokenServiceUnavailable extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "GoogleTokenServiceUnavailable";
+    }
+}
+
 const requestGoogleTokens = async (
     payload: { code: string } | { refreshToken: string }
 ): Promise<GoogleTokenEndpointResponse> => {
@@ -57,10 +69,10 @@ const requestGoogleTokens = async (
         { body: payload }
     );
     if (error) {
-        throw new Error(`Google token service unavailable (${error.message})`);
+        throw new GoogleTokenServiceUnavailable(`Google token service unavailable (${error.message})`);
     }
     if (!data) {
-        throw new Error("Google token service returned no data");
+        throw new GoogleTokenServiceUnavailable("Google token service returned no data");
     }
     return data;
 };
@@ -209,6 +221,8 @@ const nativeGoogleEnsureDriveToken = async (isExplicitLogin = false): Promise<st
         try {
             return await refreshAccessTokenFromStorage();
         } catch (e) {
+            // Sign-in also needs this endpoint to exchange the code — don't prompt.
+            if (e instanceof GoogleTokenServiceUnavailable) throw e;
             console.log("Silent Google token refresh failed, falling back to sign-in", e);
         }
 
@@ -219,6 +233,8 @@ const nativeGoogleEnsureDriveToken = async (isExplicitLogin = false): Promise<st
             clearGoogleDriveScopeBlock();
             return accessToken;
         } catch (e) {
+            // The forced picker would hit the same unreachable endpoint.
+            if (e instanceof GoogleTokenServiceUnavailable) throw e;
             console.log("Silent sign-in attempt failed", e);
             if (!isExplicitLogin) {
                 throw e;
@@ -492,7 +508,7 @@ export const useGoogleDrive = () => {
                 await initNativeGoogleAuth();
                 await SocialLogin.logout({ provider: "google" });
             } catch (e) {
-                console.error("Native signout failed", e);
+                console.warn("Google plugin logout unsupported in offline mode (local state cleared anyway)", e);
             }
         }
         setUserEmail(null);
