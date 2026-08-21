@@ -173,7 +173,7 @@ const getHeaders = () => {
 const findFolder = async (): Promise<string | null> => {
     try {
         const q = encodeURIComponent(`mimeType='application/vnd.google-apps.folder' and name='${FOLDER_NAME}' and trashed=false`);
-        const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+        const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&orderBy=modifiedTime%20desc`, {
             headers: getHeaders(),
         });
         const result = JSON.parse(body);
@@ -244,7 +244,7 @@ const findChildFile = async (folderId: string, fileName: string): Promise<string
 
     try {
         const q = encodeURIComponent(`name='${fileName}' and '${folderId}' in parents and trashed=false`);
-        const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+        const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&orderBy=modifiedTime%20desc`, {
             headers: getHeaders(),
         });
         const result = JSON.parse(body);
@@ -254,7 +254,7 @@ const findChildFile = async (folderId: string, fileName: string): Promise<string
         return fileId;
     } catch (error: unknown) {
         console.error(`Error finding ${fileName}:`, formatDriveError(error));
-        return null;
+        throw error;
     }
 };
 
@@ -492,12 +492,16 @@ export const syncNotesWithDrive = async (
             findChildFile(folderId, NOTES_FILE_NAME),
         ]);
 
+
         if (masterKeyPayload) {
             await uploadMasterKey(folderId, masterKeyPayload, keyFileId);
         }
 
         // If Keep Local, ignore remote notes entirely
         if (forceResolution === "local") {
+            if (localNotes.length === 0) {
+                throw new Error("Refusing to overwrite cloud with an empty local set");
+            }
             await uploadNotes(folderId, localNotes, localCustomTags, fileId);
             return { notes: localNotes, customTags: localCustomTags };
         }

@@ -9,8 +9,9 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
 import LockScreen from "./components/LockScreen";
+import { Button } from "@/components/ui/button";
 import React, { useState, useEffect, useRef } from "react";
-import { checkDatabaseStatus, initializeDatabase, lockDatabase } from "./lib/note-storage";
+import { checkDatabaseStatus, initializeDatabase, lockDatabase, clearAllData } from "./lib/note-storage";
 import { Capacitor } from "@capacitor/core";
 import { supabase } from "./integrations/supabase/client";
 import FeedbackDialog from "./components/FeedbackDialog";
@@ -146,6 +147,18 @@ const App = () => {
     setAppState('setup');
   };
 
+  const handleHardReset = async () => {
+    if (window.confirm("Are you sure you want to reset all app data? This will wipe your local database and settings, but any notes synced to the cloud will remain there.")) {
+      try {
+        await clearAllData();
+        localStorage.clear();
+        window.location.reload();
+      } catch (e) {
+        console.error("Failed to clear data", e);
+      }
+    }
+  };
+
   const handleSetupComplete = () => {
     setAppState('ready');
   };
@@ -203,7 +216,14 @@ const App = () => {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 text-center">
         <h2 className="text-xl font-bold text-destructive mb-2">Database Error</h2>
-        <p className="text-muted-foreground mb-4">The app failed to initialize its local database.</p>
+        <p className="text-muted-foreground mb-4">
+          The app failed to initialize its local database.<br/><br/>
+          Don't worry, your notes are likely still safely stored on your device.
+        </p>
+        <div className="flex gap-4 mt-4">
+          <Button onClick={() => window.location.reload()}>Retry</Button>
+          <Button variant="destructive" onClick={handleHardReset}>Reset app data</Button>
+        </div>
       </div>
     );
   }
@@ -232,9 +252,16 @@ const App = () => {
               }
             } else {
               // Encryption disabled (transparent/empty PIN database):
-              // Just unlock the UI
-              setAppState('ready');
-              return true;
+              // Ensure the DB is initialized before unlocking the UI
+              try {
+                await initializeDatabase("");
+                setAppState('ready');
+                return true;
+              } catch (e) {
+                console.error("Transparent unlock failed", e);
+                setAppState('setup');   // the Database Error screen, not a frozen spinner
+                return false;
+              }
             }
           }}
           isNativeEncryption={isNative && !!localStorage.getItem("app-passcode")}
