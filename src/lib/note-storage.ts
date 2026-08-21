@@ -105,6 +105,7 @@ const parseNote = (n: any): Note => {
     id: n.id,
     title: n.title || "",
     content: content,
+    type: n.type === "list" ? "list" : "text",
     tags: parsedTags,
     // Ensure booleans are booleans
     isPinned: !!n.isPinned,
@@ -114,7 +115,9 @@ const parseNote = (n: any): Note => {
     // Ensure numbers are numbers
     createdAt: Number(n.createdAt) || Date.now(),
     updatedAt: Number(n.updatedAt) || Date.now(),
+    images: Array.isArray(n.images) ? n.images : [],
     reminder: n.reminder ? Number(n.reminder) : undefined,
+    recurrence: n.recurrence ?? undefined,
   };
 };
 
