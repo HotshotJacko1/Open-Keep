@@ -238,14 +238,19 @@ class NoteStoragePlugin : Plugin() {
                 val storedKey = keyManager.getMasterKey()
 
                 if (storedKey != null) {
+                    val initStart = android.os.SystemClock.elapsedRealtime()
                     NoteRepository.reset()
                     NoteRepository.initialize(context, storedKey)
+                    val initMs = android.os.SystemClock.elapsedRealtime() - initStart
 
                     // Verify
                     scope.launch {
                         try {
                             repository = NoteRepository(context)
+                            val queryStart = android.os.SystemClock.elapsedRealtime()
                             repository.getAllNotes().first()
+                            val queryMs = android.os.SystemClock.elapsedRealtime() - queryStart
+                            android.util.Log.d("NoteStorage", "[Perf] DB open: initialize=${initMs}ms, firstQuery=${queryMs}ms, total=${initMs + queryMs}ms")
                             // Success!
                             ret.put("isLocked", false)
                             call.resolve(ret)

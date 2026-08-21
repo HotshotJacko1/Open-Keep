@@ -1,9 +1,9 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import { useState, useCallback, useEffect } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
-import { SocialLogin, type GoogleLoginResponse } from "@capgo/capacitor-social-login";
+import { SocialLogin } from "@capgo/capacitor-social-login";
 import { Capacitor } from "@capacitor/core";
-import { initGoogleDrive, setAccessToken, getGoogleAccessToken, syncNotesWithDrive, checkGoogleDriveMasterKey, hasGoogleAccessToken, verifyGoogleDriveAccess } from "@/lib/google-drive";
+import { initGoogleDrive, setAccessToken, getGoogleAccessToken, syncNotesWithDrive, checkGoogleDriveMasterKey, hasGoogleAccessToken, isGoogleDriveAuthError, clearCachedDriveIds } from "@/lib/google-drive";
 import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, canDecryptCloudMasterKey, wipeDatabaseButKeepKeys, SyncResult } from "@/lib/note-storage";
 import { resolveCloudKeyImport, getCloudKeyConflictIfNeeded } from "@/lib/cloud-sync-resolver";
 import {
@@ -13,6 +13,7 @@ import {
     runGoogleDriveTokenEnsure,
 } from "@/lib/google-drive-auth-state";
 import { setCloudSyncState, useCloudSyncState } from "@/lib/cloud-sync-state";
+import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 
 export { isGoogleDriveAuthBusy, isGoogleDriveScopeBlocked } from "@/lib/google-drive-auth-state";
@@ -20,6 +21,122 @@ export { isGoogleDriveAuthBusy, isGoogleDriveScopeBlocked } from "@/lib/google-d
 const GOOGLE_WEB_CLIENT_ID = "889284625804-5prnhudcoalopvn0ad0au449lo1bn8f8.apps.googleusercontent.com";
 const GOOGLE_IOS_CLIENT_ID = "889284625804-4o32i9r7cun3pd9a471a6kno2rmgb4k1.apps.googleusercontent.com";
 const GOOGLE_DRIVE_SCOPES = ["profile", "email", "https://www.googleapis.com/auth/drive.file"];
+const REFRESH_TOKEN_STORAGE_KEY = "google-refresh-token";
+
+// ---- Token plumbing ---------------------------------------------------------
+// Native Google auth runs in "offline" mode: SocialLogin hands us a one-time
+// server auth code which our Supabase Edge Function exchanges for a refresh
+// token. The refresh token is stored locally and lets us mint Drive access
+// tokens silently forever — no sign-in prompt every hour.
+
+interface GoogleTokenEndpointSuccess {
+    access_token: string;
+    expires_in: number;
+    refresh_token?: string;
+    scope?: string;
+    token_type?: string;
+    id_token?: string;
+}
+
+interface GoogleTokenEndpointFailure {
+    error: string;
+    error_description?: string;
+}
+
+type GoogleTokenEndpointResponse = GoogleTokenEndpointSuccess | GoogleTokenEndpointFailure;
+
+const isTokenEndpointFailure = (
+    res: GoogleTokenEndpointResponse
+): res is GoogleTokenEndpointFailure => "error" in res && !("access_token" in res);
+
+const requestGoogleTokens = async (
+    payload: { code: string } | { refreshToken: string }
+): Promise<GoogleTokenEndpointResponse> => {
+    const { data, error } = await supabase.functions.invoke<GoogleTokenEndpointResponse>(
+        "google-token-exchange",
+        { body: payload }
+    );
+    if (error) {
+        throw new Error(`Google token service unavailable (${error.message})`);
+    }
+    if (!data) {
+        throw new Error("Google token service returned no data");
+    }
+    return data;
+};
+
+const getStoredRefreshToken = (): string | null => localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+
+const setStoredRefreshToken = (token: string | null): void => {
+    if (token) {
+        localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, token);
+    } else {
+        localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+    }
+};
+
+const emailFromIdToken = (idToken?: string): string | null => {
+    if (!idToken) return null;
+    try {
+        const payloadPart = idToken.split(".")[1];
+        if (!payloadPart) return null;
+        const base64 = payloadPart.replace(/-/g, "+").replace(/_/g, "/").replace(/=/g, "");
+        const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+        const payload = JSON.parse(atob(padded));
+        return typeof payload.email === "string" ? payload.email : null;
+    } catch {
+        return null;
+    }
+};
+
+/** Stores the fresh tokens; throws (and blocks) if Drive scope was not granted. */
+const persistTokenResponse = (tokens: GoogleTokenEndpointSuccess): string => {
+    // Google only returns a refresh_token on first consent or forced refresh;
+    // when absent, the previously stored one remains valid.
+    if (tokens.refresh_token) {
+        setStoredRefreshToken(tokens.refresh_token);
+    }
+
+    const grantedScopes = tokens.scope || "";
+    if (!grantedScopes.includes("auth/drive.file")) {
+        blockGoogleDriveScopeAuth();
+        setAccessToken("");
+        throw new Error(
+            "Google Drive permission was not granted. Disconnect Google Drive in Settings, then reconnect and allow Drive access."
+        );
+    }
+
+    setAccessToken(tokens.access_token, tokens.expires_in || 3600);
+
+    const email = emailFromIdToken(tokens.id_token);
+    if (email) {
+        localStorage.setItem("google-user-email", email);
+        window.dispatchEvent(new Event("google-user-updated"));
+    }
+
+    return tokens.access_token;
+};
+
+/** Silently mints a new access token from the stored refresh token. */
+const refreshAccessTokenFromStorage = async (): Promise<string> => {
+    const refreshToken = getStoredRefreshToken();
+    if (!refreshToken) {
+        throw new Error("No stored Google refresh token");
+    }
+
+    const res = await requestGoogleTokens({ refreshToken });
+    if (isTokenEndpointFailure(res)) {
+        // e.g. invalid_grant: revoked or expired (~6 months). Drop it so the
+        // interactive sign-in path can recover.
+        console.log(`Google token refresh rejected (${res.error})`);
+        setStoredRefreshToken(null);
+        setAccessToken("");
+        throw new Error(`Google token refresh failed (${res.error})`);
+    }
+
+    clearGoogleDriveScopeBlock();
+    return persistTokenResponse(res);
+};
 
 const initNativeGoogleAuth = async () => {
     await SocialLogin.initialize({
@@ -27,37 +144,17 @@ const initNativeGoogleAuth = async () => {
             webClientId: GOOGLE_WEB_CLIENT_ID,
             iOSClientId: GOOGLE_IOS_CLIENT_ID,
             iOSServerClientId: GOOGLE_WEB_CLIENT_ID,
-            mode: "online",
+            mode: "offline",
         },
     });
 };
 
-const readGoogleAccessTokenFromLogin = async (
-    result: GoogleLoginResponse
-): Promise<string> => {
-    if (result.responseType !== "online") {
-        throw new Error("Expected online Google login response");
-    }
-
-    // Prefer the token returned by login — it includes scopes just granted in this session.
-    const loginToken = result.accessToken?.token;
-    if (loginToken) {
-        return loginToken;
-    }
-
-    try {
-        const auth = await SocialLogin.getAuthorizationCode({ provider: "google" });
-        if (auth.accessToken) {
-            return auth.accessToken;
-        }
-    } catch (e) {
-        console.warn("getAuthorizationCode after login failed", e);
-    }
-
-    throw new Error("No access token received from Google");
-};
-
-const nativeGoogleSignIn = async (logoutFirst = false, forcePrompt = false) => {
+/**
+ * Interactive sign-in followed by an auth-code exchange. With
+ * filterByAuthorizedAccounts + autoSelectEnabled this usually completes with
+ * zero UI for a returning user; forcePrompt falls back to the full picker.
+ */
+const nativeGoogleSignInAndExchange = async (logoutFirst: boolean, forcePrompt: boolean): Promise<string> => {
     await initNativeGoogleAuth();
 
     if (logoutFirst) {
@@ -73,22 +170,22 @@ const nativeGoogleSignIn = async (logoutFirst = false, forcePrompt = false) => {
         provider: "google",
         options: {
             scopes: GOOGLE_DRIVE_SCOPES,
-            forceRefreshToken: true,
+            filterByAuthorizedAccounts: !forcePrompt,
+            autoSelectEnabled: !forcePrompt,
             forcePrompt,
-            filterByAuthorizedAccounts: false,
         },
     });
 
-    if (res.result.responseType !== "online") {
-        throw new Error("Expected online Google login response");
+    if (res.result.responseType !== "offline") {
+        throw new Error("Expected offline (server auth code) Google login response");
     }
 
-    const accessToken = await readGoogleAccessTokenFromLogin(res.result);
+    const tokenRes = await requestGoogleTokens({ code: res.result.serverAuthCode });
+    if (isTokenEndpointFailure(tokenRes)) {
+        throw new Error(`Google token exchange failed (${tokenRes.error})`);
+    }
 
-    return {
-        accessToken,
-        email: res.result.profile.email || "",
-    };
+    return persistTokenResponse(tokenRes);
 };
 
 const nativeGoogleEnsureDriveToken = async (isExplicitLogin = false): Promise<string> => {
@@ -101,49 +198,26 @@ const nativeGoogleEnsureDriveToken = async (isExplicitLogin = false): Promise<st
 
         await initNativeGoogleAuth();
 
-        if (hasGoogleAccessToken()) {
-            try {
-                if (await verifyGoogleDriveAccess()) {
-                    clearGoogleDriveScopeBlock();
-                    const token = getGoogleAccessToken();
-                    if (token) return token;
-                }
-            } catch (e) {
-                console.log("Stored Google token failed Drive verification", e);
-            }
-            setAccessToken("");
+        // 1. Unexpired access token from earlier this session.
+        const cached = getGoogleAccessToken();
+        if (cached) {
+            clearGoogleDriveScopeBlock();
+            return cached;
         }
 
+        // 2. Silent refresh via the stored refresh token — no UI at all.
         try {
-            const { isLoggedIn } = await SocialLogin.isLoggedIn({ provider: "google" });
-            if (isLoggedIn) {
-                const auth = await SocialLogin.getAuthorizationCode({ provider: "google" });
-                if (auth.accessToken) {
-                    setAccessToken(auth.accessToken);
-                    if (await verifyGoogleDriveAccess()) {
-                        clearGoogleDriveScopeBlock();
-                        return auth.accessToken;
-                    }
-                }
-            }
+            return await refreshAccessTokenFromStorage();
         } catch (e) {
-            console.log("Silent Google token fetch failed", e);
+            console.log("Silent Google token refresh failed, falling back to sign-in", e);
         }
 
-        setAccessToken("");
-        
-        let user;
+        // 3. Sign-in restricted to already-authorized accounts. For a returning
+        // user this resolves without any visible prompt.
         try {
-            // First try a silent sign-in (no account picker prompt)
-            user = await nativeGoogleSignIn(false, false);
-            setAccessToken(user.accessToken);
-            if (user.email) {
-                localStorage.setItem("google-user-email", user.email);
-            }
-            if (await verifyGoogleDriveAccess()) {
-                clearGoogleDriveScopeBlock();
-                return user.accessToken;
-            }
+            const accessToken = await nativeGoogleSignInAndExchange(false, false);
+            clearGoogleDriveScopeBlock();
+            return accessToken;
         } catch (e) {
             console.log("Silent sign-in attempt failed", e);
             if (!isExplicitLogin) {
@@ -151,24 +225,29 @@ const nativeGoogleEnsureDriveToken = async (isExplicitLogin = false): Promise<st
             }
         }
 
-        console.log("Drive scope still missing or sign-in failed — signing out and requesting fresh consent...");
-        // Last resort: force account picker to let user re-consent
-        user = await nativeGoogleSignIn(true, true);
-        setAccessToken(user.accessToken);
-        if (user.email) {
-            localStorage.setItem("google-user-email", user.email);
-        }
-        if (await verifyGoogleDriveAccess()) {
-            clearGoogleDriveScopeBlock();
-            return user.accessToken;
-        }
-
-        blockGoogleDriveScopeAuth();
-        setAccessToken("");
-        throw new Error(
-            "Google Drive permission was not granted. Disconnect Google Drive in Settings, then reconnect and allow Drive access."
-        );
+        console.log("Falling back to forced Google account picker / re-consent...");
+        // 4. Last resort: force the account picker so the user can pick & re-consent.
+        const accessToken = await nativeGoogleSignInAndExchange(true, true);
+        clearGoogleDriveScopeBlock();
+        return accessToken;
     });
+};
+
+/**
+ * Runs a Drive operation; if Google rejects the current token mid-request
+ * (expired/revoked/scope), obtains a fresh one and retries once. This replaces
+ * the old up-front token-validation probe — the real request is its own probe.
+ */
+const runWithFreshDriveToken = async <T>(work: () => Promise<T>, allowInteractiveRecovery: boolean): Promise<T> => {
+    try {
+        return await work();
+    } catch (e) {
+        if (!isGoogleDriveAuthError(e)) throw e;
+        console.log("Google rejected the Drive token — refreshing once and retrying");
+        setAccessToken("");
+        await nativeGoogleEnsureDriveToken(allowInteractiveRecovery);
+        return await work();
+    }
 };
 
 export const useGoogleDrive = () => {
@@ -281,7 +360,7 @@ export const useGoogleDrive = () => {
             const cloudKeyConflict = await getCloudKeyConflictIfNeeded(
                 pin,
                 forceResolution,
-                checkGoogleDriveMasterKey
+                () => runWithFreshDriveToken(() => checkGoogleDriveMasterKey(), !silent)
             );
             if (cloudKeyConflict) return cloudKeyConflict;
 
@@ -301,7 +380,7 @@ export const useGoogleDrive = () => {
             }
 
             if (!forceResolution) {
-                const cloudKey = await checkGoogleDriveMasterKey();
+                const cloudKey = await runWithFreshDriveToken(() => checkGoogleDriveMasterKey(), !silent);
                 if (cloudKey.exists && cloudKey.payload) {
                     const localNotes = await loadNotes();
                     const isFirstConnect = !localStorage.getItem("last-synced-time");
@@ -334,7 +413,10 @@ export const useGoogleDrive = () => {
             console.log(`[Google Drive Sync] Loaded ${localNotes.length} local notes for sync`);
             const localCustomTags = JSON.parse(localStorage.getItem("custom-tags") || "[]");
             const driveForceResolution = forceResolution === "merge" ? undefined : forceResolution;
-            const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithDrive(localNotes, localCustomTags, { masterKeyPayload, forceResolution: driveForceResolution });
+            const { notes: mergedNotes, customTags: mergedTags } = await runWithFreshDriveToken(
+                () => syncNotesWithDrive(localNotes, localCustomTags, { masterKeyPayload, forceResolution: driveForceResolution }),
+                !silent
+            );
 
             // Re-read local DB state now that sync is complete. Local notes may have changed
             // while the sync was in-flight (e.g. user deleted a note during a long sync).
@@ -408,6 +490,8 @@ export const useGoogleDrive = () => {
         localStorage.removeItem("google-user-email");
         localStorage.removeItem("last-synced-time");
         setLastSynced(null);
+        setStoredRefreshToken(null);
+        clearCachedDriveIds();
         // We can't really 'logout' the token on server without revocation, but we clear client state
         setAccessToken("");
         clearGoogleDriveScopeBlock();

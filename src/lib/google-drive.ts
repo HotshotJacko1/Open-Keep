@@ -23,6 +23,17 @@ const formatDriveError = (error: unknown): string => {
     }
 };
 
+/** Drive request failure carrying the HTTP status, so callers can tell auth (401/403) and not-found (404) errors apart. */
+export class GoogleDriveHttpError extends Error {
+    status: number;
+
+    constructor(status: number, body: string) {
+        super(body || `Google Drive request failed (${status})`);
+        this.name = "GoogleDriveHttpError";
+        this.status = status;
+    }
+}
+
 const driveRequest = async (
     method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
     url: string,
@@ -50,7 +61,7 @@ const driveRequest = async (
                   : "";
 
         if (response.status < 200 || response.status >= 300) {
-            throw new Error(body || `Google Drive request failed (${response.status})`);
+            throw new GoogleDriveHttpError(response.status, body);
         }
 
         return { status: response.status, body };
@@ -64,7 +75,7 @@ const driveRequest = async (
     const body = await response.text();
 
     if (!response.ok) {
-        throw new Error(body || `Google Drive request failed (${response.status})`);
+        throw new GoogleDriveHttpError(response.status, body);
     }
 
     return { status: response.status, body };
@@ -118,21 +129,34 @@ export const isGoogleDriveScopeError = (error: unknown): boolean => {
     );
 };
 
-/** Returns true when the current token can call the Drive API. */
-export const verifyGoogleDriveAccess = async (): Promise<boolean> => {
-    try {
-        await driveRequest(
-            "GET",
-            "https://www.googleapis.com/drive/v3/files?pageSize=1&fields=files(id)",
-            { headers: getHeaders() }
+/**
+ * True when a Drive request failed because the OAuth token was rejected
+ * (expired, revoked, or lacking the Drive scope). Callers should obtain a
+ * fresh token and retry the original request once, instead of probing the
+ * token with extra requests up-front.
+ */
+export const isGoogleDriveAuthError = (error: unknown): boolean => {
+    if (!(error instanceof Error)) return false;
+    const status = error instanceof GoogleDriveHttpError ? error.status : undefined;
+    if (status === 401) return true;
+    if (status === 403) {
+        // Scope/permission failures are worth a fresh-token retry; quota and
+        // rate-limit 403s are not.
+        return (
+            error.message.includes("insufficientPermissions") ||
+            error.message.includes("Insufficient Permission") ||
+            error.message.includes("ACCESS_TOKEN_SCOPE_INSUFFICIENT")
         );
-        return true;
-    } catch (error) {
-        if (isGoogleDriveScopeError(error)) {
-            return false;
-        }
-        throw error;
     }
+    // Some paths surface scope problems purely in the response body text.
+    return isGoogleDriveScopeError(error);
+};
+
+/** True when Drive reported a missing file/folder — typically a stale cached ID. */
+export const isGoogleDriveNotFoundError = (error: unknown): boolean => {
+    if (!(error instanceof Error)) return false;
+    if (error instanceof GoogleDriveHttpError && error.status === 404) return true;
+    return error.message.includes("File not found");
 };
 
 const getHeaders = () => {
@@ -174,46 +198,89 @@ const createFolder = async (): Promise<string> => {
     return result.id;
 };
 
-const findNotesFile = async (folderId: string): Promise<string | null> => {
+// ---- Folder/file ID caching -------------------------------------------------
+// These IDs almost never change; caching them skips two lookup round-trips on
+// warm starts. They are re-resolved automatically whenever Drive reports
+// not-found for a cached ID.
+
+const FOLDER_ID_CACHE_KEY = "gdrive-folder-id";
+
+const childFileCacheKey = (folderId: string, fileName: string): string =>
+    `gdrive-file-${fileName}-${folderId}`;
+
+const getCachedId = (key: string): string | null => localStorage.getItem(key);
+
+const setCachedId = (key: string, id: string | null): void => {
+    if (id) {
+        localStorage.setItem(key, id);
+    } else {
+        localStorage.removeItem(key);
+    }
+};
+
+export const clearCachedDriveIds = (): void => {
+    localStorage.removeItem(FOLDER_ID_CACHE_KEY);
+    const staleKeys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("gdrive-file-")) staleKeys.push(key);
+    }
+    staleKeys.forEach((key) => localStorage.removeItem(key));
+};
+
+const resolveFolderId = async (): Promise<string> => {
+    const cached = getCachedId(FOLDER_ID_CACHE_KEY);
+    if (cached) return cached;
+
+    const folderId = (await findFolder()) ?? (await createFolder());
+    setCachedId(FOLDER_ID_CACHE_KEY, folderId);
+    return folderId;
+};
+
+const findChildFile = async (folderId: string, fileName: string): Promise<string | null> => {
+    const cacheKey = childFileCacheKey(folderId, fileName);
+    const cached = getCachedId(cacheKey);
+    if (cached) return cached;
+
     try {
-        const q = encodeURIComponent(`name='${NOTES_FILE_NAME}' and '${folderId}' in parents and trashed=false`);
+        const q = encodeURIComponent(`name='${fileName}' and '${folderId}' in parents and trashed=false`);
         const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
             headers: getHeaders(),
         });
         const result = JSON.parse(body);
         const files = result.files;
-        return files && files.length > 0 ? files[0].id : null;
+        const fileId: string | null = files && files.length > 0 ? files[0].id : null;
+        if (fileId) setCachedId(cacheKey, fileId);
+        return fileId;
     } catch (error: unknown) {
-        console.error("Error finding notes file:", formatDriveError(error));
+        console.error(`Error finding ${fileName}:`, formatDriveError(error));
         return null;
     }
 };
 
-const findKeyFile = async (folderId: string): Promise<string | null> => {
+/** Runs a Drive operation; on not-found (stale cached IDs) clears the cache and retries once. */
+const withStaleCacheRetry = async <T>(work: () => Promise<T>): Promise<T> => {
     try {
-        const q = encodeURIComponent(`name='${ENCRYPTED_KEY_FILE_NAME}' and '${folderId}' in parents and trashed=false`);
-        const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
-            headers: getHeaders(),
-        });
-        const result = JSON.parse(body);
-        const files = result.files;
-        return files && files.length > 0 ? files[0].id : null;
-    } catch (error: unknown) {
-        console.error("Error finding master key file:", formatDriveError(error));
-        return null;
+        return await work();
+    } catch (error) {
+        if (!isGoogleDriveNotFoundError(error)) throw error;
+        console.warn("Drive returned not-found — clearing cached folder/file IDs and retrying once");
+        clearCachedDriveIds();
+        return await work();
     }
 };
 
 export const checkGoogleDriveMasterKey = async (): Promise<{ exists: boolean, fileId: string | null, payload: string | null }> => {
     if (!isInitialized) await initGoogleDrive();
-    const folderId = await findFolder();
-    if (!folderId) return { exists: false, fileId: null, payload: null };
-    
-    const fileId = await findKeyFile(folderId);
-    if (!fileId) return { exists: false, fileId: null, payload: null };
 
-    const payload = await downloadMasterKey(fileId);
-    return { exists: true, fileId, payload };
+    return withStaleCacheRetry(async () => {
+        const folderId = await resolveFolderId();
+        const fileId = await findChildFile(folderId, ENCRYPTED_KEY_FILE_NAME);
+        if (!fileId) return { exists: false, fileId: null, payload: null };
+
+        const payload = await downloadMasterKey(fileId);
+        return { exists: true, fileId, payload };
+    });
 };
 
 const downloadMasterKey = async (fileId: string): Promise<string | null> => {
@@ -355,6 +422,7 @@ const uploadFileContent = async (
         }),
     });
     const created = JSON.parse(body);
+    setCachedId(childFileCacheKey(folderId, fileName), created.id);
 
     await driveRequest(
         "PATCH",
@@ -414,114 +482,111 @@ export const syncNotesWithDrive = async (
 ): Promise<{ notes: Note[], customTags: string[] }> => {
     if (!isInitialized) await initGoogleDrive();
 
-    let folderId = await findFolder();
-    if (!folderId) {
-        folderId = await createFolder();
-    }
+    return withStaleCacheRetry(async () => {
+        const folderId = await resolveFolderId();
+        const { masterKeyPayload, forceResolution } = options || {};
 
-    const { masterKeyPayload, forceResolution } = options || {};
+        // The two file lookups are independent — run them concurrently.
+        const [keyFileId, fileId] = await Promise.all([
+            masterKeyPayload ? findChildFile(folderId, ENCRYPTED_KEY_FILE_NAME) : Promise.resolve(null),
+            findChildFile(folderId, NOTES_FILE_NAME),
+        ]);
 
-    if (masterKeyPayload) {
-        const keyFileId = await findKeyFile(folderId);
-        await uploadMasterKey(folderId, masterKeyPayload, keyFileId);
-    }
-
-    const fileId = await findNotesFile(folderId);
-    
-    // If Keep Local, ignore remote notes entirely
-    if (forceResolution === "local") {
         if (masterKeyPayload) {
-            const keyFileId = await findKeyFile(folderId);
             await uploadMasterKey(folderId, masterKeyPayload, keyFileId);
         }
-        await uploadNotes(folderId, localNotes, localCustomTags, fileId);
-        return { notes: localNotes, customTags: localCustomTags };
-    }
 
-    // If Keep Cloud, download remote notes only (local was wiped before import)
-    if (forceResolution === "cloud") {
+        // If Keep Local, ignore remote notes entirely
+        if (forceResolution === "local") {
+            await uploadNotes(folderId, localNotes, localCustomTags, fileId);
+            return { notes: localNotes, customTags: localCustomTags };
+        }
+
+        // If Keep Cloud, download remote notes only (local was wiped before import)
+        if (forceResolution === "cloud") {
+            if (fileId) {
+                const remoteData = await downloadNotes(fileId);
+                return { notes: remoteData.notes, customTags: remoteData.customTags };
+            }
+            return { notes: [], customTags: [] };
+        }
+
+        let remoteNotes: Note[] = [];
+        let remoteCustomTags: string[] = [];
+
         if (fileId) {
-            const remoteData = await downloadNotes(fileId);
-            return { notes: remoteData.notes, customTags: remoteData.customTags };
-        }
-        return { notes: [], customTags: [] };
-    }
-
-    let remoteNotes: Note[] = [];
-    let remoteCustomTags: string[] = [];
-
-    if (fileId) {
-        try {
-            const remoteData = await downloadNotes(fileId);
-            remoteNotes = remoteData.notes;
-            remoteCustomTags = remoteData.customTags || [];
-        } catch (e: any) {
-            if (e.message && e.message.includes("Cannot parse synced data")) {
-                // Expected when vault is locked, no noisy error
-            } else {
-                console.error("Could not download/parse remote notes, aborting sync to prevent data loss", e);
+            try {
+                const remoteData = await downloadNotes(fileId);
+                remoteNotes = remoteData.notes;
+                remoteCustomTags = remoteData.customTags || [];
+            } catch (e: any) {
+                if (e.message && e.message.includes("Cannot parse synced data")) {
+                    // Expected when vault is locked, no noisy error
+                } else {
+                    console.error("Could not download/parse remote notes, aborting sync to prevent data loss", e);
+                }
+                throw e;
             }
-            throw e;
         }
-    }
 
-    // Merge Logic
-    console.log(`[Google Drive Sync] Starting merge. Local notes: ${localNotes.length}, Remote notes: ${remoteNotes.length}`);
-    const mergedNotesMap = new Map<string, Note>();
+        // Merge Logic
+        console.log(`[Google Drive Sync] Starting merge. Local notes: ${localNotes.length}, Remote notes: ${remoteNotes.length}`);
+        const mergedNotesMap = new Map<string, Note>();
 
-    // Add all local notes initially
-    localNotes.forEach((note) => {
-        const inRemote = remoteNotes.some(r => r.id === note.id);
-        if (!inRemote) {
-            console.log(`[Google Drive Sync] Note ${note.id} (${note.title}) only exists locally. Will upload.`);
-        }
-        mergedNotesMap.set(note.id, note);
-    });
+        // Add all local notes initially
+        localNotes.forEach((note) => {
+            const inRemote = remoteNotes.some(r => r.id === note.id);
+            if (!inRemote) {
+                console.log(`[Google Drive Sync] Note ${note.id} (${note.title}) only exists locally. Will upload.`);
+            }
+            mergedNotesMap.set(note.id, note);
+        });
 
-    // Merge remote notes
-    remoteNotes.forEach((remoteNote) => {
-        const localNote = mergedNotesMap.get(remoteNote.id);
-        if (!localNote) {
-            // Note exists remotely but not locally (new from other device)
-            console.log(`[Google Drive Sync] Note ${remoteNote.id} (${remoteNote.title}) only exists remotely. Adding to local.`);
-            mergedNotesMap.set(remoteNote.id, remoteNote);
-        } else {
-            // Note exists on both
-            if (remoteNote.updatedAt > localNote.updatedAt) {
-                // Remote is newer
-                console.log(`[Google Drive Sync] Note ${remoteNote.id} (${remoteNote.title}) exists on both. Remote is newer (${new Date(remoteNote.updatedAt).toISOString()} > ${new Date(localNote.updatedAt).toISOString()}). Overwriting local with remote.`);
+        // Merge remote notes
+        remoteNotes.forEach((remoteNote) => {
+            const localNote = mergedNotesMap.get(remoteNote.id);
+            if (!localNote) {
+                // Note exists remotely but not locally (new from other device)
+                console.log(`[Google Drive Sync] Note ${remoteNote.id} (${remoteNote.title}) only exists remotely. Adding to local.`);
                 mergedNotesMap.set(remoteNote.id, remoteNote);
-            } else if (remoteNote.updatedAt < localNote.updatedAt) {
-                console.log(`[Google Drive Sync] Note ${remoteNote.id} (${localNote.title}) exists on both. Local is newer (${new Date(localNote.updatedAt).toISOString()} > ${new Date(remoteNote.updatedAt).toISOString()}). Keeping local.`);
             } else {
-                console.log(`[Google Drive Sync] Note ${remoteNote.id} (${localNote.title}) exists on both with same timestamp. Keeping local.`);
+                // Note exists on both
+                if (remoteNote.updatedAt > localNote.updatedAt) {
+                    // Remote is newer
+                    console.log(`[Google Drive Sync] Note ${remoteNote.id} (${remoteNote.title}) exists on both. Remote is newer (${new Date(remoteNote.updatedAt).toISOString()} > ${new Date(localNote.updatedAt).toISOString()}). Overwriting local with remote.`);
+                    mergedNotesMap.set(remoteNote.id, remoteNote);
+                } else if (remoteNote.updatedAt < localNote.updatedAt) {
+                    console.log(`[Google Drive Sync] Note ${remoteNote.id} (${localNote.title}) exists on both. Local is newer (${new Date(localNote.updatedAt).toISOString()} > ${new Date(remoteNote.updatedAt).toISOString()}). Keeping local.`);
+                } else {
+                    console.log(`[Google Drive Sync] Note ${remoteNote.id} (${localNote.title}) exists on both with same timestamp. Keeping local.`);
+                }
+                // Else keep local (it's newer or same)
             }
-            // Else keep local (it's newer or same)
-        }
+        });
+
+        const mergedNotes = Array.from(mergedNotesMap.values());
+
+        // Merge Tags logic (Set union)
+        console.log(`[Google Drive Sync] Merging custom tags. Local tags: ${localCustomTags.length}, Remote tags: ${remoteCustomTags.length}`);
+        const mergedTags = Array.from(new Set([...localCustomTags, ...remoteCustomTags])).sort();
+        
+        localCustomTags.forEach(tag => {
+            if (!remoteCustomTags.includes(tag)) {
+                console.log(`[Google Drive Sync] Tag '${tag}' only exists locally. Will upload.`);
+            }
+        });
+        
+        remoteCustomTags.forEach(tag => {
+            if (!localCustomTags.includes(tag)) {
+                console.log(`[Google Drive Sync] Tag '${tag}' only exists remotely. Adding to local.`);
+            }
+        });
+
+        // Upload merged data
+        await uploadNotes(folderId, mergedNotes, mergedTags, fileId);
+
+        return { notes: mergedNotes, customTags: mergedTags };
     });
-
-    const mergedNotes = Array.from(mergedNotesMap.values());
-
-    // Merge Tags logic (Set union)
-    console.log(`[Google Drive Sync] Merging custom tags. Local tags: ${localCustomTags.length}, Remote tags: ${remoteCustomTags.length}`);
-    const mergedTags = Array.from(new Set([...localCustomTags, ...remoteCustomTags])).sort();
-    
-    localCustomTags.forEach(tag => {
-        if (!remoteCustomTags.includes(tag)) {
-            console.log(`[Google Drive Sync] Tag '${tag}' only exists locally. Will upload.`);
-        }
-    });
-    
-    remoteCustomTags.forEach(tag => {
-        if (!localCustomTags.includes(tag)) {
-            console.log(`[Google Drive Sync] Tag '${tag}' only exists remotely. Adding to local.`);
-        }
-    });
-
-    // Upload merged data
-    await uploadNotes(folderId, mergedNotes, mergedTags, fileId);
-
-    return { notes: mergedNotes, customTags: mergedTags };
 };
 
 export const deleteRemoteData = async (): Promise<void> => {
@@ -532,10 +597,11 @@ export const deleteRemoteData = async (): Promise<void> => {
         return;
     }
 
-    const folderId = await findFolder();
-    if (folderId) {
+    await withStaleCacheRetry(async () => {
+        const folderId = await resolveFolderId();
         await driveRequest("DELETE", `https://www.googleapis.com/drive/v3/files/${folderId}`, {
             headers: getHeaders(),
         });
-    }
+        clearCachedDriveIds();
+    });
 };

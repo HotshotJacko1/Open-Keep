@@ -17,38 +17,51 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setSession(session);
-        setLoading(false);
-      } else {
-        if (isSigningIn) return;
-        isSigningIn = true;
-        // Attempt anonymous sign-in
-        supabase.auth.signInAnonymously().then(async ({ data, error }) => {
-          isSigningIn = false;
-          if (!error && data.session) {
-            setSession(data.session);
-
-            // Create a new user record in the public Users table
-            const { error: insertError } = await supabase
-              .from('Users')
-              .insert({
-                user_id: data.session.user.id
-              });
-
-            if (insertError) {
-              console.error("Error creating user record:", insertError);
-            } else {
-              console.log("New user record created in public.Users");
-            }
-          } else {
-            console.error("Anonymous sign-in failed:", error);
-          }
+    const bootstrapSession = () => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          setSession(session);
           setLoading(false);
-        });
-      }
-    });
+        } else {
+          if (isSigningIn) return;
+          isSigningIn = true;
+          // Attempt anonymous sign-in
+          supabase.auth.signInAnonymously().then(async ({ data, error }) => {
+            isSigningIn = false;
+            if (!error && data.session) {
+              setSession(data.session);
+
+              // Create a new user record in the public Users table
+              const { error: insertError } = await supabase
+                .from('Users')
+                .insert({
+                  user_id: data.session.user.id
+                });
+
+              if (insertError) {
+                console.error("Error creating user record:", insertError);
+              } else {
+                console.log("New user record created in public.Users");
+              }
+            } else {
+              console.error("Anonymous sign-in failed:", error);
+            }
+            setLoading(false);
+          });
+        }
+      });
+    };
+
+    // Defer until after first paint so these round-trips don't compete with
+    // startup rendering and the cloud sync chain.
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+    };
+    if (typeof idleWindow.requestIdleCallback === "function") {
+      idleWindow.requestIdleCallback(bootstrapSession, { timeout: 2000 });
+    } else {
+      setTimeout(bootstrapSession, 200);
+    }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);

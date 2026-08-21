@@ -16,8 +16,8 @@ Sentry.init(
       // Use Sentry.browserTracingIntegration from @sentry/capacitor (not @sentry/react)
       Sentry.browserTracingIntegration(),
     ],
-    // Tracing — capture 100% of transactions (tune down in production if needed)
-    tracesSampleRate: 1.0,
+    // Tracing — 10% of transactions keeps startup fast and quota sane
+    tracesSampleRate: 0.1,
     // Distributed tracing targets
     tracePropagationTargets: ["localhost", /^https:\/\/qrckwhokwhgwnfpsnude\.supabase\.co/],
     // Send console logs to Sentry
