@@ -21,7 +21,10 @@ import { serve } from 'https://deno.land/std@0.190.0/http/server.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  // baggage/traceparent/sentry-trace are Sentry distributed-tracing headers;
+  // rejecting them in the preflight blocks the request entirely.
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type, baggage, traceparent, sentry-trace',
 };
 
 const DEFAULT_GOOGLE_CLIENT_ID = '889284625804-5prnhudcoalopvn0ad0au449lo1bn8f8.apps.googleusercontent.com';

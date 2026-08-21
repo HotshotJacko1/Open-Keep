@@ -18,8 +18,10 @@ Sentry.init(
     ],
     // Tracing — 10% of transactions keeps startup fast and quota sane
     tracesSampleRate: 0.1,
-    // Distributed tracing targets
-    tracePropagationTargets: ["localhost", /^https:\/\/qrckwhokwhgwnfpsnude\.supabase\.co/],
+    // Deliberately excludes the Supabase domain: Sentry's trace headers
+    // (baggage/traceparent) trigger a CORS preflight that edge functions
+    // reject, which blocked the google-token-exchange call.
+    tracePropagationTargets: ["localhost"],
     // Send console logs to Sentry
     enableLogs: false,
   },
