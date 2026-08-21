@@ -218,7 +218,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
           );
         })() : (
           <div
-            className="text-sm text-secondary-foreground max-h-[300px] overflow-hidden text-ellipsis prose prose-sm max-w-none min-w-0 w-full dark:prose-invert prose-p:my-0 prose-headings:my-1 [overflow-wrap:anywhere] [word-break:break-word] [&_*]:[overflow-wrap:anywhere] [&_*]:[word-break:break-word]"
+            className="text-sm text-secondary-foreground max-h-[300px] overflow-hidden text-ellipsis prose prose-sm max-w-none min-w-0 w-full dark:prose-invert prose-p:my-0 prose-headings:my-1 [overflow-wrap:anywhere] [word-break:break-word] [&_*]:[overflow-wrap:anywhere] [&_*]:[word-break:break-word] pointer-events-none [&_a]:no-underline [&_a]:text-inherit [&_a]:cursor-default"
             dangerouslySetInnerHTML={{ __html: note.content }}
           />
         )}
