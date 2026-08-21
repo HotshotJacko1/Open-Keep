@@ -59,6 +59,8 @@ import { ImageIcon } from "lucide-react";
 import { useEditor, EditorContent, Extension } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
+import Link from '@tiptap/extension-link'
+import { LinkHighlightedTextarea } from "@/components/LinkHighlightedTextarea"
 
 // Make Enter insert a line break (<br>) instead of a new paragraph
 const HardBreakOnEnter = Extension.create({
@@ -210,7 +212,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
                     disabled={disabled}
                     className="mt-2 h-4 w-4 bg-transparent border-gray-400 data-[state=checked]:bg-transparent data-[state=checked]:text-black dark:data-[state=checked]:text-white shrink-0"
                 />
-                <textarea
+                <LinkHighlightedTextarea
                     id={`list-item-${item.id}`}
                     ref={textareaRef}
                     value={item.content}
@@ -341,7 +343,7 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
                     disabled={disabled}
                     className="mt-2 h-4 w-4 bg-transparent border-gray-400 data-[state=checked]:bg-transparent data-[state=checked]:text-black dark:data-[state=checked]:text-white shrink-0"
                 />
-                <textarea
+                <LinkHighlightedTextarea
                     id={`list-item-${item.id}`}
                     ref={textareaRef}
                     value={item.content}
@@ -499,6 +501,14 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             StarterKit.configure({}),
             Placeholder.configure({
                 placeholder: 'Take a note...',
+            }),
+            Link.configure({
+                openOnClick: true,
+                autolink: true,
+                linkOnPaste: true,
+                HTMLAttributes: {
+                    class: 'underline text-inherit hover:text-blue-500 cursor-pointer',
+                }
             }),
             HardBreakOnEnter,
         ],
@@ -1273,7 +1283,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         )}
 
                         {/* Title */}
-                        <textarea
+                        <LinkHighlightedTextarea
                             id="title"
                             ref={titleTextareaRef}
                             value={title}
@@ -1346,7 +1356,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                 </DndContext>
                                 <div className="flex items-start gap-2 mt-2 pl-2">
                                     <Plus className="h-4 w-4 text-gray-400 mt-1.5" />
-                                    <textarea
+                                    <LinkHighlightedTextarea
                                         value={newItemContent}
                                         onChange={(e) => {
                                             const val = e.target.value;
@@ -1392,7 +1402,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                         rows={1}
                                         readOnly={isDeleted}
                                         placeholder="List item"
-                                        className="bg-transparent border-none focus:outline-none resize-none overflow-hidden min-h-[24px] flex-1 py-1"
+                                        className="bg-transparent text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] flex-1 py-1"
                                     />
                                 </div>
                                 {checklistItems.some(i => i.checked) && (
