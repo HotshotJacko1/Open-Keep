@@ -51,6 +51,28 @@ class NoteRepository(context: Context) {
                 _instanceFlow.value = null
             }
         }
+
+        fun reinitialize(context: Context, keyBytes: ByteArray) {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+                _instanceFlow.value = null
+                initialize(context, keyBytes)
+            }
+        }
+
+        /**
+         * Atomically check-then-init: if already initialized, this is a no-op.
+         * Widgets must use this instead of isInitialized() + initialize() to avoid
+         * a TOCTOU race with the plugin's reinitialize().
+         */
+        fun initializeIfNeeded(context: Context, keyBytes: ByteArray) {
+            synchronized(this) {
+                if (INSTANCE == null) {
+                    initialize(context, keyBytes)
+                }
+            }
+        }
         
         // Use a static flow to notify repositories of the current instance
         private val _instanceFlow = kotlinx.coroutines.flow.MutableStateFlow<AppDatabase?>(null)
@@ -89,13 +111,13 @@ class NoteRepository(context: Context) {
                 } catch (e: Exception) {
                     android.util.Log.e("NoteRepository", "Rekey FAILED", e)
                     // Restoration attempt with old key
-                    initialize(context, currentKey)
+                    reinitialize(context, currentKey)
                     throw e
                 }
                 
                 // 4. Re-initialize Room with the NEW key
                 android.util.Log.d("NoteRepository", "Re-initializing Room with new key")
-                initialize(context, newKey)
+                reinitialize(context, newKey)
                 
                 // 5. Final verification
                 try {
@@ -118,25 +140,21 @@ class NoteRepository(context: Context) {
         }
     }
 
-    private fun getDao(): NoteDao? {
-         return INSTANCE?.noteDao()
-    }
-
     // We observe the instance flow and flatMapLatest into the actual query, so when it's null we emit empty
     @kotlin.OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun getAllNotes(): Flow<List<NoteEntity>> = instanceFlow.flatMapLatest { instance ->
-        instance?.noteDao()?.getAllNotes() ?: kotlinx.coroutines.flow.flowOf(emptyList())
+        instance?.noteDao()?.getAllNotes() ?: throw IllegalStateException("Database not initialized")
     }
 
     suspend fun saveNote(note: NoteEntity) {
-        getDao()?.insertNote(note)
+        getDatabase().noteDao().insertNote(note)
     }
 
     suspend fun deleteNote(id: String) {
-        getDao()?.markDeleted(id, System.currentTimeMillis())
+        getDatabase().noteDao().markDeleted(id, System.currentTimeMillis())
     }
 
     suspend fun bulkInsert(notes: List<NoteEntity>) {
-        getDao()?.insertAll(notes)
+        getDatabase().noteDao().insertAll(notes)
     }
 }

@@ -144,6 +144,10 @@ export const useOneDrive = () => {
             const oneDriveForceResolution = forceResolution === "merge" ? undefined : forceResolution;
             const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithOneDrive(localNotes, localCustomTags, { masterKeyPayload, forceResolution: oneDriveForceResolution });
 
+            if (forceResolution === "cloud") {
+                await wipeDatabaseButKeepKeys();
+            }
+
             // Re-read local DB after sync in case local notes changed while sync was in-flight.
             const currentLocalNotes = await loadNotes();
             const currentLocalMap = new Map(currentLocalNotes.map(n => [n.id, n]));
@@ -173,6 +177,11 @@ export const useOneDrive = () => {
             const message = (error as Error).message || "";
             if (!message.includes("Cannot parse synced data")) {
                 console.error("OneDrive sync failed:", error);
+            }
+            // Check for local DB errors first — don't confuse them with cloud issues
+            if (message.includes("database") || message.includes("INSTANCE") || message.includes("not initialized") || message.includes("sqlcipher")) {
+                if (!silent) showError("Local database access failed. Notes are safe — please restart the app.");
+                return { status: "error", message: "Local database access failed" };
             }
             if (message.includes("BAD_DECRYPT") || message.includes("Decryption failed") || message.includes("Cannot parse synced data")) {
                 if (!silent) showError("Cloud notes could not be decrypted. They may be locked with an old, unknown key.");

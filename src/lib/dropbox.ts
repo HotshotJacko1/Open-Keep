@@ -94,10 +94,10 @@ export const checkDropboxMasterKey = async (): Promise<{ exists: boolean, payloa
         const payload = typeof parsed === "string" ? parsed : JSON.stringify(parsed);
         return { exists: true, payload: normalizeCloudMasterKeyPayload(payload) };
     } catch (error: any) {
-         if (error.status === 409 || (error.error && error.error.path && error.error.path['.tag'] === 'not_found')) {
+         if (error?.error?.path?.['.tag'] === 'not_found') {
             return { exists: false, payload: null };
         }
-        return { exists: false, payload: null };
+        throw error;
     }
 };
 
@@ -147,7 +147,7 @@ const downloadNotes = async (): Promise<{ notes: Note[], customTags: string[] }>
 
         return { notes: parsedNotes, customTags: parsedTags };
     } catch (error: any) {
-        if (error.status === 409 || (error.error && error.error.path && error.error.path['.tag'] === 'not_found')) {
+        if (error?.error?.path?.['.tag'] === 'not_found') {
             return { notes: [], customTags: [] };
         }
         console.error("Error downloading notes from Dropbox:", error);
@@ -209,6 +209,9 @@ export const syncNotesWithDropbox = async (
 
     // If Keep Local, ignore remote notes entirely
     if (forceResolution === "local") {
+        if (localNotes.length === 0) {
+            throw new Error("Refusing to overwrite cloud with an empty local set");
+        }
         if (masterKeyPayload) {
             await uploadMasterKey(masterKeyPayload);
         }
@@ -222,7 +225,7 @@ export const syncNotesWithDropbox = async (
             const remoteData = await downloadNotes();
             return { notes: remoteData.notes, customTags: remoteData.customTags };
         } catch (e: any) {
-            if (e.status === 409 || (e.error && e.error.path && e.error.path['.tag'] === 'not_found')) {
+            if (e?.error?.path?.['.tag'] === 'not_found') {
                 return { notes: [], customTags: [] };
             }
             throw e;

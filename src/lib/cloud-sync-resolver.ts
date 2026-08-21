@@ -46,7 +46,6 @@ export const resolveCloudKeyImport = async (
   }
 
   if (forceResolution === "cloud") {
-    await wipeDatabaseButKeepKeys();
     await importMasterKey(cloudPayload, importPin);
     if (importPin !== localPin) {
       if (!importPin) {
@@ -62,19 +61,10 @@ export const resolveCloudKeyImport = async (
 
   // merge
   if (localPin && importPin !== localPin) {
-    try {
-      await exportMasterKey(localPin);
-      await changeEncryptionKey(localPin, importPin);
-    } catch {
-      // Local PIN cannot decrypt existing keys — wipe notes and import cloud key only.
-      await wipeDatabaseButKeepKeys();
-    }
+    await exportMasterKey(localPin);
+    await changeEncryptionKey(localPin, importPin);
   } else if (!localPin) {
-    try {
-      await changeEncryptionKey("", importPin);
-    } catch {
-      await wipeDatabaseButKeepKeys();
-    }
+    await changeEncryptionKey("", importPin);
   }
 
   await importMasterKey(cloudPayload, importPin);

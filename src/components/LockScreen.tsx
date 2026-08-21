@@ -72,7 +72,15 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
             });
 
             if (!isNativeEncryption) {
-                onUnlock();
+                try {
+                    const success = await onUnlock();
+                    if (success === false) {
+                        showError("Biometric unlock failed to initialize database.");
+                    }
+                } catch (e) {
+                    console.error("Unlock failed", e);
+                    showError("Biometric unlock failed to initialize database.");
+                }
             } else {
                 // Try to get credentials if native encryption is on
                 try {
@@ -108,26 +116,29 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
 
         setIsLoading(true);
 
-        if (isNativeEncryption) {
-            const success = await onUnlock(passcode);
-            if (!success) {
-                setPasscode("");
-                setErrorPing(true);
-                setTimeout(() => setErrorPing(false), 500);
-                showError("Incorrect PIN");
-            }
-        } else {
-            // Web flow or unencrypted flow check
-            if (passcode === savedPasscode) {
-                await onUnlock(passcode);
+        try {
+            if (isNativeEncryption) {
+                const success = await onUnlock(passcode);
+                if (!success) {
+                    setPasscode("");
+                    setErrorPing(true);
+                    setTimeout(() => setErrorPing(false), 500);
+                    showError("Incorrect PIN");
+                }
             } else {
-                setPasscode("");
-                setErrorPing(true);
-                setTimeout(() => setErrorPing(false), 500);
-                showError("Incorrect passcode");
+                // Web flow or unencrypted flow check
+                if (passcode === savedPasscode) {
+                    await onUnlock(passcode);
+                } else {
+                    setPasscode("");
+                    setErrorPing(true);
+                    setTimeout(() => setErrorPing(false), 500);
+                    showError("Incorrect passcode");
+                }
             }
+        } finally {
+            setIsLoading(false);
         }
-        setIsLoading(false);
     };
 
     const handleForgotPin = async () => {
@@ -137,14 +148,16 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
     const confirmReset = async () => {
         setIsResetting(true);
         try {
-            // 1. Delete local DB
-            await clearAllData();
+            if (isNativeEncryption) {
+                // 1. Delete local DB
+                await clearAllData();
 
-            // 2. Delete cloud data (attempt)
-            try {
-                await deleteRemoteData();
-            } catch (e) {
-                console.error("Failed to delete remote data or not authenticated", e);
+                // 2. Delete cloud data (attempt)
+                try {
+                    await deleteRemoteData();
+                } catch (e) {
+                    console.error("Failed to delete remote data or not authenticated", e);
+                }
             }
 
             // 3. Clear local storage flags
@@ -153,6 +166,16 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
             localStorage.removeItem("app-lock-enabled");
             localStorage.removeItem("app-biometrics-enabled");
             localStorage.removeItem("custom-tags"); // While we're at it
+            
+            // 4. Clear sync state
+            localStorage.removeItem("last-synced-time");
+            localStorage.removeItem("google-access-token");
+            localStorage.removeItem("google-token-expiry");
+            localStorage.removeItem("google-user-email");
+            localStorage.removeItem("dropbox-access-token");
+            localStorage.removeItem("dropbox-last-synced");
+            localStorage.removeItem("onedrive-user-email");
+            localStorage.removeItem("onedrive-last-synced");
 
             if (onReset) onReset();
 
@@ -219,6 +242,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
                 onOpenChange={setIsResetDialogOpen}
                 onConfirm={confirmReset}
                 isResetting={isResetting}
+                isNativeEncryption={isNativeEncryption}
             />
         </div>
     );
