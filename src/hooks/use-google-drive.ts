@@ -69,7 +69,24 @@ const requestGoogleTokens = async (
         { body: payload }
     );
     if (error) {
-        throw new GoogleTokenServiceUnavailable(`Google token service unavailable (${error.message})`);
+        // supabase-js throws away the response body on a non-2xx, leaving only
+        // "Edge Function returned a non-2xx status code". Recover it so a
+        // misconfigured function says *why* (e.g. server_misconfigured).
+        let detail = error.message;
+        const res = (error as { context?: unknown }).context;
+        if (res instanceof Response) {
+            try {
+                const body = await res.json();
+                if (body?.error) {
+                    detail = body.error_description
+                        ? `${body.error}: ${body.error_description}`
+                        : String(body.error);
+                }
+            } catch {
+                // body wasn't JSON — keep the generic message
+            }
+        }
+        throw new GoogleTokenServiceUnavailable(`Google token service unavailable (${detail})`);
     }
     if (!data) {
         throw new GoogleTokenServiceUnavailable("Google token service returned no data");

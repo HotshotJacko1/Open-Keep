@@ -9,6 +9,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Coloured notes.
 - E2EE.
 
+## [4.4.0] - 2026-08-21
+
+### Added
+- Links in notes are now clickable, in both note titles and note bodies, including inside list items.
+
+### Changed
+- Signing in to Google Drive now lasts. The app keeps you signed in instead of asking you to sign in again roughly every hour.
+- The app starts noticeably faster when Google Drive sync is switched on. Folder and file locations are remembered between launches, and several unnecessary checks before your notes load have been removed.
+- If the app can't open your notes, it now says so with an on-screen message and pauses cloud sync, rather than showing an empty list. The message warns you not to use "Reset app" while it's showing, since your notes are still on the device.
+
+### Fixed
+- **Notes disappearing.** Adding or refreshing a home screen widget could close the app's notes database while the app was still running. After that, edits reported as saved were never written, and the app could show no notes at all. Widgets no longer interfere with the app's own access to your notes.
+- **Cloud sync no longer deletes notes it can't read.** Previously, if the app failed to read your notes for any reason, sync treated that as "this device has no notes" and could clear the device to match the cloud, or overwrite the cloud with nothing. Failures now stop the sync and tell you.
+- "Merge Both Together (Keep All Notes)" no longer deletes your notes if the merge fails partway through.
+- "Keep Local (Overwrites Cloud)" now refuses to run when there are no notes on this device, so it can't wipe your cloud copy.
+- A temporary network or Google Drive error is no longer mistaken for "there is nothing in the cloud", which previously could create a second, near-empty notes file in Drive and leave the original orphaned.
+- Note images no longer disappear a few seconds after being added.
+- Moving to a new device no longer restores a partial copy of the notes database that the app can't open.
+- A one-off failure of the device's secure keystore no longer permanently destroys your encryption keys. The app now reports the error instead of clearing them.
+- Google Drive sync could fail outright with a connection error on Android. Fixed.
+- The note editor's title field is no longer over-tall, and title text is readable in light mode on the web version.
+
 ## [4.3.0] - 2026-08-14
 
 ### Added
