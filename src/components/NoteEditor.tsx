@@ -1116,7 +1116,14 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             {fullscreenImageSrc && createPortal(
                 <div
                     className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center cursor-zoom-out p-4"
-                    onClick={() => setFullscreenImageSrc(null)}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                        // Stop the native event before it reaches document, so the
+                        // Radix dialog underneath doesn't treat this as an outside
+                        // press and close the whole editor (same as the X button).
+                        e.stopPropagation();
+                        setFullscreenImageSrc(null);
+                    }}
                 >
                     <button
                         className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 rounded-full p-2 text-white transition-colors z-10"
