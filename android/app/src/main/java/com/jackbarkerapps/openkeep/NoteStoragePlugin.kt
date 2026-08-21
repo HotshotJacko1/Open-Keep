@@ -191,8 +191,7 @@ class NoteStoragePlugin : Plugin() {
             }
 
             // Reset any previous instance
-            NoteRepository.reset()
-            NoteRepository.initialize(context, masterKey)
+            NoteRepository.reinitialize(context, masterKey)
 
             // Trigger a dummy query to verify the key works
             scope.launch {
@@ -239,8 +238,7 @@ class NoteStoragePlugin : Plugin() {
 
                 if (storedKey != null) {
                     val initStart = android.os.SystemClock.elapsedRealtime()
-                    NoteRepository.reset()
-                    NoteRepository.initialize(context, storedKey)
+                    NoteRepository.reinitialize(context, storedKey)
                     val initMs = android.os.SystemClock.elapsedRealtime() - initStart
 
                     // Verify
@@ -326,17 +324,7 @@ class NoteStoragePlugin : Plugin() {
             try {
                 android.util.Log.d("NoteStorage", "Starting clearAllData process")
                 
-                // 1. Clear KeyManager
-                try {
-                    android.util.Log.d("NoteStorage", "Clearing KeyManager")
-                    val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
-                    keyManager.clearAll()
-                    android.util.Log.d("NoteStorage", "KeyManager cleared")
-                } catch (e: Exception) {
-                    android.util.Log.e("NoteStorage", "Error clearing KeyManager: ${e.message}", e)
-                }
-
-                // 2. Clear Tables and Get Exact Path
+                // 1. Clear Tables and Get Exact Path (while we still have keys)
                 var actualDbPath: String? = null
                 try {
                     android.util.Log.d("NoteStorage", "Attempting to clear tables and get exact DB path")
@@ -361,7 +349,7 @@ class NoteStoragePlugin : Plugin() {
                     android.util.Log.e("NoteStorage", "Error during DB pre-deletion step: \${e.message}", e)
                 }
 
-                // 2.5 Reset Repository
+                // 2. Reset Repository (close DB connection)
                 try {
                     android.util.Log.d("NoteStorage", "Resetting NoteRepository")
                     NoteRepository.reset()
@@ -373,7 +361,7 @@ class NoteStoragePlugin : Plugin() {
                 // Small delay to let Android/Room release any pending file locks
                 kotlinx.coroutines.delay(100)
 
-                // 3. Delete Database file
+                // 3. Delete Database file BEFORE clearing keys
                 try {
                     android.util.Log.d("NoteStorage", "Deleting database file")
                     
@@ -396,6 +384,16 @@ class NoteStoragePlugin : Plugin() {
                     android.util.Log.d("NoteStorage", "Database file deletion result: loop deleted anything=\$anyDeleted, context delete=\$deletedDb, still exists=\${dbFile.exists()}")
                 } catch (e: Exception) {
                     android.util.Log.e("NoteStorage", "Error deleting database file: \${e.message}", e)
+                }
+
+                // 4. Clear KeyManager LAST — only after DB is gone
+                try {
+                    android.util.Log.d("NoteStorage", "Clearing KeyManager")
+                    val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
+                    keyManager.clearAll()
+                    android.util.Log.d("NoteStorage", "KeyManager cleared")
+                } catch (e: Exception) {
+                    android.util.Log.e("NoteStorage", "Error clearing KeyManager: ${e.message}", e)
                 }
 
                 android.util.Log.d("NoteStorage", "clearAllData process completed")
@@ -567,8 +565,7 @@ class NoteStoragePlugin : Plugin() {
             
             // Re-initialize repository with the newly imported master key to prove it works
             val masterKey = keyManager.getMasterKeyForPin(pin)
-            NoteRepository.reset()
-            NoteRepository.initialize(context, masterKey)
+            NoteRepository.reinitialize(context, masterKey)
 
             call.resolve()
         } catch (e: Exception) {

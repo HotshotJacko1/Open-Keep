@@ -31,49 +31,7 @@ class KeyManager(private val context: Context) {
     }
 
     private val securePrefs: SharedPreferences by lazy {
-        try {
-            createSecurePrefs()
-        } catch (e: Exception) {
-            android.util.Log.e("KeyManager", "Failed to create EncryptedSharedPreferences, retrying after delete", e)
-            try {
-                // Delete the file and try again - this handles cases where the key is lost/corrupted
-                deletePrefs()
-                createSecurePrefs()
-            } catch (e2: Exception) {
-                android.util.Log.e("KeyManager", "Secondary failure creating EncryptedSharedPreferences, attempting Keystore clear", e2)
-                try {
-                    // Last ditch effort: clear the Keystore entry itself
-                    clearKeyStore()
-                    deletePrefs()
-                    createSecurePrefs()
-                } catch (e3: Exception) {
-                    android.util.Log.e("KeyManager", "Fatal error creating EncryptedSharedPreferences after Keystore clear", e3)
-                    throw e3
-                }
-            }
-        }
-    }
-
-    private fun deletePrefs() {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-            context.deleteSharedPreferences(SHARED_PREFS_FILENAME)
-        } else {
-            val file = java.io.File(context.filesDir.parent, "shared_prefs/$SHARED_PREFS_FILENAME.xml")
-            if (file.exists()) {
-                file.delete()
-            }
-        }
-    }
-
-    private fun clearKeyStore() {
-        try {
-            val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore")
-            keyStore.load(null)
-            keyStore.deleteEntry(MasterKey.DEFAULT_MASTER_KEY_ALIAS)
-            android.util.Log.d("KeyManager", "Cleared MasterKey from KeyStore")
-        } catch (e: Exception) {
-            android.util.Log.e("KeyManager", "Failed to clear KeyStore entry", e)
-        }
+        createSecurePrefs()
     }
 
     private fun createSecurePrefs(): SharedPreferences {
@@ -91,15 +49,25 @@ class KeyManager(private val context: Context) {
     }
 
     fun getOrGenerateSalt(): ByteArray {
-        val saltString = standardPrefs.getString(SALT_KEY, null)
-        if (saltString != null) {
-            return Base64.decode(saltString, Base64.DEFAULT)
+        // Check securePrefs first (new location)
+        val secureSaltString = securePrefs.getString(SALT_KEY, null)
+        if (secureSaltString != null) {
+            return Base64.decode(secureSaltString, Base64.DEFAULT)
         }
 
+        // Migrate from standardPrefs if present (old location)
+        val legacySaltString = standardPrefs.getString(SALT_KEY, null)
+        if (legacySaltString != null) {
+            // Copy to securePrefs so it shares the same lifecycle as the V2 blob
+            securePrefs.edit().putString(SALT_KEY, legacySaltString).apply()
+            return Base64.decode(legacySaltString, Base64.DEFAULT)
+        }
+
+        // Generate new salt
         val salt = ByteArray(SALT_SIZE)
         SecureRandom().nextBytes(salt)
         val encodedSalt = Base64.encodeToString(salt, Base64.DEFAULT)
-        standardPrefs.edit().putString(SALT_KEY, encodedSalt).apply()
+        securePrefs.edit().putString(SALT_KEY, encodedSalt).apply()
         return salt
     }
 
