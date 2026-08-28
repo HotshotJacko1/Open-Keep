@@ -242,7 +242,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
                     onTouchStart={handleTouchStart}
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}
-                    className={`flex-1 bg-transparent text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] py-1 ${item.checked ? 'line-through text-gray-500' : ''}`}
+                    className={`flex-1 bg-transparent text-base text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] py-1 ${item.checked ? 'line-through text-gray-500' : ''}`}
                 />
                 <Button
                     variant="ghost"
@@ -373,7 +373,7 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
                     onTouchStart={handleTouchStart}
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}
-                    className={`flex-1 bg-transparent text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] py-1 ${item.checked ? 'line-through text-gray-500' : ''}`}
+                    className={`flex-1 bg-transparent text-base text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] py-1 ${item.checked ? 'line-through text-gray-500' : ''}`}
                 />
                 <Button
                     variant="ghost"
@@ -543,7 +543,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         editable: !isDeleted,
         editorProps: {
             attributes: {
-                class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl max-w-none focus:outline-none h-full min-h-[300px] text-black dark:text-white',
+                // Body text stays 16px on mobile so text notes match list notes
+                // (which inherit 16px) and Google Keep's 16sp. No xl step — it
+                // pushed body text above the 20px title on wide screens.
+                class: 'prose lg:prose-lg max-w-none focus:outline-none h-full min-h-[300px] text-black dark:text-white',
             },
         },
         onUpdate: ({ editor }) => {
@@ -1437,7 +1440,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                         rows={1}
                                         readOnly={isDeleted}
                                         placeholder="List item"
-                                        className="bg-transparent text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] flex-1 py-1"
+                                        className="bg-transparent text-base text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] flex-1 py-1"
                                     />
                                 </div>
                                 {checklistItems.some(i => i.checked) && (

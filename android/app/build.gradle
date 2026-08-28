@@ -58,8 +58,8 @@ dependencies {
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
 
-    // Kotlin
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
+    // Kotlin stdlib is supplied automatically by the Kotlin Gradle plugin and
+    // stays pinned to the plugin version — do not declare it explicitly.
 
     // Room
     implementation "androidx.room:room-runtime:$roomVersion"
@@ -67,17 +67,20 @@ dependencies {
     ksp "androidx.room:room-compiler:$roomVersion"
 
     // SQLCipher
+    // Pinned to 4.17.0: 4.18.0 sets minCompileSdk=37, which needs AGP 9.1+ and
+    // compileSdk 37. Revisit together with the compose-bom bump below.
     implementation "net.zetetic:sqlcipher-android:4.17.0"
     implementation "androidx.sqlite:sqlite:2.7.0"
     implementation "androidx.security:security-crypto:1.1.0"
 
     // Jetpack Glance and Compose
-    def composeBom = platform('androidx.compose:compose-bom:2024.04.01')
+    // 2026.06.01 (Compose 1.11.4) is the newest BOM that still builds on
+    // compileSdk 36 / AGP 8.13.2 — Compose 1.12.0 raises minCompileSdk to 37
+    // and requires AGP 9.1+.
+    def composeBom = platform('androidx.compose:compose-bom:2026.06.01')
     implementation composeBom
     implementation 'androidx.compose.ui:ui'
-    implementation 'androidx.compose.material3:material3'
-    implementation 'androidx.glance:glance-appwidget:1.2.0-rc01'
-    implementation 'androidx.glance:glance-material3:1.2.0-rc01'
+    implementation 'androidx.glance:glance-appwidget:1.2.0'
 }
 
 apply from: 'capacitor.build.gradle'
