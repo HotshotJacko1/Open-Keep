@@ -11,11 +11,18 @@
 //   GOOGLE_CLIENT_ID (defaults to the Open Keep web client ID)
 //
 // Contract:
-//   POST { code: string }         -> exchange auth code
-//   POST { refreshToken: string } -> refresh grant
+//   POST { code: string, redirectUri?: string } -> exchange auth code
+//   POST { refreshToken: string }                -> refresh grant
 //   200 { access_token, expires_in, scope, token_type, refresh_token?, id_token? }
 //   200 { error, error_description? }   (Google rejection surfaced at HTTP 200
 //                                        so the client can branch on the body)
+//
+// redirectUri: native (installed-app style) auth codes need an empty
+// redirect_uri; web codes obtained via Google Identity Services' popup-mode
+// code client need the calling page's origin (e.g. https://app.openkeep.net
+// or http://localhost:PORT in dev) — that origin must also be registered as
+// an Authorized redirect URI on the OAuth client in Google Cloud Console.
+// Omitted (native) preserves the empty-string behavior already in production.
 
 import { serve } from 'https://deno.land/std@0.190.0/http/server.ts';
 
@@ -63,7 +70,7 @@ serve(async (req) => {
       });
     }
 
-    let body: { code?: unknown; refreshToken?: unknown };
+    let body: { code?: unknown; refreshToken?: unknown; redirectUri?: unknown };
     try {
       body = await req.json();
     } catch (_e) {
@@ -75,6 +82,7 @@ serve(async (req) => {
 
     const code = typeof body.code === 'string' ? body.code : undefined;
     const refreshToken = typeof body.refreshToken === 'string' ? body.refreshToken : undefined;
+    const redirectUri = typeof body.redirectUri === 'string' ? body.redirectUri : '';
 
     if (!!code === !!refreshToken) {
       return new Response(
@@ -88,11 +96,10 @@ serve(async (req) => {
       client_secret: clientSecret,
     });
     if (code) {
-      // Empty redirect_uri is required when exchanging codes issued to installed apps.
-      form.set('redirect_uri', '');
+      form.set('redirect_uri', redirectUri);
       form.set('grant_type', 'authorization_code');
       form.set('code', code);
-      console.log('[google-token-exchange] Exchanging server auth code for tokens');
+      console.log(`[google-token-exchange] Exchanging server auth code for tokens (redirect_uri: ${redirectUri || 'empty'})`);
     } else {
       form.set('grant_type', 'refresh_token');
       form.set('refresh_token', refreshToken!);

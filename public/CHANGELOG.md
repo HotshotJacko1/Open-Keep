@@ -9,6 +9,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Coloured notes.
 - E2EE.
 
+## [4.4.1] - 2026-08-30
+
+### Changed
+- Signing in to Google Drive on the web version now lasts, matching the mobile apps. Previously the web version asked you to sign in again roughly every hour.
+
+### Fixed
+- Resetting a forgotten PIN now also clears your separate App Lock PIN. Previously, turning Launch Lock back on afterwards could silently reuse the old, "forgotten" PIN instead of asking you to set a new one.
+- The "Reset & Delete All" warning now correctly says your notes are deleted from this device and supported cloud providers, rather than implying every connected cloud account is cleared.
+
 ## [4.4.0] - 2026-08-21
 
 ### Added

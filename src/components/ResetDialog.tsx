@@ -41,7 +41,7 @@ const ResetDialog: React.FC<ResetDialogProps> = ({ isOpen, onOpenChange, onConfi
                     </AlertDialogTitle>
                     <AlertDialogDescription className={isDestructive ? "text-destructive" : ""}>
                         {isDestructive 
-                            ? "Your encryption PIN cannot be recovered. If you reset it, all encrypted notes will be permanently deleted from this device and from the cloud."
+                            ? "Your encryption PIN cannot be recovered. If you reset it, all encrypted notes will be permanently deleted from this device (and supported cloud providers)."
                             : "This will remove your App Lock PIN and clear your cloud sync sessions. Your notes will not be deleted."
                         }
                     </AlertDialogDescription>

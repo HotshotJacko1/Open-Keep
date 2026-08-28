@@ -3,7 +3,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
 import { SocialLogin } from "@capgo/capacitor-social-login";
 import { Capacitor } from "@capacitor/core";
-import { initGoogleDrive, setAccessToken, getGoogleAccessToken, syncNotesWithDrive, checkGoogleDriveMasterKey, hasGoogleAccessToken, isGoogleDriveAuthError, clearCachedDriveIds } from "@/lib/google-drive";
+import { initGoogleDrive, setAccessToken, getGoogleAccessToken, syncNotesWithDrive, checkGoogleDriveMasterKey, isGoogleDriveAuthError, clearCachedDriveIds } from "@/lib/google-drive";
 import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, canDecryptCloudMasterKey, wipeDatabaseButKeepKeys, SyncResult } from "@/lib/note-storage";
 import { resolveCloudKeyImport, getCloudKeyConflictIfNeeded } from "@/lib/cloud-sync-resolver";
 import {
@@ -62,7 +62,7 @@ export class GoogleTokenServiceUnavailable extends Error {
 }
 
 const requestGoogleTokens = async (
-    payload: { code: string } | { refreshToken: string }
+    payload: { code: string; redirectUri?: string } | { refreshToken: string }
 ): Promise<GoogleTokenEndpointResponse> => {
     const { data, error } = await supabase.functions.invoke<GoogleTokenEndpointResponse>(
         "google-token-exchange",
@@ -278,7 +278,18 @@ const runWithFreshDriveToken = async <T>(work: () => Promise<T>, allowInteractiv
         if (!isGoogleDriveAuthError(e)) throw e;
         console.log("Google rejected the Drive token — refreshing once and retrying");
         setAccessToken("");
-        await nativeGoogleEnsureDriveToken(allowInteractiveRecovery);
+        if (Capacitor.isNativePlatform()) {
+            await nativeGoogleEnsureDriveToken(allowInteractiveRecovery);
+        } else {
+            try {
+                await refreshAccessTokenFromStorage();
+            } catch (err) {
+                if (allowInteractiveRecovery) {
+                    throw new Error("Web auth required");
+                }
+                throw e;
+            }
+        }
         return await work();
     }
 };
@@ -305,15 +316,27 @@ export const useGoogleDrive = () => {
     }, []);
 
     const webLogin = useGoogleLogin({
-        onSuccess: async (tokenResponse) => {
+        onSuccess: async (tokenResponse: any) => {
             try {
+                if (!tokenResponse.code) {
+                    throw new Error("No authorization code received from Google");
+                }
+                
+                const tokenRes = await requestGoogleTokens({
+                    code: tokenResponse.code,
+                    redirectUri: window.location.origin
+                });
+                if (isTokenEndpointFailure(tokenRes)) {
+                    throw new Error(`Google token exchange failed (${tokenRes.error})`);
+                }
+                const accessToken = persistTokenResponse(tokenRes);
+
                 // Initialize GAPI
                 await initGoogleDrive();
-                setAccessToken(tokenResponse.access_token);
 
                 // Get user info to display email
                 const userInfo = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                    headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+                    headers: { Authorization: `Bearer ${accessToken}` },
                 }).then(res => res.json());
 
                 setUserEmail(userInfo.email);
@@ -339,7 +362,7 @@ export const useGoogleDrive = () => {
             showError("Google Sign-In Error (Non-OAuth)");
         },
         scope: "https://www.googleapis.com/auth/drive.file",
-        flow: 'implicit',
+        flow: 'auth-code',
         prompt: userEmail ? '' : 'select_account',
         hint: userEmail || undefined,
     });
@@ -365,6 +388,21 @@ export const useGoogleDrive = () => {
                 showError((error as Error).message || "Google Sign-In Failed");
             }
         } else {
+            try {
+                if (getStoredRefreshToken()) {
+                    await refreshAccessTokenFromStorage();
+                    const email = localStorage.getItem("google-user-email");
+                    if (email) {
+                        setUserEmail(email);
+                        showSuccess(`Connected to Google Drive as ${email}`);
+                    } else {
+                        showSuccess("Connected to Google Drive");
+                    }
+                    return await doInternalSync();
+                }
+            } catch (e) {
+                console.log("Silent refresh failed during login, falling back to popup", e);
+            }
             webLogin();
         }
     };
@@ -378,10 +416,19 @@ export const useGoogleDrive = () => {
                 const accessToken = await nativeGoogleEnsureDriveToken(!silent);
                 setAccessToken(accessToken);
             } else {
-                if (!hasGoogleAccessToken()) {
-                    setCloudSyncState("google-drive", false);
-                    webLogin();
-                    return { status: "error", message: "Re-authenticating..." };
+                let token = getGoogleAccessToken();
+                if (!token) {
+                    try {
+                        token = await refreshAccessTokenFromStorage();
+                    } catch (e) {
+                        if (!silent) {
+                            setCloudSyncState("google-drive", false);
+                            webLogin();
+                            return { status: "error", message: "Re-authenticating..." };
+                        } else {
+                            throw new Error("Web auth required");
+                        }
+                    }
                 }
             }
 
@@ -488,6 +535,14 @@ export const useGoogleDrive = () => {
             return { status: "success" };
         } catch (error) {
             const message = (error as Error).message || "";
+            if (message === "Web auth required") {
+                setCloudSyncState("google-drive", false);
+                if (!silent && !Capacitor.isNativePlatform()) {
+                    webLogin();
+                    return { status: "error", message: "Re-authenticating..." };
+                }
+                return { status: "error", message: "Auth required" };
+            }
             if (!message.includes("Cannot parse synced data")) {
                 console.error("Sync failed:", error);
             }

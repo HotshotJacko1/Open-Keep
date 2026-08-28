@@ -140,6 +140,7 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
             }
 
             localStorage.removeItem("app-passcode");
+            localStorage.removeItem("app-lock-passcode");
             localStorage.removeItem("app-lock-enabled");
             localStorage.removeItem("app-biometrics-enabled");
             localStorage.removeItem("custom-tags");
