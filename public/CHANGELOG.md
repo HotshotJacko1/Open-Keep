@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 - Resetting a forgotten PIN now also clears your separate App Lock PIN. Previously, turning Launch Lock back on afterwards could silently reuse the old, "forgotten" PIN instead of asking you to set a new one.
 - The "Reset & Delete All" warning now correctly says your notes are deleted from this device and supported cloud providers, rather than implying every connected cloud account is cleared.
+- Text notes and list notes now use the same body text size. Text notes were previously shown a size smaller than list items on phones.
+- Note text no longer grows larger than the note title on wide screens.
 
 ## [4.4.0] - 2026-08-21
 
