@@ -38,8 +38,14 @@ export class McpBridgeClient {
   private token = "";
   private ports: number[] = [];
   private wanted = false;
-  /** A token the server refuses is refused on every port, so stop trying. */
-  private rejected = false;
+  /**
+   * Ports whose server refused this token. Instances can legitimately hold
+   * DIFFERENT tokens -- one left running from before the token was changed,
+   * or a second AI tool configured separately -- so a refusal has to stay
+   * local to that port. Poisoning every connection because one stale
+   * instance said no is how a working bridge ends up showing "rejected".
+   */
+  private refused = new Set<number>();
   private state: ConnectionState = "disconnected";
 
   constructor(private onStateChange: StateListener) {}
@@ -50,7 +56,7 @@ export class McpBridgeClient {
     this.handler = handler;
     this.ports = Array.from({ length: PORT_SPAN }, (_, i) => basePort + i);
     this.wanted = true;
-    this.rejected = false;
+    this.refused.clear();
     for (const port of this.ports) this.openPort(port);
     this.recompute();
   }
@@ -88,7 +94,7 @@ export class McpBridgeClient {
   }
 
   private openPort(port: number): void {
-    if (!this.wanted || this.rejected || this.peers.has(port)) return;
+    if (!this.wanted || this.peers.has(port)) return;
 
     let socket: WebSocket;
     try {
@@ -129,8 +135,10 @@ export class McpBridgeClient {
   }
 
   private scheduleRetry(port: number): void {
-    if (!this.wanted || this.rejected || this.timers.has(port)) return;
-    const delay = this.known.has(port) ? RETRY_DELAY_MS : SWEEP_DELAY_MS;
+    if (!this.wanted || this.timers.has(port)) return;
+    // A port that refused us gets the lazy cadence, so it can recover if that
+    // tool's token is fixed later without spamming refusals in between.
+    const delay = this.known.has(port) && !this.refused.has(port) ? RETRY_DELAY_MS : SWEEP_DELAY_MS;
     this.timers.set(
       port,
       setTimeout(() => {
@@ -146,14 +154,19 @@ export class McpBridgeClient {
    */
   private recompute(): void {
     let next: ConnectionState;
-    if (this.rejected) {
-      next = "rejected";
-    } else if (this.getConnectedCount() > 0) {
-      next = "connected";
-    } else if (
+    const connecting =
       this.wanted &&
-      [...this.peers.values()].some((p) => p.socket.readyState === WebSocket.CONNECTING || p.socket.readyState === WebSocket.OPEN)
-    ) {
+      [...this.peers.values()].some(
+        (p) => p.socket.readyState === WebSocket.CONNECTING || p.socket.readyState === WebSocket.OPEN
+      );
+
+    if (this.getConnectedCount() > 0) {
+      next = "connected";
+    } else if (this.refused.size > 0 && !connecting) {
+      // Nothing is paired and everything we reached said no -- that is worth
+      // reporting as a bad token rather than a silent "not connected".
+      next = "rejected";
+    } else if (connecting) {
       next = "connecting";
     } else {
       next = "disconnected";
@@ -173,13 +186,13 @@ export class McpBridgeClient {
       if (ack.ok) {
         peer.authed = true;
         this.known.add(port);
+        this.refused.delete(port);
         this.recompute();
       } else {
-        // The same token is being offered on every port, so one refusal
-        // means they will all refuse. Retrying would just spin.
-        this.rejected = true;
-        this.teardown(); // leaves `rejected` set, so nothing reconnects
-        this.recompute();
+        // Only this instance said no. Drop this one socket and leave every
+        // other port alone -- another instance may well accept the token.
+        this.refused.add(port);
+        peer.socket.close();
       }
       return;
     }

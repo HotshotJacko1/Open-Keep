@@ -55,9 +55,11 @@ export default defineConfig(({ mode }) => {
           sentryVitePlugin({
             org: "jack-barker-apps",
             project: "openkeep",
-            // EU region. Omitting this points sentry-cli at sentry.io and
-            // fails with a misleading auth error.
-            url: "https://de.sentry.io/",
+            // No `url` on purpose. Organization auth tokens (sntrys_...)
+            // embed their own region and sentry-cli overrides any manually
+            // configured URL with it, warning as it does so. The de.sentry.io
+            // seen in browser links is the EU storage region; the token
+            // resolves the org correctly on its own.
             authToken: sentryAuthToken,
             telemetry: false,
             sourcemaps: {
