@@ -2,6 +2,7 @@
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import { Capacitor } from "@capacitor/core";
 import imageCompression from "browser-image-compression";
+import { safeRandomUUID } from "@/lib/utils";
 
 const IMAGE_DIR = "images";
 
@@ -14,7 +15,7 @@ const COMPRESSION_OPTIONS = {
 /** Compress + save an image File; returns the relative storage path stored in note.images[] */
 export const saveImage = async (file: File): Promise<string> => {
   const compressed = await imageCompression(file, COMPRESSION_OPTIONS);
-  const id = `img_${crypto.randomUUID()}`;
+  const id = `img_${safeRandomUUID()}`;
   const fileName = `${IMAGE_DIR}/${id}.jpg`;
 
   const base64 = await new Promise<string>((resolve, reject) => {

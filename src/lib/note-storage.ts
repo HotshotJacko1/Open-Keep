@@ -15,6 +15,9 @@ import {
   canDecryptCloudMasterKeyWeb
 } from "./web-crypto";
 import { normalizeCloudMasterKeyPayload } from "./cloud-master-key";
+import { BODY_MAX, LIST_ITEM_MAX, LIST_ITEMS_MAX, TITLE_MAX } from './note-limits';
+import { CHECKBOX_REGEX } from '../utils/markdown';
+import { normalizeNoteColor } from './note-colors';
 
 export interface NoteStoragePlugin {
   loadNotes(): Promise<{ notes: any[] }>;
@@ -144,6 +147,9 @@ const parseNote = (n: any): Note => {
     createdAt: Number(n.createdAt) || Date.now(),
     updatedAt: Number(n.updatedAt) || Date.now(),
     images: Array.isArray(n.images) ? n.images : [],
+    // normalizeNoteColor drops unrecognised ids so a retired swatch or a
+    // corrupt row falls back to the default instead of an untinted-but-set note.
+    color: normalizeNoteColor(typeof n.color === 'string' ? n.color : undefined),
     reminder: n.reminder ? Number(n.reminder) : undefined,
     recurrence: n.recurrence ?? undefined,
   };
@@ -159,24 +165,125 @@ export const loadNotes = async (): Promise<Note[]> => {
   return notes.map(parseNote);
 };
 
-export const saveNote = async (note: Note): Promise<void> => {
+function truncateHTML(html: string, maxTextLength: number): { trimmedHtml: string, wasTrimmed: boolean } {
+  if (html.length <= maxTextLength) {
+    return { trimmedHtml: html, wasTrimmed: false };
+  }
+
+  if (typeof DOMParser === 'undefined') {
+    // No DOM to parse with (should not happen in a WebView or browser). There is
+    // no safe way to cut HTML without one, so leave the note untouched rather
+    // than risk corrupting it -- the editor already caps input at this size.
+    return { trimmedHtml: html, wasTrimmed: false };
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  let currentLength = 0;
+  let wasTrimmed = false;
+
+  function traverseAndTruncate(node: Node) {
+    if (wasTrimmed) {
+      node.parentNode?.removeChild(node);
+      return;
+    }
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent || '';
+      if (currentLength + text.length > maxTextLength) {
+        const allowed = maxTextLength - currentLength;
+        node.textContent = text.substring(0, allowed);
+        currentLength += allowed;
+        wasTrimmed = true;
+      } else {
+        currentLength += text.length;
+      }
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const children = Array.from(node.childNodes);
+      for (const child of children) {
+        traverseAndTruncate(child);
+      }
+    }
+  }
+
+  Array.from(doc.body.childNodes).forEach(traverseAndTruncate);
+  
+  return { 
+    trimmedHtml: doc.body.innerHTML, 
+    wasTrimmed 
+  };
+}
+
+export const saveNote = async (note: Note, options?: { skipLimits?: boolean }): Promise<boolean> => {
+  let wasTrimmed = false;
+  let finalNote = note;
+
+  if (!options?.skipLimits) {
+    let newTitle = note.title;
+    if (newTitle && newTitle.length > TITLE_MAX) {
+      newTitle = newTitle.substring(0, TITLE_MAX);
+      wasTrimmed = true;
+    }
+
+    let newContent = note.content || "";
+    if (finalNote.type === 'list') {
+      const lines = finalNote.content.split('\n');
+      const trimmedLines = [];
+      for (const line of lines) {
+        if (trimmedLines.length >= LIST_ITEMS_MAX) {
+          wasTrimmed = true;
+          break;
+        }
+        const match = line.match(CHECKBOX_REGEX);
+        if (match) {
+          const prefix = match[1] + '- [' + match[2] + '] ';
+          let text = match[3];
+          if (text.length > LIST_ITEM_MAX) {
+            text = text.substring(0, LIST_ITEM_MAX);
+            wasTrimmed = true;
+          }
+          trimmedLines.push(prefix + text);
+        } else {
+          if (line.length > LIST_ITEM_MAX) {
+             trimmedLines.push(line.substring(0, LIST_ITEM_MAX));
+             wasTrimmed = true;
+          } else {
+             trimmedLines.push(line);
+          }
+        }
+      }
+      newContent = trimmedLines.join('\n');
+    } else {
+      const { trimmedHtml, wasTrimmed: trimmed } = truncateHTML(newContent, BODY_MAX);
+      if (trimmed) {
+        newContent = trimmedHtml;
+        wasTrimmed = true;
+      }
+    }
+
+    if (wasTrimmed) {
+      finalNote = { ...note, title: newTitle, content: newContent };
+    }
+  }
+
   if (!isNative) {
     const all = webLoadNotes();
-    const idx = all.findIndex((n: any) => n.id === note.id);
+    const idx = all.findIndex((n: any) => n.id === finalNote.id);
     if (idx > -1) {
-      all[idx] = note;
+      all[idx] = finalNote;
     } else {
-      all.push(note);
+      all.push(finalNote);
     }
     webSaveAllNotes(all);
-    return;
+    return wasTrimmed;
   }
   // Let native errors propagate to caller for proper error handling.
   const noteToSave = {
-    ...note,
-    type: 'text' // Implicitly set type for compatibility
+    ...finalNote,
+    type: finalNote.type || 'text' // Implicitly set type for compatibility
   };
   await NoteStorage.saveNote({ note: noteToSave });
+  return wasTrimmed;
 };
 
 export const deleteNote = async (id: string): Promise<void> => {

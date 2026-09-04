@@ -1,5 +1,6 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import React, { useState, useEffect } from "react";
+import { getLockRemainingMs, recordFailedAttempt, clearFailedAttempts, formatLockRemaining } from "@/lib/pin-attempts";
 import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 import {
     Dialog,
@@ -97,10 +98,22 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
 
     const handleChangePin = async () => {
         const storedPasscode = localStorage.getItem("app-lock-passcode");
-        if (currentPin !== storedPasscode) {
-            showError("Current PIN is incorrect");
+        const lockRemaining = getLockRemainingMs();
+        if (lockRemaining > 0) {
+            showError(`Too many attempts. Try again in ${formatLockRemaining(lockRemaining)}.`);
             return;
         }
+
+        if (currentPin !== storedPasscode) {
+            const state = recordFailedAttempt();
+            showError(
+                state.locked
+                    ? `Too many attempts. Try again in ${formatLockRemaining(state.remainingMs)}.`
+                    : "Current PIN is incorrect"
+            );
+            return;
+        }
+        clearFailedAttempts();
         if (newPin.length < 4 || newPin.length > 6) {
             showError("New PIN must be 4-6 digits long");
             return;

@@ -68,7 +68,8 @@ class NoteDatabase {
             syncState TEXT,
             images TEXT DEFAULT '[]',
             reminder INTEGER,
-            recurrence TEXT
+            recurrence TEXT,
+            color TEXT
         );
         """
         if sqlite3_exec(connection, createTableSql, nil, nil, nil) != SQLITE_OK {
@@ -79,6 +80,8 @@ class NoteDatabase {
         try ensureColumnExists(columnName: "images", columnType: "TEXT DEFAULT '[]'")
         try ensureColumnExists(columnName: "reminder", columnType: "INTEGER")
         try ensureColumnExists(columnName: "recurrence", columnType: "TEXT")
+        // Nullable: existing rows read back as NULL -> default colour.
+        try ensureColumnExists(columnName: "color", columnType: "TEXT")
         
         print("NoteDatabase: Successfully initialized")
     }
@@ -144,7 +147,7 @@ class NoteDatabase {
     func getAllNotes() throws -> [[String: Any]] {
         guard let db = self.db else { throw NSError(domain: "NoteDatabase", code: 1, userInfo: [NSLocalizedDescriptionKey: "Database not initialized"]) }
         
-        let query = "SELECT id, title, content, type, createdAt, updatedAt, isPinned, isArchived, deleted, tags, syncState, images, reminder, recurrence FROM notes ORDER BY updatedAt DESC;"
+        let query = "SELECT id, title, content, type, createdAt, updatedAt, isPinned, isArchived, deleted, tags, syncState, images, reminder, recurrence, color FROM notes ORDER BY updatedAt DESC;"
         var stmt: OpaquePointer?
         
         if sqlite3_prepare_v2(db, query, -1, &stmt, nil) != SQLITE_OK {
@@ -195,6 +198,13 @@ class NoteDatabase {
                 }
             }
             
+            if sqlite3_column_type(stmt, 14) != SQLITE_NULL {
+                let colorValue = getString(stmt: stmt!, index: 14)
+                if !colorValue.isEmpty {
+                    dict["color"] = colorValue
+                }
+            }
+            
             if deletedBool {
                 dict["deletedAt"] = dict["updatedAt"]
             }
@@ -218,8 +228,8 @@ class NoteDatabase {
         guard let db = self.db else { throw NSError(domain: "NoteDatabase", code: 1, userInfo: [NSLocalizedDescriptionKey: "Database not initialized"]) }
         
         let query = """
-        INSERT OR REPLACE INTO notes (id, title, content, type, createdAt, updatedAt, isPinned, isArchived, deleted, tags, syncState, images, reminder, recurrence)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        INSERT OR REPLACE INTO notes (id, title, content, type, createdAt, updatedAt, isPinned, isArchived, deleted, tags, syncState, images, reminder, recurrence, color)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """
         
         var stmt: OpaquePointer?
@@ -273,6 +283,11 @@ class NoteDatabase {
         
         bindString(stmt!, index: 14, value: recurrenceStr)
         
+        // bindString already maps nil -> NULL; an empty string would otherwise
+        // persist as an unrecognised colour id.
+        let noteColor = (dict["color"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        bindString(stmt!, index: 15, value: noteColor)
+        
         if sqlite3_step(stmt) != SQLITE_DONE {
             sqlite3_finalize(stmt)
             throw NSError(domain: "NoteDatabase", code: 6, userInfo: [NSLocalizedDescriptionKey: "Failed to execute insert"])
@@ -306,8 +321,8 @@ class NoteDatabase {
         sqlite3_exec(db, "BEGIN TRANSACTION;", nil, nil, nil)
         
         let query = """
-        INSERT OR IGNORE INTO notes (id, title, content, type, createdAt, updatedAt, isPinned, isArchived, deleted, tags, syncState, images, reminder, recurrence)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        INSERT OR IGNORE INTO notes (id, title, content, type, createdAt, updatedAt, isPinned, isArchived, deleted, tags, syncState, images, reminder, recurrence, color)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """
         
         var stmt: OpaquePointer?
@@ -358,6 +373,9 @@ class NoteDatabase {
             }
             
             bindString(stmt!, index: 14, value: recurrenceStr)
+            
+            let noteColor = (dict["color"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            bindString(stmt!, index: 15, value: noteColor)
             
             if sqlite3_step(stmt) != SQLITE_DONE {
                 // Ignore single insert error, continue bulk insert

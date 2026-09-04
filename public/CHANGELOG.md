@@ -6,184 +6,206 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 - F-Droid release.
-- Coloured notes.
 - E2EE.
+
+## [4.5.0] - 2026-09-08
+
+### Added
+- **Note colours.** A palette button in the editor offers eleven colours that tint the note in your list and while open. Colour syncs across devices and survives export/re-import.
+- **Note size limits.** Titles up to 1,000 characters, text notes up to 20,000 characters, lists up to 1,000 items of 2,000 characters each. You're stopped at the limit — nothing is lost silently.
+- Exported notes now include labels, pinned/archived state, and original dates. Re-importing restores all of it.
+
+### Fixed
+- **Notes could not be created on some older devices.** Note and image IDs are now generated using an API that older system WebViews support.
+- **Importing .md files now works.** Choosing Markdown files had failed with "No supported import format detected" since 4.3.0.
+- Imported notes keep their line breaks instead of paragraphs running together into one block.
+- A stray .json file alongside .md files in a folder or zip no longer causes every .md file to be skipped.
 
 ## [4.4.1] - 2026-08-30
 
 ### Changed
-- Signing in to Google Drive on the web version now lasts, matching the mobile apps. Previously the web version asked you to sign in again roughly every hour.
+- Google Drive sign-in on the web now lasts, matching the mobile apps.
 
 ### Fixed
-- Resetting a forgotten PIN now also clears your separate App Lock PIN. Previously, turning Launch Lock back on afterwards could silently reuse the old, "forgotten" PIN instead of asking you to set a new one.
-- The "Reset & Delete All" warning now correctly says your notes are deleted from this device and supported cloud providers, rather than implying every connected cloud account is cleared.
-- Text notes and list notes now use the same body text size. Text notes were previously shown a size smaller than list items on phones.
+- Resetting a forgotten PIN now also clears the App Lock PIN, so it can't silently reuse the old one.
+- The "Reset & Delete All" warning now correctly describes which data and providers are affected.
+- Text notes and list notes now use the same body text size on phones.
 - Note text no longer grows larger than the note title on wide screens.
 
 ## [4.4.0] - 2026-08-21
 
 ### Added
-- Links in notes are now clickable, in both note titles and note bodies, including inside list items.
+- Links in note titles and bodies are now clickable, including inside list items.
 
 ### Changed
-- Signing in to Google Drive now lasts. The app keeps you signed in instead of asking you to sign in again roughly every hour.
-- The app starts noticeably faster when Google Drive sync is switched on. Folder and file locations are remembered between launches, and several unnecessary checks before your notes load have been removed.
-- If the app can't open your notes, it now says so with an on-screen message and pauses cloud sync, rather than showing an empty list. The message warns you not to use "Reset app" while it's showing, since your notes are still on the device.
+- Google Drive sign-in now lasts; the app no longer asks you to sign in again roughly every hour.
+- The app starts noticeably faster with Google Drive sync on; folder locations are remembered between launches.
+- If the app can't open your notes, it shows an on-screen message and pauses cloud sync instead of an empty list.
 
 ### Fixed
-- **Notes disappearing.** Adding or refreshing a home screen widget could close the app's notes database while the app was still running. After that, edits reported as saved were never written, and the app could show no notes at all. Widgets no longer interfere with the app's own access to your notes.
-- **Cloud sync no longer deletes notes it can't read.** Previously, if the app failed to read your notes for any reason, sync treated that as "this device has no notes" and could clear the device to match the cloud, or overwrite the cloud with nothing. Failures now stop the sync and tell you.
-- "Merge Both Together (Keep All Notes)" no longer deletes your notes if the merge fails partway through.
-- "Keep Local (Overwrites Cloud)" now refuses to run when there are no notes on this device, so it can't wipe your cloud copy.
-- A temporary network or Google Drive error is no longer mistaken for "there is nothing in the cloud", which previously could create a second, near-empty notes file in Drive and leave the original orphaned.
+- **Notes disappearing.** Refreshing a home screen widget could close the notes database mid-session, silently dropping saves. Fixed.
+- **Cloud sync no longer deletes notes it can't read.** A read failure now stops the sync instead of treating it as "no notes".
+- "Merge Both Together" no longer deletes notes if the merge fails partway through.
+- "Keep Local (Overwrites Cloud)" refuses to run when there are no local notes, preventing accidental cloud wipe.
+- A temporary network error is no longer mistaken for an empty cloud, preventing orphaned duplicate files in Drive.
 - Note images no longer disappear a few seconds after being added.
-- Moving to a new device no longer restores a partial copy of the notes database that the app can't open.
-- A one-off failure of the device's secure keystore no longer permanently destroys your encryption keys. The app now reports the error instead of clearing them.
-- Google Drive sync could fail outright with a connection error on Android. Fixed.
-- The note editor's title field is no longer over-tall, and title text is readable in light mode on the web version.
+- Moving to a new device no longer restores a partial database the app can't open.
+- A one-off keystore failure no longer permanently destroys encryption keys; the app reports the error instead.
+- Google Drive sync connection errors on Android are fixed.
+- The note editor title field is no longer over-tall; title text is readable in light mode on web.
 
 ## [4.3.0] - 2026-08-14
 
 ### Added
-- Sidebar width is now remembered between sessions instead of resetting each time you open the app.
+- Sidebar width is now remembered between sessions.
 
 ### Changed
-- Encryption is now optional. This ensures that users who do not require encryption can enjoy a simpler and faster cloud sync experience. It also makes the onboarding flow smoother for new users.
+- Encryption is now optional, enabling a simpler and faster cloud sync experience.
 - Feedback pop-up now asks for reviews and plays confetti.
-- Toast notifications now follow the app's own theme setting rather than your device theme.
+- Toast notifications follow the app's own theme setting rather than the device theme.
 - Google Keep and Markdown importing rebuilt around a shared import manager.
-- Reminders: "Later today" is now only offered when it is genuinely still today and still in the future.
+- "Later today" reminders are only offered when that time is still in the future.
 
 ### Fixed
 - OneDrive stability improvements.
 - Various bug fixes/improvements.
-- OneDrive could overwrite your cloud notes with local-only data if a download failed. Failed downloads now stop the sync instead of continuing with an empty note list.
-- Repeating reminders no longer stop firing after a missed occurrence — they now roll forward to the next one.
-- Long-pressing a note that disappeared mid-press no longer leaves the press active.
-- Restoring images from a cloud sync now validates image names before writing them.
+- OneDrive no longer overwrites cloud notes with an empty list if a download fails.
+- Repeating reminders now roll forward to the next occurrence instead of stopping after a missed one.
+- Long-pressing a note that disappears mid-press no longer leaves the press active.
+- Cloud sync image restore now validates image names before writing.
 - Note content is no longer written to the debug console.
-- Sidebar and dialog fixes: toggle buttons in Settings now show the correct selected state.
+- Settings toggle buttons now show the correct selected state.
 
 ## [4.2.0] - 2026-07-03
+
 ### Added
 - Widgets
-  - "New note" widget on mobile. Quickly create text and list notes.
-  - "Single note" widget on mobile. Pin a specific note or list to your homescreen.
-  - "Note collection" widget on mobile. View a set of notes or all notes.
+  - "New note" widget: quickly create text and list notes from the home screen.
+  - "Single note" widget: pin a specific note or list to your home screen.
+  - "Note collection" widget: view a set of notes or all notes on your home screen.
 
 ### Changed
-- Disabled early access dialog from appearing on first launch. This is because the app is more stable now, and it will further streamline onboarding.
+- Early access dialog no longer appears on first launch.
 
 ## [4.1.1] - 2026-06-26
+
 ### Added
-- Highlighting a note allows users to see file info/metadata.
+- Long-pressing a note shows its file info and metadata.
 
 ### Changed
-- Menu items in top bar are easier to see, and some are now hidden behind a hamburger dropdown.
-- App only asks for notification permissions when user sets a reminder. This makes for a smoother onboarding flow on first launch.
+- Top bar menu items are easier to see; less-used actions are behind a dropdown.
+- Notification permission is now requested only when the user sets a reminder.
 
 ### Fixed
-- Deleting a parent list item now also deletes the child list items.
+- Deleting a parent list item now also deletes its child items.
 - Improved cloud sync.
-- Fixed issue where setting up cloud sync with existing notes would ask for the cloud PIN, even if the local PIN is the same. Now, it will use the local PIN if they're the same and not ask for it again.
-- Fixed swipe to sync not working.
-- Fixed issue with notes being deleted, then quickly reappearing due to in-progress cloud syncs.
-- Improved scrolling of long notes.
+- Setting up cloud sync no longer re-asks for the PIN if it matches the local one.
+- Swipe-to-sync is fixed.
+- Notes deleted then quickly re-fetched from an in-progress sync no longer reappear.
+- Scrolling of long notes improved.
 
 ## [4.1.0] - 2026-06-11
+
 ### Added
-- Button in top bar to sort notes either by Recent or Alphabetically.
-- Button in top bar to toggle displaying notes in a grid or as a card list.
+- Sort button in the top bar to sort notes by Recent or Alphabetically.
+- Layout button in the top bar to switch between grid and card list view.
 
 ## [4.0.0] - 2026-06-09
+
 ### Added
 - Apple App Store release.
 
 ### Fixed
-- Fixed favicon (tab icon) on web version.
-- Auto-sync notifications now silent.
-- Fixed Google Drive sync on web version.
-- Notes now show tiering on the homescreen.
-- Notes on homescreen now show ticked/checked items at the bottom.
+- Fixed favicon on the web version.
+- Auto-sync notifications are now silent.
+- Fixed Google Drive sync on the web version.
+- Notes now show tiering on the home screen.
+- Ticked items are now shown at the bottom of notes on the home screen.
 
 ## [3.0.0] - 2026-06-05
+
 ### Added
-- PC version released. You can now access Open Keep on a web browser at [app.openkeep.net](https://app.openkeep.net).
+- Web version released at [app.openkeep.net](https://app.openkeep.net).
 
 ### Changed
-- Improved automatic cloud syncing. Notes now sync to the cloud when the app launches, when the app is resumed from background, and 30 seconds after last edit.
-- Changed pin colour to gold to more clearly show when a note is pinned. Pin remains visible when a note is pinned.
-- On large screens, the number of columns is responsive, so, for example, the web version will show more than 2 columns on PCs.
+- Notes sync on launch, on resume from background, and 30 seconds after the last edit.
+- Pin colour changed to gold; pin stays visible when a note is pinned.
+- Column count on large screens is now responsive.
 
 ## [2.1.1] - 2026-05-29
+
 ### Added
-- Added missing icons to buttons in settings.
+- Missing icons added to Settings buttons.
 
 ### Fixed
-- Fixed welcome screen visibility when using large font size.
+- Welcome screen now visible when using a large font size.
 - Fixed Google Drive sync.
 - Fixed link text colour in dark mode.
-- Fixed long words/URLs not wrapping to the next line on note cards and causing overflow issues.
+- Long words and URLs now wrap correctly on note cards.
 
 ## [2.1.0] - 2026-05-21
+
 ### Added
-- Made the app open source AGPLv3.
-- Prepped for release onto F-Droid.
-- Added feedback component which will appear occasionally to ask for feedback.
-- Added Supabase as anonymous auth to count how many users are using the app and determine when to ask for feedback. No personal data is collected.
+- App is now open source under AGPLv3.
+- Prepared for F-Droid release.
+- Feedback component added; appears occasionally to ask for feedback.
+- Anonymous Supabase auth added to count active users and time feedback prompts. No personal data collected.
 
 ### Fixed
-- Fixed issue with empty note lists changing to text lists.
-- Fixed issue with closing the label dialog when a note is open.
+- Empty note lists no longer change to text lists.
+- Label dialog now closes correctly when a note is open.
 
 ## [2.0.2] - 2026-05-18
+
 ### Fixed
-- In lists, parent items can no longer be indented.
-- Fixed an issue with Google Drive sync setup.
+- Parent list items can no longer be indented.
+- Fixed a Google Drive sync setup issue.
 
 ## [2.0.1] - 2026-05-09
 
 ### Changed
-- Passcode dialog now opens on-screen keyboard automatically.
+- Passcode dialog now opens the on-screen keyboard automatically.
 
 ### Fixed
-- Fixed biometric not working when passcode is disabled. Enabling biometrics now also enables passcode as a backup.
-- Fixed swipe down from the top to cloud sync not updating the last synced time in cloud sync dialog.
+- Biometrics now work when passcode is disabled; enabling biometrics also enables passcode as a backup.
+- Swipe-down-to-sync now updates the last synced time in the cloud sync dialog.
 
 ## [2.0.0] - 2026-05-08
 
 ### Added
-- Reminders. Users can now set reminders for their notes. There is also an option to set recurring reminders - e.g. daily, weekly, monthly, yearly.
+- Reminders, including recurring options (daily, weekly, monthly, yearly).
 - List item indenting.
 - Reddit link.
 
 ### Changed
-- Checked/ticked list items will now be expanded by default, so that they are visible until collapsed.
+- Checked list items are now expanded by default.
 
 ### Fixed
-- Open & close animations on changelog dialog.
-- App version not updating in settings.
+- Open and close animations on the changelog dialog.
+- App version now updates correctly in Settings.
 
 ## [1.0.2] - 2026-05-05
 
 ### Added
-- Checked/ticked items in list notes are now collapsible.
+- Checked items in list notes are now collapsible.
 
 ### Changed
-- Checked/ticked list items will now be grouped together at the bottom of the checklist, below the "List item" input field.
-- Pressing backspace on an empty list item will now delete it and move focus to the previous list item.
-- When closing a list note, if the last item is empty/blank, it will be deleted.
+- Checked items are grouped at the bottom of the list, below the input field.
+- Backspace on an empty list item deletes it and moves focus to the previous item.
+- The last empty item is removed when a list note is closed.
 
 ## [1.0.1] - 2026-05-01
+
 ### Added
-- Welcome dialog on first launch to welcome feedback and notify that the app is still in early access.
+- Welcome dialog on first launch explaining early access.
 
 ### Changed
-- Stopped Google Keep migration dialog from appearing on first launch.
+- Google Keep migration dialog no longer appears on first launch.
 
 ### Fixed
-- Empty list notes won't be saved any more.
+- Empty list notes are no longer saved.
 
 ## [1.0.0] - 2026-04-29
+
 ### Added
 - Initial release of Open Keep on Google Play Store.

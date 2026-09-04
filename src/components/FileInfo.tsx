@@ -7,7 +7,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { Info, Calendar, Clock, Tag, Type, Image, Hash, Fingerprint } from "lucide-react";
+import { Info, Calendar, Clock, Tag, Type, Image, Hash, Fingerprint, Palette } from "lucide-react";
+import { getNoteColor, isNoteTinted } from "@/lib/note-colors";
 
 interface FileInfoProps {
     isOpen: boolean;
@@ -60,6 +61,9 @@ const FileInfo: React.FC<FileInfoProps> = ({ isOpen, onClose, note }) => {
     const noteType = note.type === "list" ? "Checklist" : "Text";
     const imageCount = note.images?.length ?? 0;
     const tagList = note.tags.length > 0 ? note.tags.join(", ") : "None";
+    // getNoteColor falls back to the default swatch, so an id retired in a
+    // later release reads as "Default" rather than showing a raw string.
+    const colorLabel = isNoteTinted(note.color) ? getNoteColor(note.color).label : "Default";
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -91,6 +95,11 @@ const FileInfo: React.FC<FileInfoProps> = ({ isOpen, onClose, note }) => {
                         icon={<Tag className="h-4 w-4" />}
                         label="Labels"
                         value={tagList}
+                    />
+                    <InfoRow
+                        icon={<Palette className="h-4 w-4" />}
+                        label="Colour"
+                        value={colorLabel}
                     />
                     <InfoRow
                         icon={<Hash className="h-4 w-4" />}

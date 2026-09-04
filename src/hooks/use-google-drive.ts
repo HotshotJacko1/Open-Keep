@@ -519,7 +519,7 @@ export const useGoogleDrive = () => {
                     skippedCount++;
                     return;
                 }
-                await saveNote(note);
+                await saveNote(note, { skipLimits: true });
                 savedCount++;
             }));
             console.log(`[Google Drive Sync] Write-back complete: ${savedCount} saved, ${skippedCount} skipped (local was newer)`);

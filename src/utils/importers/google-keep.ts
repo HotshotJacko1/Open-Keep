@@ -1,5 +1,7 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import { Importer, ImportInput, ImportNote } from "../../types/import";
+import { isChecklist } from "../markdown";
+import { looksLikeHtml, plainTextToHtml } from "../note-markdown-format";
 
 interface KeepNoteLabel {
   name: string;
@@ -22,22 +24,28 @@ interface KeepNote {
   userEditedTimestampUsec?: number;
 }
 
+/** Keys that only appear in a Google Keep Takeout note export. */
+const KEEP_SHAPED_JSON = /"(textContent|listContent|isTrashed|userEditedTimestampUsec|createdTimestampUsec)"\s*:/;
+
 export class GoogleKeepImporter implements Importer {
   name = "Google Keep";
 
   detect(input: ImportInput): boolean {
-    // Detect if we have any .json file that looks like a Keep note
-    // Usually Google Keep exports have 'Takeout/Keep/' paths, but we simplify to just looking for JSON
-    // with properties we expect in Keep, or just any .json file for this specific importer since
-    // it's our primary one. We'll check if the file name ends with .json.
-    return input.files.some(f => f.name.endsWith(".json") && (f.name.includes("Takeout") || f.name.includes("Keep") || true)); // Relaxed detection
+    // Must actually look like Keep. This used to end in '|| true', which made
+    // it match ANY .json file -- and because this importer is tried first, a
+    // single stray .json would win and silently skip every .md in the batch.
+    return input.files.some(f => {
+      if (!f.name.toLowerCase().endsWith(".json")) return false;
+      if (f.name.includes("Takeout") || f.name.includes("Keep")) return true;
+      return KEEP_SHAPED_JSON.test(f.content);
+    });
   }
 
   async parse(input: ImportInput): Promise<ImportNote[]> {
     const notes: ImportNote[] = [];
 
     for (const file of input.files) {
-      if (!file.name.endsWith(".json")) continue;
+      if (!file.name.toLowerCase().endsWith(".json")) continue;
 
       try {
         const keepData = JSON.parse(file.content) as KeepNote;
@@ -66,9 +74,17 @@ export class GoogleKeepImporter implements Importer {
           ? Math.floor(keepData.userEditedTimestampUsec / 1000) 
           : createdAt;
 
+        // Keep gives us plain text. Text notes are rendered as HTML, so
+        // without this every newline collapses into one run-on paragraph.
+        const type = isChecklist(body) ? 'list' : 'text';
+        const content = type === 'text' && body.trim().length > 0 && !looksLikeHtml(body)
+          ? plainTextToHtml(body)
+          : body;
+
         notes.push({
           title: keepData.title || "Untitled",
-          content: body,
+          content,
+          type,
           tags: tags,
           isPinned: !!keepData.isPinned,
           isArchived: !!keepData.isArchived,

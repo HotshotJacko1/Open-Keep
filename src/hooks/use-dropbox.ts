@@ -184,7 +184,7 @@ export const useDropbox = () => {
                     skippedCount++;
                     return;
                 }
-                await saveNote(note);
+                await saveNote(note, { skipLimits: true });
                 savedCount++;
             }));
             console.log(`[Dropbox Sync] Write-back complete: ${savedCount} saved, ${skippedCount} skipped`);

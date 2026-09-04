@@ -1,6 +1,7 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { cn, safeRandomUUID } from "@/lib/utils";
 import { Note } from "@/types/note";
 import { toast } from "sonner";
 import {
@@ -19,10 +20,17 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Plus, X, GripVertical, ArrowLeft, Pin, Archive, Type, Tag, Trash2, FileDown, ListChecks, Bold, Italic, Underline, Upload, ChevronDown, ChevronRight, Bell, Info } from "lucide-react";
+import { Plus, X, GripVertical, ArrowLeft, Pin, Archive, Type, Tag, Trash2, FileDown, ListChecks, Bold, Italic, Underline, Upload, ChevronDown, ChevronRight, Bell, Info, Palette } from "lucide-react";
 import NoteLabels from "@/components/NoteLabels";
 import ReminderSheet from "@/components/ReminderSheet";
 import FileInfo from "@/components/FileInfo";
+import NoteColorPicker from "@/components/NoteColorPicker";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import { DEFAULT_NOTE_COLOR, getNoteTintVars, isNoteTinted, normalizeNoteColor } from "@/lib/note-colors";
 import { scheduleReminderNotification, cancelReminderNotification, formatReminderLabel } from "@/utils/reminder";
 import {
     DndContext,
@@ -60,7 +68,10 @@ import { useEditor, EditorContent, Extension } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
+import CharacterCount from '@tiptap/extension-character-count'
 import { LinkHighlightedTextarea } from "@/components/LinkHighlightedTextarea"
+import { TITLE_MAX, BODY_MAX, LIST_ITEM_MAX, LIST_ITEMS_MAX } from "../lib/note-limits"
+import { serializeNoteToMarkdown } from "@/utils/note-markdown-format";
 
 // Make Enter insert a line break (<br>) instead of a new paragraph
 const HardBreakOnEnter = Extension.create({
@@ -217,6 +228,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
                     ref={textareaRef}
                     value={item.content}
                     readOnly={disabled}
+                    maxLength={LIST_ITEM_MAX}
                     onChange={(e) => {
                         onUpdateItem(item.id, e.target.value);
                         adjustHeight();
@@ -348,6 +360,7 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
                     ref={textareaRef}
                     value={item.content}
                     readOnly={disabled}
+                    maxLength={LIST_ITEM_MAX}
                     onChange={(e) => {
                         onUpdateItem(item.id, e.target.value);
                         adjustHeight();
@@ -425,8 +438,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const [recurrence, setRecurrence] = useState<Note['recurrence'] | undefined>(undefined);
     const [isReminderSheetOpen, setIsReminderSheetOpen] = useState(false);
     const [isFileInfoOpen, setIsFileInfoOpen] = useState(false);
+    const [color, setColor] = useState<string>(DEFAULT_NOTE_COLOR);
+    const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
 
-    const noteIdRef = useRef<string>(initialNote?.id || crypto.randomUUID());
+    const noteIdRef = useRef<string>(initialNote?.id || safeRandomUUID());
     const titleTextareaRef = useRef<HTMLTextAreaElement>(null);
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const prevIsOpen = useRef(isOpen);
@@ -434,6 +449,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     // Locked to true between handleCloseEditor() and the dialog finishing its close animation.
     // Prevents any effect from resetting isChecklistMode while the dialog is still visible.
     const isClosingRef = useRef(false);
+    // Snapshot of the note state at the time it was opened. Used to determine whether the note
+    // has actually been edited, so opening and closing a note without modifications does not
+    // bump its updatedAt timestamp.
+    const baselineNoteSnapshotRef = useRef<string | null>(null);
 
     const adjustTitleHeight = () => {
         const textarea = titleTextareaRef.current;
@@ -525,7 +544,13 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
     const editor = useEditor({
         extensions: [
-            StarterKit.configure({}),
+            // link: false — StarterKit bundles @tiptap/extension-link, and
+            // registering our own configured Link below made it a duplicate.
+            // That produced "[tiptap warn]: Duplicate extension names found:
+            // ['link']" everywhere, and threw RangeError (autolink plugin key
+            // collision) under StrictMode's double-render in dev. See Sentry
+            // OPENKEEP-H.
+            StarterKit.configure({ link: false }),
             Placeholder.configure({
                 placeholder: 'Take a note...',
             }),
@@ -537,6 +562,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     class: 'underline text-inherit hover:text-blue-500 cursor-pointer',
                 }
             }),
+            CharacterCount.configure({ limit: BODY_MAX }),
             HardBreakOnEnter,
         ],
         content: content,
@@ -584,15 +610,31 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
                 // Detect mode: prefer explicit 'type' field so empty-body list notes
                 // are not misclassified as text notes on reopen.
+                setColor(initialNote.color || DEFAULT_NOTE_COLOR);
+
                 const isList = initialNote.type === 'list' || isChecklist(initialNote.content);
                 setIsChecklistMode(isList);
                 if (isList) {
                     const { items } = parseChecklist(initialNote.content);
-                    setChecklistItems(items.map(i => ({ ...i, id: crypto.randomUUID() })));
+                    setChecklistItems(items.map(i => ({ ...i, id: safeRandomUUID() })));
                 }
+
+                baselineNoteSnapshotRef.current = JSON.stringify({
+                    title: initialNote.title,
+                    content: initialNote.content,
+                    type: isList ? 'list' : 'text',
+                    tags: initialNote.tags || [],
+                    isPinned: !!initialNote.isPinned,
+                    isArchived: !!initialNote.isArchived,
+                    images: initialImages,
+                    color: normalizeNoteColor(initialNote.color || DEFAULT_NOTE_COLOR),
+                    reminder: initialNote.reminder,
+                    recurrence: initialNote.recurrence,
+                });
             } else {
                 // Fresh note
-                noteIdRef.current = crypto.randomUUID();
+                noteIdRef.current = safeRandomUUID();
+                baselineNoteSnapshotRef.current = null;
                 setTitle("");
                 setContent("");
                 setTags("");
@@ -605,6 +647,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 setImageSrcs([]);
                 setReminder(undefined);
                 setRecurrence(undefined);
+                setColor(DEFAULT_NOTE_COLOR);
 
                 if (editor) {
                     editor.commands.setContent('');
@@ -699,6 +742,71 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         return plainText === "";
     };
 
+    /**
+     * Checks whether the current editor state has actually diverged from the snapshot
+     * taken when the note was opened. If false, no user edit has occurred.
+     */
+    const isNoteDirty = (contentOverride?: string): boolean => {
+        if (!initialNote || baselineNoteSnapshotRef.current === null) {
+            // New note has no baseline
+            return true;
+        }
+
+        const currentSnapshot = JSON.stringify({
+            title,
+            content: contentOverride !== undefined ? contentOverride : content,
+            type: isChecklistMode ? 'list' : 'text',
+            tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+            isPinned: !!isPinned,
+            isArchived: !!isArchived,
+            images,
+            color: normalizeNoteColor(color),
+            reminder,
+            recurrence,
+        });
+
+        return currentSnapshot !== baselineNoteSnapshotRef.current;
+    };
+
+    /**
+     * Single source of truth for turning editor state into a Note.
+     *
+     * This was previously four hand-written object literals, which is how
+     * `type` came to be dropped on the archive path -- invisible in the UI
+     * because NoteCard sniffs the content for checkboxes, but real for a list
+     * note whose items have all been emptied, where `type` is the only thing
+     * carrying its list-ness. Every save path goes through here now, so a new
+     * Note field cannot be half-added.
+     *
+     * Colour is deliberately NOT part of isNoteEmpty(): a note that has only a
+     * colour set and no title or body is still discarded on close.
+     */
+    const buildNoteFromState = (overrides?: Partial<Note>): Note => {
+        const dirty = overrides?.content !== undefined
+            ? isNoteDirty(overrides.content)
+            : isNoteDirty();
+        const effectiveUpdatedAt = dirty
+            ? Date.now()
+            : (initialNote?.updatedAt || Date.now());
+
+        return {
+            id: noteIdRef.current,
+            title,
+            content,
+            type: isChecklistMode ? 'list' : 'text',
+            tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+            isPinned,
+            isArchived,
+            createdAt: initialNote?.createdAt || Date.now(),
+            updatedAt: effectiveUpdatedAt,
+            images,
+            color: normalizeNoteColor(color),
+            reminder,
+            recurrence,
+            ...overrides,
+        };
+    };
+
     // Auto-save logic
     useEffect(() => {
         if (!isOpen) {
@@ -717,29 +825,20 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             return;
         }
 
+        // Don't auto-save if an existing note hasn't actually been modified
+        if (!isNoteDirty()) {
+            return;
+        }
+
         saveTimeoutRef.current = setTimeout(() => {
-            const newNote: Note = {
-                id: noteIdRef.current,
-                title,
-                content, // Saves HTML now
-                type: isChecklistMode ? 'list' : 'text',
-                tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
-                isPinned,
-                isArchived,
-                createdAt: initialNote?.createdAt || Date.now(),
-                updatedAt: Date.now(),
-                images,
-                reminder,
-                recurrence,
-            };
-            onSave(newNote);
+            onSave(buildNoteFromState());
         }, 500);
 
         return () => {
             if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [title, content, tags, isPinned, isArchived, images, reminder, recurrence]);
+    }, [title, content, tags, isPinned, isArchived, images, color, reminder, recurrence]);
 
     // Toggle Mode Logic
     const handleToggleMode = () => {
@@ -782,7 +881,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
             // Hydrate checklist items for UI
             const { items } = parseChecklist(newContent);
-            setChecklistItems(items.map(i => ({ ...i, id: crypto.randomUUID() })));
+            setChecklistItems(items.map(i => ({ ...i, id: safeRandomUUID() })));
         }
     };
 
@@ -878,11 +977,15 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     };
 
     const handleInsertItemAfter = (currentId: string) => {
+        if (checklistItems.length >= LIST_ITEMS_MAX) {
+            toast.error(`Maximum ${LIST_ITEMS_MAX} items per checklist`);
+            return;
+        }
         const index = checklistItems.findIndex(i => i.id === currentId);
         if (index === -1) return;
 
         const newItem: ChecklistItem = {
-            id: crypto.randomUUID(),
+            id: safeRandomUUID(),
             content: "",
             checked: false,
             indentation: checklistItems[index].indentation
@@ -911,9 +1014,13 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     };
 
     const handleAddItem = () => {
+        if (checklistItems.length >= LIST_ITEMS_MAX) {
+            toast.error(`Maximum ${LIST_ITEMS_MAX} items per checklist`);
+            return;
+        }
         if (newItemContent.trim()) {
             const newItem = {
-                id: crypto.randomUUID(),
+                id: safeRandomUUID(),
                 content: newItemContent.trim(),
                 checked: false,
                 indentation: ""
@@ -1018,23 +1125,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         // Cleanup empty note if needed (but save if it has images)
         if (title.trim() === "" && images.length === 0 && (plainText === "" || checklistIsEmpty)) {
             onDelete(noteIdRef.current);
-        } else {
-            // Force immediate save on close
-            const finalNote: Note = {
-                id: noteIdRef.current,
-                title,
-                content: currentContent,
-                type: isChecklistMode ? 'list' : 'text',
-                tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
-                isPinned,
-                isArchived,
-                createdAt: initialNote?.createdAt || Date.now(),
-                updatedAt: Date.now(),
-                images,
-                reminder,
-                recurrence,
-            };
-            onSave(finalNote);
+        } else if (!initialNote || isNoteDirty(currentContent)) {
+            // Save if it's a new note or if actual changes were made
+            onSave(buildNoteFromState({ content: currentContent }));
         }
         onClose();
     };
@@ -1073,11 +1166,15 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const handleExport = async () => {
         const filename = (title.trim() || "Untitled").replace(/[<>:"/\\|?*]/g, '_') + ".md";
 
+        // Export the same self-describing format the bulk exports use, so a
+        // re-import restores tags, pin/archive state and timestamps.
+        const exportData = serializeNoteToMarkdown(buildNoteFromState());
+
         if (Capacitor.isNativePlatform()) {
             try {
                 const result = await Filesystem.writeFile({
                     path: filename,
-                    data: content,
+                    data: exportData,
                     directory: Directory.Cache,
                     encoding: Encoding.UTF8,
                 });
@@ -1097,7 +1194,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             }
         } else {
             // Web fallback
-            const blob = new Blob([content], { type: "text/markdown" });
+            const blob = new Blob([exportData], { type: "text/markdown" });
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = url;
@@ -1122,20 +1219,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         if (title.trim() === "" && plainText === "") {
             onDelete(noteIdRef.current);
         } else {
-            const finalNote: Note = {
-                id: noteIdRef.current,
-                title,
-                content,
-                tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
-                isPinned,
-                isArchived: newState,
-                createdAt: initialNote?.createdAt || Date.now(),
-                updatedAt: Date.now(),
-                images,
-                reminder,
-                recurrence,
-            };
-            onSave(finalNote);
+            onSave(buildNoteFromState({ isArchived: newState }));
         }
         toast.success(newState ? "Note archived" : "Note unarchived");
         onClose();
@@ -1173,13 +1257,16 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
             <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseEditor()}>
                 <DialogContent
-                    className="fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-[80vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-lg flex flex-col p-0 gap-0 bg-note-editor-background dark:bg-note-editor-background text-black dark:text-white pt-[env(safe-area-inset-top)] outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 origin-center data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-300 data-[state=open]:ease-md3-decelerate data-[state=closed]:ease-md3-accelerate"
-                    style={isMobile ? {
-                        '--tw-enter-translate-x': '0',
-                        '--tw-enter-translate-y': '0',
-                        '--tw-exit-translate-x': '0',
-                        '--tw-exit-translate-y': '0'
-                    } as React.CSSProperties : undefined}
+                    className={cn("note-editor-dialog", isNoteTinted(color) && "note-tinted", "fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-[80vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-lg flex flex-col p-0 gap-0 bg-note-editor-background dark:bg-note-editor-background text-black dark:text-white pt-[env(safe-area-inset-top)] outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 origin-center data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-300 data-[state=open]:ease-md3-decelerate data-[state=closed]:ease-md3-accelerate")}
+                    style={{
+                        ...(isMobile ? {
+                            '--tw-enter-translate-x': '0',
+                            '--tw-enter-translate-y': '0',
+                            '--tw-exit-translate-x': '0',
+                            '--tw-exit-translate-y': '0'
+                        } : {}),
+                        ...getNoteTintVars(color),
+                    } as React.CSSProperties}
                     onOpenAutoFocus={(e) => e.preventDefault()}
                 >
                     <DialogTitle className="sr-only">Edit Note</DialogTitle>
@@ -1325,6 +1412,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                             id="title"
                             ref={titleTextareaRef}
                             value={title}
+                            maxLength={TITLE_MAX}
                             onChange={(e) => {
                                 setTitle(e.target.value);
                                 adjustTitleHeight();
@@ -1396,10 +1484,11 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                     <Plus className="h-4 w-4 text-gray-400 mt-1.5" />
                                     <LinkHighlightedTextarea
                                         value={newItemContent}
+                                        maxLength={LIST_ITEM_MAX}
                                         onChange={(e) => {
                                             const val = e.target.value;
                                             if (val) {
-                                                const newItemId = crypto.randomUUID();
+                                                const newItemId = safeRandomUUID();
                                                 const newItem = {
                                                     id: newItemId,
                                                     content: val,
@@ -1495,6 +1584,30 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                 </TooltipTrigger>
                                 <TooltipContent><p>Add Photo</p></TooltipContent>
                             </Tooltip>
+
+                            <Popover open={isColorPickerOpen} onOpenChange={setIsColorPickerOpen}>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="ghost" size="icon" disabled={isDeleted} className="text-secondary">
+                                                <Palette className="h-5 w-5" />
+                                                <span className="sr-only">Colour</span>
+                                            </Button>
+                                        </PopoverTrigger>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p>Colour</p></TooltipContent>
+                                </Tooltip>
+                                <PopoverContent side="top" align="start" className="w-auto max-w-[min(20rem,calc(100vw-2rem))] p-2">
+                                    <NoteColorPicker
+                                        value={color}
+                                        disabled={isDeleted}
+                                        onChange={(next) => {
+                                            setColor(next);
+                                            setIsColorPickerOpen(false);
+                                        }}
+                                    />
+                                </PopoverContent>
+                            </Popover>
 
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1641,19 +1754,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         currentRecurrence={recurrence}
                         onSetReminder={async (ts, rec) => {
                             // Schedule notification first â€” if permission is denied, don't save the reminder
-                            const noteForNotif: import("@/types/note").Note = {
-                                id: noteIdRef.current,
-                                title,
-                                content,
-                                tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
-                                isPinned,
-                                isArchived,
-                                createdAt: initialNote?.createdAt || Date.now(),
-                                updatedAt: Date.now(),
-                                images,
-                                reminder: ts,
-                                recurrence: rec,
-                            };
+                            const noteForNotif = buildNoteFromState({ reminder: ts, recurrence: rec });
                             const result = await scheduleReminderNotification(noteForNotif);
                             if (result === true) {
                                 setReminder(ts);

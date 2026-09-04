@@ -1,10 +1,12 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import { Importer, ImportInput, ImportNote, ImportReport } from "../types/import";
 import { GoogleKeepImporter } from "./importers/google-keep";
+import { MarkdownImporter } from "./importers/markdown";
 
 export class ImportManager {
   private importers: Importer[] = [
     new GoogleKeepImporter(),
+    new MarkdownImporter(),
   ];
 
   async run(input: ImportInput): Promise<{
@@ -22,8 +24,6 @@ export class ImportManager {
     }
 
     if (!selectedImporter) {
-      // Fallback: If it's pure markdown, we'll just handle it directly or fail.
-      // Since markdown importer is omitted, let's just throw if no match.
       throw new Error("No supported import format detected in the provided files.");
     }
 

@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { safeRandomUUID } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/theme-provider";
@@ -27,9 +28,12 @@ import {
   Hash,
   CloudSync,
   Laptop,
-  Type
+  Type,
+  Bot
 } from "lucide-react";
 import SyncDialog from "./SyncDialog";
+import AiAssistantDialog from "./AiAssistantDialog";
+import { McpBridgeState } from "@/hooks/use-mcp-bridge";
 import ChangePinDialog from "./ChangePinDialog";
 import AppLockDialog from "./AppLockDialog";
 import GoogleKeepMigrationGuide from "./GoogleKeepMigrationGuide";
@@ -45,6 +49,7 @@ import { Capacitor } from "@capacitor/core";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { ImportManager } from "@/utils/import-manager";
+import { serializeNoteToMarkdown } from "@/utils/note-markdown-format";
 import { ImportInput, ImportInputFile } from "@/types/import";
 import { App } from "@capacitor/app";
 import { Device } from "@capacitor/device";
@@ -55,11 +60,13 @@ interface SettingsDialogProps {
   onClose: () => void;
   notes: Note[];
   onImportNotes: (notes: Note[]) => void;
+  aiBridge: McpBridgeState;
 }
 
-const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes, onImportNotes }) => {
+const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes, onImportNotes, aiBridge }) => {
   const { theme, setTheme } = useTheme();
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
+  const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
   const [defaultTypingArea, setDefaultTypingArea] = useState<"title" | "body">(
     () => (localStorage.getItem("default-typing-area") as "title" | "body") || "body"
   );
@@ -195,7 +202,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
         // We ensure a valid ID for notes just in case
         const mappedNotes: Note[] = result.notes.map(n => ({
           ...n,
-          id: n.id || crypto.randomUUID(),
+          id: n.id || safeRandomUUID(),
           title: n.title || "Untitled",
           content: n.content || "",
           tags: n.tags || [],
@@ -234,12 +241,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
       const zip = new JSZip();
 
       notes.forEach((note) => {
-        // Content is always markdown now
-        const content = note.content;
 
         // Sanitize title for filename
         const filename = `${note.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'untitled'}_${note.id.substring(0, 4)}.md`;
-        zip.file(filename, `# ${note.title}\n\n${content}`);
+        zip.file(filename, serializeNoteToMarkdown(note));
       });
 
       const filename = `open-keep-export-${new Date().toISOString().split('T')[0]}.zip`;
@@ -349,11 +354,11 @@ PIN code: ${pinCode || 'Not set'}`;
             <div className="flex flex-col gap-2 mt-4">
               <Label>Security</Label>
               <div className="flex flex-col gap-2">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => {
                     setIsAppLockDialogOpen(true);
-                  }} 
+                  }}
                   className="w-full justify-start"
                 >
                   <Fingerprint className="h-4 w-4 mr-2" />
@@ -449,6 +454,14 @@ PIN code: ${pinCode || 'Not set'}`;
               <Button variant="outline" onClick={() => setIsSyncDialogOpen(true)} className="w-full justify-start text-left">
                 <CloudSync className="h-4 w-4 mr-2" />
                 Open Sync Options
+              </Button>
+            </div>
+
+            <div className="flex flex-col gap-2 mt-4">
+              <Label>AI</Label>
+              <Button variant="outline" onClick={() => setIsAiAssistantOpen(true)} className="w-full justify-start text-left">
+                <Bot className="h-4 w-4 mr-2" />
+                AI Agent Access (Coming Soon)
               </Button>
             </div>
 
@@ -550,6 +563,12 @@ PIN code: ${pinCode || 'Not set'}`;
       <SyncDialog
         isOpen={isSyncDialogOpen}
         onClose={() => setIsSyncDialogOpen(false)}
+      />
+
+      <AiAssistantDialog
+        isOpen={isAiAssistantOpen}
+        onClose={() => setIsAiAssistantOpen(false)}
+        aiBridge={aiBridge}
       />
 
       <GoogleKeepMigrationGuide

@@ -12,6 +12,9 @@ import * as SentryReact from "@sentry/react";
 Sentry.init(
   {
     dsn: import.meta.env.VITE_SENTRY_DSN,
+    // Label dev/Dyad sessions so they can be filtered out of prod alerts.
+    // Vite MODE is "development" for vite dev, "production" for vite build.
+    environment: import.meta.env.MODE,
     integrations: [
       // Use Sentry.browserTracingIntegration from @sentry/capacitor (not @sentry/react)
       Sentry.browserTracingIntegration(),

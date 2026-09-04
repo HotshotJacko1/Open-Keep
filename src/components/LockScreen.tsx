@@ -7,6 +7,12 @@ import { Fingerprint, Lock, AlertTriangle } from "lucide-react";
 import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 import { Keyboard } from "@capacitor/keyboard";
 import { showSuccess, showError } from "@/utils/toast";
+import {
+    getLockRemainingMs,
+    recordFailedAttempt,
+    clearFailedAttempts,
+    formatLockRemaining,
+} from "@/lib/pin-attempts";
 import { clearAllData } from "@/lib/note-storage";
 import { deleteRemoteData } from "@/lib/google-drive";
 import ResetDialog from "./ResetDialog";
@@ -28,6 +34,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
     const [isLoading, setIsLoading] = useState(false);
     const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
     const [isResetting, setIsResetting] = useState(false);
+    const [lockRemainingMs, setLockRemainingMs] = useState(() => getLockRemainingMs());
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -62,6 +69,13 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
         }
     }, [isNativeEncryption]);
 
+    // Tick the lockout countdown so the UI re-enables itself without a reload.
+    useEffect(() => {
+        if (lockRemainingMs <= 0) return;
+        const id = setInterval(() => setLockRemainingMs(getLockRemainingMs()), 1000);
+        return () => clearInterval(id);
+    }, [lockRemainingMs]);
+
     const handleBiometricUnlock = async () => {
         try {
             await NativeBiometric.verifyIdentity({
@@ -76,6 +90,8 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
                     const success = await onUnlock();
                     if (success === false) {
                         showError("Biometric unlock failed to initialize database.");
+                    } else {
+                        clearFailedAttempts();
                     }
                 } catch (e) {
                     console.error("Unlock failed", e);
@@ -89,7 +105,9 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
                     });
                     if (credentials && credentials.password) {
                         const success = await onUnlock(credentials.password);
-                        if (!success) {
+                        if (success) {
+                            clearFailedAttempts();
+                        } else {
                             showError("Biometric unlock failed: PIN mismatch. Please enter manually.");
                         }
                     } else {
@@ -108,6 +126,15 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
     const handleSubmit = async (e?: React.FormEvent) => {
         e?.preventDefault();
 
+        const remaining = getLockRemainingMs();
+        if (remaining > 0) {
+            setLockRemainingMs(remaining);
+            setErrorPing(true);
+            setTimeout(() => setErrorPing(false), 500);
+            showError(`Too many attempts. Try again in ${formatLockRemaining(remaining)}.`);
+            return;
+        }
+
         if (passcode.length < 4) {
             setErrorPing(true);
             setTimeout(() => setErrorPing(false), 500);
@@ -116,24 +143,36 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
 
         setIsLoading(true);
 
+        const onWrongPin = (message: string) => {
+            setPasscode("");
+            setErrorPing(true);
+            setTimeout(() => setErrorPing(false), 500);
+            const state = recordFailedAttempt();
+            if (state.locked) {
+                setLockRemainingMs(state.remainingMs);
+                showError(`Too many attempts. Try again in ${formatLockRemaining(state.remainingMs)}.`);
+            } else if (state.attemptsRemaining <= 2) {
+                showError(`${message} — ${state.attemptsRemaining} attempt${state.attemptsRemaining === 1 ? "" : "s"} left.`);
+            } else {
+                showError(message);
+            }
+        };
+
         try {
             if (isNativeEncryption) {
                 const success = await onUnlock(passcode);
-                if (!success) {
-                    setPasscode("");
-                    setErrorPing(true);
-                    setTimeout(() => setErrorPing(false), 500);
-                    showError("Incorrect PIN");
+                if (success) {
+                    clearFailedAttempts();
+                } else {
+                    onWrongPin("Incorrect PIN");
                 }
             } else {
                 // Web flow or unencrypted flow check
                 if (passcode === savedPasscode) {
+                    clearFailedAttempts();
                     await onUnlock(passcode);
                 } else {
-                    setPasscode("");
-                    setErrorPing(true);
-                    setTimeout(() => setErrorPing(false), 500);
-                    showError("Incorrect passcode");
+                    onWrongPin("Incorrect passcode");
                 }
             }
         } finally {
@@ -198,7 +237,11 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
 
                 <div className="text-center space-y-2">
                     <h1 className="text-2xl font-bold tracking-tight text-black dark:text-white">App Locked</h1>
-                    <p className="text-muted-foreground">Enter your 4-6 digit PIN to unlock</p>
+                    <p className="text-muted-foreground">
+                        {lockRemainingMs > 0
+                            ? `Too many attempts. Try again in ${formatLockRemaining(lockRemainingMs)}.`
+                            : "Enter your 4-6 digit PIN to unlock"}
+                    </p>
                 </div>
 
                 <form onSubmit={handleSubmit} className={`w-full max-w-[240px] space-y-4 ${errorPing ? "animate-shake" : ""}`}>
@@ -213,10 +256,19 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
                             onChange={(e) => setPasscode(e.target.value)}
                             placeholder="PIN"
                             maxLength={6}
+                            disabled={lockRemainingMs > 0}
                         />
                     </div>
-                    <Button type="submit" className="w-full" disabled={isLoading || passcode.length < 4}>
-                        {isLoading ? "Unlocking..." : "Unlock"}
+                    <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={isLoading || passcode.length < 4 || lockRemainingMs > 0}
+                    >
+                        {isLoading
+                            ? "Unlocking..."
+                            : lockRemainingMs > 0
+                                ? `Locked — ${formatLockRemaining(lockRemainingMs)}`
+                                : "Unlock"}
                     </Button>
                 </form>
 

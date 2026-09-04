@@ -19,5 +19,6 @@ data class NoteEntity(
     val syncState: String, // SYNCED, PENDING, FAILED
     val images: String = "[]", // Serialized JSON array
     val reminder: Long? = null,
-    val recurrence: String? = null // Serialized JSON object
+    val recurrence: String? = null, // Serialized JSON object
+    val color: String? = null // Palette id from src/lib/note-colors.ts; null = default
 )

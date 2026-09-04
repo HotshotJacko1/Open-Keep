@@ -19,7 +19,7 @@ import InitialAskToMigrate from "@/components/InitialAskToMigrate";
 import WelcomeMessage from "@/components/WelcomeMessage";
 import GoogleKeepMigrationGuide from "@/components/GoogleKeepMigrationGuide";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, safeRandomUUID } from "@/lib/utils";
 import { Menu, Lightbulb, Settings } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -35,9 +35,11 @@ import FileInfo from "@/components/FileInfo";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { toggleCheckboxInContent } from "@/utils/markdown";
+import { serializeNoteToMarkdown } from "@/utils/note-markdown-format";
 import { rescheduleAllReminders } from "@/utils/reminder";
 import { App as CapacitorApp } from "@capacitor/app";
 import { useWidgetDeepLink } from "@/hooks/use-widget-deep-link";
+import { useMcpBridge } from "@/hooks/use-mcp-bridge";
 
 const Index = () => {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -206,11 +208,10 @@ const Index = () => {
     const zip = new JSZip();
 
     await Promise.all(notes.map(async (note) => {
-      const content = note.content;
       const safeTitle = note.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'untitled';
       const filename = `${safeTitle}_${note.id.substring(0, 4)}.md`;
 
-      zip.file(filename, `# ${note.title}\n\n${content}`);
+      zip.file(filename, serializeNoteToMarkdown(note));
 
       if (note.images && note.images.length > 0) {
         const imgFolder = zip.folder(`${safeTitle}_images`);
@@ -234,8 +235,9 @@ const Index = () => {
 
   const saveNote = async (note: Note) => {
     try {
-      await localSaveNote(note);
+      const wasTrimmed = await localSaveNote(note);
       triggerEditAutoSync();
+      return wasTrimmed;
     } catch (error) {
       console.error("Failed to save note:", error);
       if (error instanceof Error && error.message.includes("Browser storage is full")) {
@@ -466,7 +468,7 @@ const Index = () => {
     };
   }, [isEditLabelsOpen, isSheetOpen, selectedNoteIds]);
 
-  const handleSaveNote = async (noteToSave: Note) => {
+  const handleSaveNote = async (noteToSave: Note): Promise<boolean> => {
     if (notes.length === 0 && !localStorage.getItem('has_seen_early_access_dialog_v1')) {
       if (!Capacitor.isNativePlatform()) {
         setShowEarlyAccessDialog(true);
@@ -490,8 +492,10 @@ const Index = () => {
       }
     });
 
-    // Write to DB
-    await saveNote(noteToSave);
+    // Write to DB. Returns whether note-limits.ts trimmed the content, so
+    // callers (e.g. the MCP bridge) can report that back instead of it
+    // being silently invisible outside the Settings-import toast path.
+    return await saveNote(noteToSave);
   };
 
   const handleEditNote = (note: Note) => {
@@ -648,7 +652,7 @@ const Index = () => {
 
   const handleNewTextNote = () => {
     const newNoteSkeleton: Note = {
-      id: crypto.randomUUID(),
+      id: safeRandomUUID(),
       title: "",
       content: "",
       type: "text",
@@ -675,7 +679,7 @@ const Index = () => {
     // User expects "New List Note" to open in List Mode.
     // Let's seed it.
     const newNoteSkeleton: Note = {
-      id: crypto.randomUUID(),
+      id: safeRandomUUID(),
       title: "",
       content: "- [ ] ", // Seed with one empty item triggers list mode in Editor
       type: "list",
@@ -857,14 +861,12 @@ const Index = () => {
 
     // Support exporting images async
     await Promise.all(selectedNotes.map(async (note) => {
-      // Content is already markdown
-      const content = note.content;
 
       // Sanitize title for filename
       const safeTitle = note.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'untitled';
       const filename = `${safeTitle}_${note.id.substring(0, 4)}.md`;
 
-      zip.file(filename, `# ${note.title}\n\n${content}`);
+      zip.file(filename, serializeNoteToMarkdown(note));
 
       if (note.images && note.images.length > 0) {
         const imgFolder = zip.folder(`${safeTitle}_images`);
@@ -1025,6 +1027,13 @@ const Index = () => {
     showSuccess(`Label "${tag}" created`);
   };
 
+  // Open Keep MCP Bridge -- lets a paired AI tool read/search/create/edit
+  // notes while this tab is open. Off by default; see the "Open Keep MCP
+  // Bridge" PRD for the full design. Deliberately reuses handleSaveNote,
+  // handleRenameTag and handleDeleteTag rather than talking to note storage
+  // directly, so it can never do anything the app's own UI couldn't.
+  const aiBridge = useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDeleteTag });
+
   const mainContent = (
     <div
       className="flex flex-col flex-1 h-full min-h-0"
@@ -1135,11 +1144,24 @@ const Index = () => {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         notes={notes}
+        aiBridge={aiBridge}
         onImportNotes={async (importedNotes) => {
+          let anyTrimmed = false;
           setNotes((prev) => [...importedNotes, ...prev]);
           // Save incrementally to prevent overwhelming the Capacitor SQLite plugin bridge
           for (const note of importedNotes) {
-            await saveNote(note);
+            const wasTrimmed = await saveNote(note);
+            if (wasTrimmed) anyTrimmed = true;
+          }
+          if (anyTrimmed) {
+            showSuccess("Imported notes were trimmed to fit length limits.");
+            // Reload notes to reflect trimmed state
+            try {
+              const truthNotes = await loadNotes();
+              setNotes(truthNotes);
+            } catch (error) {
+              console.error("Failed to reload notes after import:", error);
+            }
           }
         }}
       />

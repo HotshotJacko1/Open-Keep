@@ -261,7 +261,15 @@ export const encryptDataWeb = async (data: string): Promise<string> => {
 export const decryptDataWeb = async (encryptedBase64: string): Promise<string> => {
     if (!sessionMasterKey) throw new Error("No master key available");
 
-    const combined = new Uint8Array(decodeBase64(encryptedBase64));
+    // atob throws InvalidCharacterError (a DOMException) on a non-base64 payload,
+    // e.g. a legacy plaintext vault. Normalise it to the sentinel the caller in
+    // note-storage.ts already treats as "hand the payload back untouched".
+    let combined: Uint8Array;
+    try {
+        combined = new Uint8Array(decodeBase64(encryptedBase64));
+    } catch {
+        throw new Error("Invalid encrypted data");
+    }
     if (combined.length < 12) throw new Error("Invalid encrypted data");
 
     const iv = combined.slice(0, 12);

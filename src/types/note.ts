@@ -12,6 +12,7 @@ export interface Note {
   createdAt: number;
   updatedAt: number;
   images?: string[];
+  color?: string; // Palette id from lib/note-colors (e.g. "sage"); absent = default
   reminder?: number; // Unix timestamp (ms) when the reminder notification should fire
   recurrence?: {
     type: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';

@@ -7,6 +7,7 @@ import { Pin, Archive, Trash2, Square, Check, RotateCcw, Bell, ChevronDown, Chev
 import { formatReminderLabel } from "@/utils/reminder";
 import { cn } from "@/lib/utils";
 import { isChecklist, parseChecklist, ChecklistItem } from "@/utils/markdown";
+import { getNoteTintVars, isNoteTinted } from "@/lib/note-colors";
 
 import useLongPress from "@/hooks/use-long-press";
 import { useState, useEffect } from "react";
@@ -87,7 +88,9 @@ const NoteCard: React.FC<NoteCardProps> = ({
 
   return (
     <Card
+      style={getNoteTintVars(note.color) as React.CSSProperties | undefined}
       className={cn(
+        isNoteTinted(note.color) && "note-tinted",
         "note-card group block w-full max-w-full relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-card dark:bg-card text-secondary-foreground cursor-pointer border-2 border-input select-none",
         isSelected && "border-secondary-foreground shadow-lg bg-card",
         note.isDeleted && "opacity-75"

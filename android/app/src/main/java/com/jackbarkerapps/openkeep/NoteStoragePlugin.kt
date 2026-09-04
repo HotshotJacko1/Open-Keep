@@ -93,6 +93,10 @@ class NoteStoragePlugin : Plugin() {
                         jsNote.put("images", JSONArray())
                     }
 
+                    if (note.color != null) {
+                        jsNote.put("color", note.color)
+                    }
+
                     jsNote.put("reminder", note.reminder)
                     if (note.recurrence != null) {
                         try {
@@ -142,7 +146,8 @@ class NoteStoragePlugin : Plugin() {
                     syncState = "PENDING",
                     images = imagesString,
                     reminder = if (noteObj.has("reminder") && !noteObj.isNull("reminder")) noteObj.getLong("reminder") else null,
-                    recurrence = noteObj.optJSONObject("recurrence")?.toString()
+                    recurrence = noteObj.optJSONObject("recurrence")?.toString(),
+                    color = if (noteObj.has("color") && !noteObj.isNull("color")) noteObj.getString("color") else null
                 )
                 repository.saveNote(note)
                                 refreshWidgets()
@@ -481,7 +486,8 @@ class NoteStoragePlugin : Plugin() {
                         tags = tagsArray.toString(),
                         syncState = "SYNCED",
                         reminder = if (noteObj.has("reminder") && !noteObj.isNull("reminder")) noteObj.getLong("reminder") else null,
-                        recurrence = noteObj.optJSONObject("recurrence")?.toString()
+                        recurrence = noteObj.optJSONObject("recurrence")?.toString(),
+                        color = if (noteObj.has("color") && !noteObj.isNull("color")) noteObj.getString("color") else null
                     ))
                 }
                 repository.bulkInsert(notesList)

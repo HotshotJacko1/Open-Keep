@@ -1,8 +1,8 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import { toast } from "sonner";
 
-export const showSuccess = (message: string) => {
-  toast.success(message);
+export const showSuccess = (message: string, options?: any) => {
+  toast.success(message, options);
 };
 
 export const showError = (message: string, options?: any) => {

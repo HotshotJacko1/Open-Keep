@@ -159,7 +159,7 @@ export const useOneDrive = () => {
                     skippedCount++;
                     return;
                 }
-                await saveNote(note);
+                await saveNote(note, { skipLimits: true });
                 savedCount++;
             }));
             console.log(`[OneDrive Sync] Write-back complete: ${savedCount} saved, ${skippedCount} skipped`);
