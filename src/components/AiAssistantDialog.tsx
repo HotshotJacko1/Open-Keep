@@ -4,7 +4,7 @@
 // switches, and the "AI Activity" log all live here; the actual bridge
 // logic is owned by useMcpBridge (src/hooks/use-mcp-bridge.ts), mounted
 // once in Index.tsx and passed down as the `aiBridge` prop.
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -46,6 +46,30 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
   const { connectionState, connectedCount, readEnabled, writeEnabled, setReadEnabled, setWriteEnabled, token, regenerateToken, activity, undoActivity, disconnectAccess } = aiBridge;
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Android's back gesture/button pops history rather than firing Escape, so
+  // push an entry while open and close on the pop -- same pattern as every
+  // other dialog in the app (see ChangelogDialog, EditLabels, etc.).
+  useEffect(() => {
+    if (!isOpen) return;
+
+    window.history.pushState({ dialog: "ai-assistant" }, "");
+
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state?.dialog === "ai-assistant") return;
+      onClose();
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      if (window.history.state?.dialog === "ai-assistant") {
+        window.history.back();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   const status = STATUS_COPY[connectionState];
   // Several AI tools can be paired at once, each running its own copy of the

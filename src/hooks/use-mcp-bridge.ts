@@ -19,6 +19,7 @@
 //  - checklist notes are read-only from the bridge in v1 -- their content
 //    is markdown-shaped list syntax, not HTML, and blindly editing it here
 //    would corrupt it the same way the app already guards against elsewhere
+import { Capacitor } from "@capacitor/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Note } from "@/types/note";
 import { looksLikeHtml, plainTextToHtml } from "@/utils/note-markdown-format";
@@ -407,7 +408,10 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
   }, [runOp]);
 
   useEffect(() => {
-    const shouldConnect = (readEnabled || writeEnabled) && token.length > 0;
+    // Native builds have no local MCP server to reach, so don't sit there
+    // retrying five ports forever if a stale flag is set.
+    const shouldConnect =
+      (readEnabled || writeEnabled) && token.length > 0 && !Capacitor.isNativePlatform();
     if (shouldConnect) {
       clientRef.current!.connect(token, BASE_PORT, handleRequest);
     } else {

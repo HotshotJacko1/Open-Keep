@@ -457,13 +457,17 @@ PIN code: ${pinCode || 'Not set'}`;
               </Button>
             </div>
 
-            <div className="flex flex-col gap-2 mt-4">
-              <Label>AI</Label>
-              <Button variant="outline" onClick={() => setIsAiAssistantOpen(true)} className="w-full justify-start text-left">
-                <Bot className="h-4 w-4 mr-2" />
-                AI Agent Access (Coming Soon)
-              </Button>
-            </div>
+            {/* Desktop browsers only: the bridge needs a local MCP server on
+                the same machine, which a phone can't provide. */}
+            {!Capacitor.isNativePlatform() && (
+              <div className="flex flex-col gap-2 mt-4">
+                <Label>AI</Label>
+                <Button variant="outline" onClick={() => setIsAiAssistantOpen(true)} className="w-full justify-start text-left">
+                  <Bot className="h-4 w-4 mr-2" />
+                  AI Assistant Access
+                </Button>
+              </div>
+            )}
 
             <div className="flex flex-col gap-2 mt-4">
               <Label>Options</Label>
