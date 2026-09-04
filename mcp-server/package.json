@@ -1,6 +1,6 @@
 {
   "name": "@openkeep/mcp-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server for Open Keep. Bridges an AI tool to your notes via an Open Keep tab running on the same machine.",
   "license": "AGPL-3.0",
   "type": "module",

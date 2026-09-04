@@ -166,8 +166,16 @@ public class NoteStoragePlugin: CAPPlugin, CAPBridgedPlugin {
             if let storedKey = keyManager.getMasterKey() {
                 do {
                     NoteDatabase.shared.reset()
+                    // initialize() already opens the file, applies the key and runs
+                    // "SELECT count(*) FROM sqlite_master" -- so it has ALREADY proven the key
+                    // by the time it returns. The getAllNotes() that used to follow was a pure
+                    // duplicate: it re-read every row for a verification that had already
+                    // happened. Removed.
+                    //
+                    // NOTE (unlike Android): the expensive open still sits on the critical path
+                    // here, because iOS opens eagerly inside initialize(). Deferring it needs
+                    // its own change -- see PRD-startup-deferred-unlock.md.
                     try NoteDatabase.shared.initialize(dbPath: dbPath, key: storedKey)
-                    _ = try NoteDatabase.shared.getAllNotes()
                     ret["isLocked"] = false
                     WidgetRefresher.refreshAllWidgets()
                 } catch {

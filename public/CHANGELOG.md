@@ -8,9 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - F-Droid release.
 - E2EE.
 
-## [4.5.0] - 2026-09-08
+## [5.0.0] - 2026-09-08
 
 ### Added
+- **AI assistant access (experimental).** Let AI tools like Claude Desktop or ChatGPT search, create and edit your notes via MCP. Off by default, desktop browsers only, every change undoable. See [MCP.md](https://github.com/HotshotJacko1/Open-Keep/blob/main/MCP.md).
 - **Note colours.** A palette button in the editor offers eleven colours that tint the note in your list and while open. Colour syncs across devices and survives export/re-import.
 - **Note size limits.** Titles up to 1,000 characters, text notes up to 20,000 characters, lists up to 1,000 items of 2,000 characters each. You're stopped at the limit — nothing is lost silently.
 - Exported notes now include labels, pinned/archived state, and original dates. Re-importing restores all of it.

@@ -62,8 +62,13 @@ class NoteStoragePlugin : Plugin() {
     fun loadNotes(call: PluginCall) {
         scope.launch {
             try {
-                // Collect first emission from Flow
+                // Collect first emission from Flow.
+                // On a cold start this is the call that actually opens the SQLCipher file,
+                // so this timing covers KDF + page-1 decrypt + Room identity check, not just
+                // the row scan. Expect a large number here and ~0ms on subsequent calls.
+                val queryStart = android.os.SystemClock.elapsedRealtime()
                 val notes = repository.getAllNotes().first()
+                android.util.Log.d("NoteStorage", "[Perf] loadNotes read: ${android.os.SystemClock.elapsedRealtime() - queryStart}ms")
                 val jsArray = JSONArray()
                 
                 notes.forEach { note ->
@@ -242,29 +247,21 @@ class NoteStoragePlugin : Plugin() {
                 val storedKey = keyManager.getMasterKey()
 
                 if (storedKey != null) {
-                    val initStart = android.os.SystemClock.elapsedRealtime()
+                    // Build the Room instance but deliberately do NOT query it here.
+                    //
+                    // Room.databaseBuilder().build() is lazy -- it does not touch the file.
+                    // The FIRST QUERY is what loads libsqlcipher, runs the KDF, decrypts page 1
+                    // and does Room's identity check (~600ms). loadNotes() is about to do
+                    // exactly that a few milliseconds from now, so verifying the key with a
+                    // query here made every cold start pay for the open twice: once behind a
+                    // blank "Loading..." screen, and again for the read the UI actually needs.
+                    //
+                    // The key is now proven by that first real read instead. If it fails,
+                    // Index.tsx dispatches "open-keep-db-unverified" and App.tsx returns to the
+                    // lock screen -- the same destination a failed verification used to reach.
                     NoteRepository.reinitialize(context, storedKey)
-                    val initMs = android.os.SystemClock.elapsedRealtime() - initStart
-
-                    // Verify
-                    scope.launch {
-                        try {
-                            repository = NoteRepository(context)
-                            val queryStart = android.os.SystemClock.elapsedRealtime()
-                            repository.getAllNotes().first()
-                            val queryMs = android.os.SystemClock.elapsedRealtime() - queryStart
-                            android.util.Log.d("NoteStorage", "[Perf] DB open: initialize=${initMs}ms, firstQuery=${queryMs}ms, total=${initMs + queryMs}ms")
-                            // Success!
-                            ret.put("isLocked", false)
-                            call.resolve(ret)
-                        } catch (e: Exception) {
-                            // Key might be wrong or DB corrupted?
-                            NoteRepository.reset()
-                            // call.resolve(ret) // ret already says locked=true
-                             call.resolve(ret)
-                        }
-                    }
-                    return // Async resolve in launch
+                    repository = NoteRepository(context)
+                    ret.put("isLocked", false)
                 }
             } catch (e: Exception) {
             }

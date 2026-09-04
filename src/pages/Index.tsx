@@ -19,6 +19,7 @@ import InitialAskToMigrate from "@/components/InitialAskToMigrate";
 import WelcomeMessage from "@/components/WelcomeMessage";
 import GoogleKeepMigrationGuide from "@/components/GoogleKeepMigrationGuide";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn, safeRandomUUID } from "@/lib/utils";
 import { Menu, Lightbulb, Settings } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
@@ -43,6 +44,10 @@ import { useMcpBridge } from "@/hooks/use-mcp-bridge";
 
 const Index = () => {
   const [notes, setNotes] = useState<Note[]>([]);
+  // Starts true: Index now mounts BEFORE the database has been opened, so an empty
+  // `notes` array means "not read yet", not "you have no notes". Rendering the real
+  // empty state during this window would look identical to data loss.
+  const [isLoading, setIsLoading] = useState(true);
   const [dbUnavailable, setDbUnavailable] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [shouldAutoFocus, setShouldAutoFocus] = useState(false);
@@ -407,9 +412,18 @@ const Index = () => {
         setDbUnavailable(false);
       } catch (error) {
         console.error("Failed to load notes:", error);
-        setDbUnavailable(true);
+        if (Capacitor.isNativePlatform()) {
+          // This read is now what proves the stored encryption key works -- checkStatus
+          // no longer opens the database. A failure here means a wrong key or an
+          // unreadable DB, so hand back to the lock screen: exactly where a failed
+          // checkStatus verification used to land the user. App.tsx listens for this.
+          window.dispatchEvent(new CustomEvent("open-keep-db-unverified"));
+        } else {
+          setDbUnavailable(true);
+        }
       } finally {
         notesLoadedRef.current = true;
+        setIsLoading(false);
       }
     };
 
@@ -469,7 +483,9 @@ const Index = () => {
   }, [isEditLabelsOpen, isSheetOpen, selectedNoteIds]);
 
   const handleSaveNote = async (noteToSave: Note): Promise<boolean> => {
-    if (notes.length === 0 && !localStorage.getItem('has_seen_early_access_dialog_v1')) {
+    // `!isLoading` matters: during the initial open `notes` is [] but unread, and a user
+    // fast enough to create a note in that window would otherwise trip the first-run branch.
+    if (!isLoading && notes.length === 0 && !localStorage.getItem('has_seen_early_access_dialog_v1')) {
       if (!Capacitor.isNativePlatform()) {
         setShowEarlyAccessDialog(true);
         if (navigator.storage && navigator.storage.persist) {
@@ -1100,6 +1116,32 @@ const Index = () => {
             Notes in the bin will be deleted after 30 days.
           </div>
         )}
+        {isLoading && (
+          <div
+            aria-hidden="true"
+            className={cn(
+              "pt-4 w-full",
+              viewMode === "grid"
+                ? "columns-2 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5"
+                : "flex flex-col space-y-4"
+            )}
+            style={viewMode === "grid" ? {
+              columnGap: isMobile ? "0.5rem" : "1rem",
+            } : undefined}
+          >
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="mb-2 sm:mb-4 break-inside-avoid rounded-lg border border-border bg-card p-4"
+              >
+                <Skeleton className="h-4 w-2/3 mb-3" />
+                <Skeleton className="h-3 w-full mb-2" />
+                <Skeleton className={cn("h-3 mb-2", i % 2 === 0 ? "w-5/6" : "w-3/5")} />
+                {i % 3 === 0 && <Skeleton className="h-3 w-4/5" />}
+              </div>
+            ))}
+          </div>
+        )}
         <div
           className={cn(
             "pt-4 w-full",
@@ -1111,7 +1153,7 @@ const Index = () => {
             columnGap: isMobile ? "0.5rem" : "1rem",
           } : undefined}
         >
-          {filteredNotes.map((note) => (
+          {!isLoading && filteredNotes.map((note) => (
             <NoteCard
               key={note.id}
               note={note}

@@ -51,10 +51,18 @@ extensions.
 The extension is currently unsigned, so Claude Desktop will warn that the
 publisher can't be verified. That's expected for now.
 
-### Other MCP clients (Claude Code, Cursor, anything else)
+### Other AI tools
 
-Extensions are a Claude Desktop feature; everything else needs the server
-configured by hand. You'll need [Node.js](https://nodejs.org) 18 or newer.
+Nothing here is Claude-specific — this is an ordinary MCP server, and any tool
+that can launch a *local* one can use it. That includes ChatGPT's desktop app,
+Gemini CLI, Claude Code, Cursor, Windsurf, Zed, Cline, VS Code's agent mode and
+others. Tools that only accept *remote* MCP servers over HTTP can't, because the
+server has to run on the same machine as your browser to reach `127.0.0.1` —
+ChatGPT on the web, for instance, won't work, though its desktop app will.
+
+One-click extensions are a Claude Desktop feature; everything else is configured
+by hand. Those tools also need [Node.js](https://nodejs.org) 18 or newer
+installed — Claude Desktop bundles its own runtime, nothing else does.
 
 ```bash
 git clone https://github.com/HotshotJacko1/Open-Keep.git
@@ -79,6 +87,20 @@ Access**:
 ```
 
 On Windows, escape the backslashes: `"C:\\Users\\you\\Open-Keep\\mcp-server\\dist\\index.js"`.
+
+ChatGPT's desktop app uses TOML rather than JSON, in `~/.codex/config.toml`
+(or Settings → MCP servers), with the same three keys:
+
+```toml
+[mcp_servers.open-keep]
+command = "node"
+args = ["/absolute/path/to/Open-Keep/mcp-server/dist/index.js"]
+env = { OPENKEEP_MCP_TOKEN = "paste-your-token-here" }
+```
+
+You can run several tools against Open Keep at the same time — each starts its
+own copy of the server and takes its own port, and they all talk to the same
+tab. Give them all the same token, from the same browser.
 
 ## Commands
 

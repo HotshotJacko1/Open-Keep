@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "open-keep",
   "display_name": "Open Keep",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Search, read, create, edit and delete your Open Keep notes.",
   "long_description": "Connects your AI tool to Open Keep. Notes never leave your machine: this extension talks to an Open Keep tab you have open, over a local connection on 127.0.0.1, and only while you have switched access on in Open Keep's settings. Reading and writing are separate switches, deletes go to the bin (recoverable for 30 days) rather than being permanent, and every change the AI makes gets a one-click Undo inside the app.",
   "author": {

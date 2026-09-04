@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Bot, Undo2, Circle, Copy, Check, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { Bot, Undo2, Circle, Copy, Check, Eye, EyeOff, RefreshCw, ArrowLeft, ExternalLink } from "lucide-react";
 import { McpBridgeState } from "@/hooks/use-mcp-bridge";
 
 interface AiAssistantDialogProps {
@@ -73,15 +73,21 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-text-primary dark:text-text-primary">
-            <Bot className="h-5 w-5" />
-            AI Assistant Access
-          </DialogTitle>
-          <DialogDescription>
-            Let a paired AI tool (via the Open Keep MCP server, running on this computer) search, read, and
-            manage your notes while this tab is open. Off by default.
-          </DialogDescription>
+        <DialogHeader className="flex flex-row items-start gap-2 space-y-0 text-left">
+          <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
+            <ArrowLeft className="h-5 w-5 text-secondary" />
+            <span className="sr-only">Back</span>
+          </Button>
+          <div className="flex flex-col gap-1">
+            <DialogTitle className="flex items-center gap-2 text-text-primary dark:text-text-primary">
+              <Bot className="h-5 w-5" />
+              AI Assistant Access
+            </DialogTitle>
+            <DialogDescription>
+              Let a paired AI tool (via the Open Keep MCP server, running on this computer) search, read, and
+              manage your notes while this tab is open. Off by default.
+            </DialogDescription>
+          </div>
         </DialogHeader>
 
         <div className="flex flex-col gap-5 overflow-y-auto pr-1">
@@ -131,6 +137,15 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
               <RefreshCw className="h-3 w-3" />
               Generate a new token
             </button>
+            <a
+              href="https://github.com/HotshotJacko1/Open-Keep/releases/latest"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="self-start inline-flex items-center gap-1 text-xs text-muted-foreground hover:underline"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Get the extension and setup guide
+            </a>
           </div>
 
           <div className="flex flex-col gap-4">
@@ -162,7 +177,7 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
                   {activity.map((entry) => (
                     <div key={entry.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
                       <div className="min-w-0">
-                        <p className="truncate">{entry.label}</p>
+                        <p className="truncate text-muted-foreground">{entry.label}</p>
                         <p className="text-xs text-muted-foreground">{timeAgo(entry.timestamp)}</p>
                       </div>
                       <Button variant="ghost" size="sm" className="shrink-0" onClick={() => undoActivity(entry.id)}>

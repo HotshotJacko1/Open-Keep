@@ -33,6 +33,16 @@ const App = () => {
     ensureWidgetDeepLinkCapture();
   }, []);
 
+  // Native key verification now happens on the first real read, not in checkStatus --
+  // checkStatus reports whether an auto-unlock key is PRESENT, not whether it has been
+  // proven. If that first read fails (wrong key, corrupt DB), Index.tsx fires this and
+  // we fall back to the lock screen, which is where a failed verification always led.
+  useEffect(() => {
+    const handleUnverified = () => setAppState('locked');
+    window.addEventListener("open-keep-db-unverified", handleUnverified);
+    return () => window.removeEventListener("open-keep-db-unverified", handleUnverified);
+  }, []);
+
   useEffect(() => {
     const checkEntitlements = async () => {
       if (!session?.user) return;
