@@ -27,7 +27,10 @@ import { safeRandomUUID } from "@/lib/utils";
 import { McpBridgeClient, ConnectionState } from "@/lib/mcp-bridge/bridge-client";
 import { BridgeOp, BridgeRequest, BridgeResponse, NoteFull, NoteSummary, TagInfo } from "@/lib/mcp-bridge/protocol";
 
-const DEFAULT_PORT = 8420;
+// Base of the port range. Each MCP client runs its own copy of the server
+// and takes the first free port from here, so the app connects across the
+// range rather than to one fixed port.
+const BASE_PORT = 8420;
 const MAX_ACTIVITY = 25;
 const AI_CREATED_TAG = "ai-created";
 const AI_EDITED_TAG = "ai-edited";
@@ -73,6 +76,8 @@ export interface McpBridgeHandlers {
 
 export interface McpBridgeState {
   connectionState: ConnectionState;
+  /** How many MCP server instances are currently paired. */
+  connectedCount: number;
   readEnabled: boolean;
   writeEnabled: boolean;
   setReadEnabled: (enabled: boolean) => void;
@@ -120,6 +125,7 @@ function isEditableByAgent(note: Note | undefined): note is Note {
 
 export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDeleteTag }: McpBridgeHandlers): McpBridgeState {
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
+  const [connectedCount, setConnectedCount] = useState(0);
   const [readEnabled, setReadEnabledState] = useState(() => localStorage.getItem(STORAGE_KEYS.readEnabled) === "true");
   const [writeEnabled, setWriteEnabledState] = useState(() => localStorage.getItem(STORAGE_KEYS.writeEnabled) === "true");
   const [token, setTokenState] = useState(() => localStorage.getItem(STORAGE_KEYS.token) || "");
@@ -361,7 +367,10 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
   // --- Wiring the client --------------------------------------------------
   const clientRef = useRef<McpBridgeClient | null>(null);
   if (!clientRef.current) {
-    clientRef.current = new McpBridgeClient(setConnectionState);
+    clientRef.current = new McpBridgeClient((state, count) => {
+      setConnectionState(state);
+      setConnectedCount(count);
+    });
   }
 
   const readEnabledRef = useRef(readEnabled);
@@ -400,7 +409,7 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
   useEffect(() => {
     const shouldConnect = (readEnabled || writeEnabled) && token.length > 0;
     if (shouldConnect) {
-      clientRef.current!.connect(token, DEFAULT_PORT, handleRequest);
+      clientRef.current!.connect(token, BASE_PORT, handleRequest);
     } else {
       clientRef.current!.disconnect();
     }
@@ -436,5 +445,5 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
     showSuccess("AI access disconnected");
   }, []);
 
-  return { connectionState, readEnabled, writeEnabled, setReadEnabled, setWriteEnabled, token, regenerateToken, activity, undoActivity, disconnectAccess };
+  return { connectionState, connectedCount, readEnabled, writeEnabled, setReadEnabled, setWriteEnabled, token, regenerateToken, activity, undoActivity, disconnectAccess };
 }

@@ -25,9 +25,11 @@ export interface Config {
  * (e.g. `npm start` while developing) still produces something usable.
  */
 export function loadConfig(): Config {
-  // An .mcpb user_config value that the user left blank substitutes as an
-  // empty string, and Number("") is 0 — which would silently bind a random
-  // port and break the bridge. Anything not a sane port falls back.
+  // This is the BASE of a small port range: the server takes the first free
+  // port from it, so several MCP clients can each run their own copy.
+  // An .mcpb user_config value the user left blank substitutes as an empty
+  // string, and Number("") is 0 — which would silently bind a random port
+  // and break the bridge. Anything not a sane port falls back.
   const rawPort = process.env.OPENKEEP_MCP_PORT;
   const parsedPort = rawPort ? Number(rawPort) : Number.NaN;
   const port =

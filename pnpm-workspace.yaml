@@ -373,6 +373,7 @@ allowBuilds:
   zlib-sync: true
   zopflipng-bin: true
   # dyad-default-allow-builds end
+  "@sentry/cli": true
 
 packages:
   - .

@@ -14,13 +14,19 @@
   "support": "https://github.com/HotshotJacko1/Open-Keep/issues",
   "icon": "icon.png",
   "license": "AGPL-3.0",
-  "keywords": ["notes", "open-keep", "productivity"],
+  "keywords": [
+    "notes",
+    "open-keep",
+    "productivity"
+  ],
   "server": {
     "type": "node",
     "entry_point": "dist/index.js",
     "mcp_config": {
       "command": "node",
-      "args": ["${__dirname}/dist/index.js"],
+      "args": [
+        "${__dirname}/dist/index.js"
+      ],
       "env": {
         "OPENKEEP_MCP_TOKEN": "${user_config.pairing_token}",
         "OPENKEEP_MCP_PORT": "${user_config.port}"
@@ -37,31 +43,82 @@
     },
     "port": {
       "type": "number",
-      "title": "Local port",
-      "description": "Only change this if something else on your machine already uses port 8420.",
+      "title": "Base port",
+      "description": "The server takes the first free port starting here, so several AI tools can each run their own copy. Only change it if something else on your machine already uses 8420-8424.",
       "default": 8420,
       "required": false
     }
   },
   "tools": [
-    { "name": "list_all_notes", "description": "List all of your notes as summaries (title, tags, pinned/archived, timestamps). Excludes notes in the bin." },
-    { "name": "search_notes", "description": "Search your notes by text, matched against title and content." },
-    { "name": "get_note", "description": "Retrieve the full content of one note by id." },
-    { "name": "create_note", "description": "Create a new note. Auto-tagged \"ai-created\"." },
-    { "name": "update_note", "description": "Replace the title and/or content of an existing note. The previous version is kept for one-click Undo." },
-    { "name": "append_to_note", "description": "Add text to the end of an existing note." },
-    { "name": "prepend_to_note", "description": "Add text to the beginning of an existing note." },
-    { "name": "delete_note", "description": "Move a note to the bin. Recoverable for 30 days, same as deleting by hand. Never deletes permanently." },
-    { "name": "list_tags", "description": "List every tag currently used across your notes." },
-    { "name": "add_tags_to_note", "description": "Add one or more tags to a note." },
-    { "name": "remove_tags_from_note", "description": "Remove one or more tags from a note." },
-    { "name": "rename_tag", "description": "Rename a tag everywhere it is used. Affects every note carrying it." },
-    { "name": "delete_tag", "description": "Remove a tag from every note that carries it. Does not delete any notes." },
-    { "name": "get_notes_by_tag", "description": "List all notes carrying a given tag." },
-    { "name": "get_tag_by_id", "description": "Look up a tag by name. Open Keep tags are plain strings, so the name is the id." }
+    {
+      "name": "list_all_notes",
+      "description": "List all of your notes as summaries (title, tags, pinned/archived, timestamps). Excludes notes in the bin."
+    },
+    {
+      "name": "search_notes",
+      "description": "Search your notes by text, matched against title and content."
+    },
+    {
+      "name": "get_note",
+      "description": "Retrieve the full content of one note by id."
+    },
+    {
+      "name": "create_note",
+      "description": "Create a new note. Auto-tagged \"ai-created\"."
+    },
+    {
+      "name": "update_note",
+      "description": "Replace the title and/or content of an existing note. The previous version is kept for one-click Undo."
+    },
+    {
+      "name": "append_to_note",
+      "description": "Add text to the end of an existing note."
+    },
+    {
+      "name": "prepend_to_note",
+      "description": "Add text to the beginning of an existing note."
+    },
+    {
+      "name": "delete_note",
+      "description": "Move a note to the bin. Recoverable for 30 days, same as deleting by hand. Never deletes permanently."
+    },
+    {
+      "name": "list_tags",
+      "description": "List every tag currently used across your notes."
+    },
+    {
+      "name": "add_tags_to_note",
+      "description": "Add one or more tags to a note."
+    },
+    {
+      "name": "remove_tags_from_note",
+      "description": "Remove one or more tags from a note."
+    },
+    {
+      "name": "rename_tag",
+      "description": "Rename a tag everywhere it is used. Affects every note carrying it."
+    },
+    {
+      "name": "delete_tag",
+      "description": "Remove a tag from every note that carries it. Does not delete any notes."
+    },
+    {
+      "name": "get_notes_by_tag",
+      "description": "List all notes carrying a given tag."
+    },
+    {
+      "name": "get_tag_by_id",
+      "description": "Look up a tag by name. Open Keep tags are plain strings, so the name is the id."
+    }
   ],
   "compatibility": {
-    "platforms": ["darwin", "win32", "linux"],
-    "runtimes": { "node": ">=18.0.0" }
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
   }
 }

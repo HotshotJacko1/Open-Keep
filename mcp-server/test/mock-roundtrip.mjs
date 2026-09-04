@@ -146,6 +146,68 @@ async function main() {
   await once(badWs, "close");
   assert(true, "server closes the socket after rejecting a bad token");
 
+  // --- 9. A second instance takes the next port and runs independently -
+  // Every MCP client spawns its own copy of the server. Before the port
+  // range, the second copy lost the race for the port and then reported
+  // "not connected" forever while the app sat there showing Connected.
+  console.log("\n9) a second server instance binds the next port and serves its own client");
+  const transport2 = new StdioClientTransport({
+    command: "node",
+    args: ["dist/index.js"],
+    env: { ...process.env, OPENKEEP_MCP_TOKEN: TOKEN, OPENKEEP_MCP_PORT: String(PORT) },
+    stderr: "pipe",
+  });
+  const client2 = new Client({ name: "test-client-2", version: "0.0.0" });
+  await client2.connect(transport2);
+
+  const ws2 = new WebSocket(`ws://127.0.0.1:${PORT + 1}`);
+  await once(ws2, "open");
+  assert(true, `second instance is listening on ${PORT + 1}, not fighting over ${PORT}`);
+
+  const ack2Promise = new Promise((resolve) => {
+    ws2.once("message", (raw) => resolve(JSON.parse(raw.toString())));
+  });
+  ws2.send(JSON.stringify({ type: "hello", token: TOKEN, appVersion: "mock-2/0.0" }));
+  const ack2 = await ack2Promise;
+  assert(ack2.type === "hello_ack" && ack2.ok === true, "second instance pairs with the same token");
+
+  // Distinct payload, so we can prove each client is served by its own bridge.
+  ws2.on("message", (raw) => {
+    const msg = JSON.parse(raw.toString());
+    if (msg.type !== "request") return;
+    ws2.send(JSON.stringify({
+      type: "response",
+      id: msg.id,
+      ok: true,
+      data: [{ id: "second", title: "From the second tab", tags: [], isPinned: false, isArchived: false, createdAt: 1, updatedAt: 1 }],
+    }));
+  });
+
+  const fromSecond = await client2.callTool({ name: "list_all_notes", arguments: {} });
+  assert(fromSecond.isError !== true, "second client's tool call succeeds");
+  assert(
+    /From the second tab/.test(fromSecond.content?.[0]?.text ?? ""),
+    "second client is served by its own bridge, not the first"
+  );
+
+  const stillFirst = await client.callTool({ name: "list_all_notes", arguments: {} });
+  assert(
+    /Grocery list/.test(stillFirst.content?.[0]?.text ?? ""),
+    "first client is unaffected by the second instance"
+  );
+
+  // --- 10. Closing one instance leaves the other working ---------------
+  console.log("\n10) closing one instance doesn't disturb the other");
+  ws2.close();
+  await client2.close();
+  await new Promise((r) => setTimeout(r, 300));
+
+  const afterSecondClosed = await client.callTool({ name: "list_all_notes", arguments: {} });
+  assert(
+    /Grocery list/.test(afterSecondClosed.content?.[0]?.text ?? ""),
+    "first client still works after the second instance exits"
+  );
+
   ws.close();
   await client.close();
 

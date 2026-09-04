@@ -43,11 +43,17 @@ function timeAgo(ts: number): string {
 }
 
 const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, aiBridge }) => {
-  const { connectionState, readEnabled, writeEnabled, setReadEnabled, setWriteEnabled, token, regenerateToken, activity, undoActivity, disconnectAccess } = aiBridge;
+  const { connectionState, connectedCount, readEnabled, writeEnabled, setReadEnabled, setWriteEnabled, token, regenerateToken, activity, undoActivity, disconnectAccess } = aiBridge;
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const status = STATUS_COPY[connectionState];
+  // Several AI tools can be paired at once, each running its own copy of the
+  // server, so say how many rather than a bare "Connected".
+  const statusLabel =
+    connectionState === "connected" && connectedCount > 1
+      ? `Connected \u00b7 ${connectedCount} AI tools`
+      : status.label;
   // A token always exists now (the hook mints one), so "is anything actually
   // switched on" is the thing worth offering to revoke.
   const canRevoke = readEnabled || writeEnabled || connectionState === "connected";
@@ -81,7 +87,7 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
         <div className="flex flex-col gap-5 overflow-y-auto pr-1">
           <div className="flex items-center gap-2 text-sm">
             <Circle className={`h-2.5 w-2.5 fill-current ${status.className}`} />
-            <span className={status.className}>{status.label}</span>
+            <span className={status.className}>{statusLabel}</span>
           </div>
 
           <div className="flex flex-col gap-2">

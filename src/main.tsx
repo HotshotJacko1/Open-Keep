@@ -18,6 +18,10 @@ Sentry.init(
     integrations: [
       // Use Sentry.browserTracingIntegration from @sentry/capacitor (not @sentry/react)
       Sentry.browserTracingIntegration(),
+      // Session Replay. Must come from @sentry/react - unlike
+      // browserTracingIntegration, @sentry/capacitor does not re-export
+      // replayIntegration, so Sentry.replayIntegration is undefined.
+      SentryReact.replayIntegration(),
     ],
     // Tracing — 10% of transactions keeps startup fast and quota sane
     tracesSampleRate: 0.1,
@@ -25,6 +29,9 @@ Sentry.init(
     // (baggage/traceparent) trigger a CORS preflight that edge functions
     // reject, which blocked the google-token-exchange call.
     tracePropagationTargets: ["localhost"],
+    // Session Replay — 10% of sessions, 100% of sessions with errors
+    replaysSessionSampleRate: 0.1,
+    replaysOnErrorSampleRate: 1.0,
     // Send console logs to Sentry
     enableLogs: false,
   },

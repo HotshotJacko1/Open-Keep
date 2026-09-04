@@ -144,8 +144,14 @@ in Open Keep. Copy it again from Settings → AI Assistant Access. If you clicke
 **The AI says Open Keep isn't connected.** Your Open Keep tab is probably closed.
 Open it and try again — the tab is what actually answers.
 
-**Port 8420 is already in use.** Change the port in the extension's settings in
-Claude Desktop. Open Keep will follow.
+**Using more than one AI tool.** Each one runs its own copy of the server, and
+they take the first free port from `8420` upwards, so they don't fight over one.
+Open Keep connects to all of them — you can use Claude Desktop and another MCP
+client at the same time against the same tab.
+
+**Ports 8420-8424 are all in use.** Something else on your machine has taken the
+whole range. Change the base port in the extension's settings in Claude Desktop;
+Open Keep follows.
 
 ## Building the extension yourself
 
