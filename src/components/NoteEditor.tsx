@@ -64,24 +64,14 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { saveImage, getImageSrc, deleteImage } from "@/lib/image-storage";
 import { ImageIcon } from "lucide-react";
 
-import { useEditor, EditorContent, Extension } from '@tiptap/react'
+import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import Link from '@tiptap/extension-link'
 import CharacterCount from '@tiptap/extension-character-count'
+import { CustomLink, HardBreakOnEnter, LINK_OPTIONS } from "@/lib/editor-extensions"
 import { LinkHighlightedTextarea } from "@/components/LinkHighlightedTextarea"
 import { TITLE_MAX, BODY_MAX, LIST_ITEM_MAX, LIST_ITEMS_MAX } from "../lib/note-limits"
 import { serializeNoteToMarkdown } from "@/utils/note-markdown-format";
-
-// Make Enter insert a line break (<br>) instead of a new paragraph
-const HardBreakOnEnter = Extension.create({
-    name: 'hardBreakOnEnter',
-    addKeyboardShortcuts() {
-        return {
-            Enter: () => this.editor.commands.setHardBreak(),
-        };
-    },
-});
 
 interface NoteEditorProps {
     isOpen: boolean;
@@ -99,10 +89,10 @@ interface SortableListItemProps {
     onUpdateItem: (id: string, newContent: string) => void;
     onRemoveItem: (id: string) => void;
     onToggleItem: (id: string) => void;
-    onEnter: (id: string) => void;
+    onEnter: (id: string, cursorPosition?: number) => void;
     onIndent?: (id: string) => void;
     onOutdent?: (id: string) => void;
-    onBackspace?: (id: string) => void;
+    onBackspace?: (id: string, cursorPosition?: number, currentContent?: string) => void;
     autoFocus?: boolean;
     disabled?: boolean;
 }
@@ -236,10 +226,13 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
                     onKeyDown={(e) => {
                         if (e.key === "Enter") {
                             e.preventDefault();
-                            onEnter(item.id);
-                        } else if (e.key === "Backspace" && e.currentTarget.value === "") {
-                            e.preventDefault();
-                            if (onBackspace) onBackspace(item.id);
+                            onEnter(item.id, e.currentTarget.selectionStart ?? undefined);
+                        } else if (e.key === "Backspace") {
+                            const isAtStart = e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0;
+                            if (isAtStart || e.currentTarget.value === "") {
+                                e.preventDefault();
+                                if (onBackspace) onBackspace(item.id, e.currentTarget.selectionStart ?? 0, e.currentTarget.value);
+                            }
                         } else if (e.key === "Tab") {
                             e.preventDefault();
                             if (e.shiftKey) {
@@ -368,10 +361,13 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
                     onKeyDown={(e) => {
                         if (e.key === "Enter") {
                             e.preventDefault();
-                            onEnter(item.id);
-                        } else if (e.key === "Backspace" && e.currentTarget.value === "") {
-                            e.preventDefault();
-                            if (onBackspace) onBackspace(item.id);
+                            onEnter(item.id, e.currentTarget.selectionStart ?? undefined);
+                        } else if (e.key === "Backspace") {
+                            const isAtStart = e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0;
+                            if (isAtStart || e.currentTarget.value === "") {
+                                e.preventDefault();
+                                if (onBackspace) onBackspace(item.id, e.currentTarget.selectionStart ?? 0, e.currentTarget.value);
+                            }
                         } else if (e.key === "Tab") {
                             e.preventDefault();
                             if (e.shiftKey) {
@@ -554,14 +550,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             Placeholder.configure({
                 placeholder: 'Take a note...',
             }),
-            Link.configure({
-                openOnClick: true,
-                autolink: true,
-                linkOnPaste: true,
-                HTMLAttributes: {
-                    class: 'underline text-inherit hover:text-blue-500 cursor-pointer',
-                }
-            }),
+            CustomLink.configure(LINK_OPTIONS),
             CharacterCount.configure({ limit: BODY_MAX }),
             HardBreakOnEnter,
         ],
@@ -572,7 +561,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 // Body text stays 16px on mobile so text notes match list notes
                 // (which inherit 16px) and Google Keep's 16sp. No xl step — it
                 // pushed body text above the 20px title on wide screens.
-                class: 'prose lg:prose-lg max-w-none focus:outline-none h-full min-h-[300px] text-black dark:text-white',
+                class: 'prose lg:prose-lg max-w-none focus:outline-none min-h-[40px] text-black dark:text-white',
             },
         },
         onUpdate: ({ editor }) => {
@@ -878,6 +867,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             const newContent = convertTextToList(textContent);
             setContent(newContent);
             setIsChecklistMode(true);
+            setShowFormatting(false);
 
             // Hydrate checklist items for UI
             const { items } = parseChecklist(newContent);
@@ -950,21 +940,18 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     };
 
     const handleIndent = (id: string) => {
-        setChecklistItems(prev => prev.map(item => {
-            if (item.id === id) {
-                const index = prev.findIndex(i => i.id === id);
-                // Can't indent the first item
-                if (index === 0) return item;
+        setChecklistItems(prev => {
+            const index = prev.findIndex(i => i.id === id);
+            // Can't indent if it's the first item or not found
+            if (index <= 0) return prev;
 
-                // Prevent indenting if it has nested items below it
-                if (index < prev.length - 1 && item.indentation === "" && prev[index + 1].indentation !== "") {
-                    return item;
+            return prev.map(item => {
+                if (item.id === id) {
+                    return { ...item, indentation: "    " };
                 }
-
-                return { ...item, indentation: "    " };
-            }
-            return item;
-        }));
+                return item;
+            });
+        });
     };
 
     const handleOutdent = (id: string) => {
@@ -976,7 +963,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         }));
     };
 
-    const handleInsertItemAfter = (currentId: string) => {
+    const handleInsertItemAfter = (currentId: string, cursorPosition?: number) => {
         if (checklistItems.length >= LIST_ITEMS_MAX) {
             toast.error(`Maximum ${LIST_ITEMS_MAX} items per checklist`);
             return;
@@ -984,11 +971,63 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         const index = checklistItems.findIndex(i => i.id === currentId);
         if (index === -1) return;
 
+        const currentItem = checklistItems[index];
+
+        // If cursor is at index 0 (at the very beginning of the item), insert a blank item BEFORE
+        // and keep focus and cursor at index 0 of current item.
+        if (cursorPosition === 0) {
+            const newItem: ChecklistItem = {
+                id: safeRandomUUID(),
+                content: "",
+                checked: false,
+                indentation: currentItem.indentation
+            };
+
+            const newItems = [...checklistItems];
+            newItems.splice(index, 0, newItem);
+            setChecklistItems(newItems);
+            setTimeout(() => {
+                const el = document.getElementById(`list-item-${currentItem.id}`) as HTMLTextAreaElement;
+                if (el) {
+                    el.focus();
+                    el.setSelectionRange(0, 0);
+                }
+            }, 0);
+            return;
+        }
+
+        // If cursor is in the middle of text, split the item at the cursor
+        if (cursorPosition !== undefined && cursorPosition < currentItem.content.length) {
+            const beforeText = currentItem.content.slice(0, cursorPosition);
+            const afterText = currentItem.content.slice(cursorPosition);
+
+            const newItem: ChecklistItem = {
+                id: safeRandomUUID(),
+                content: afterText,
+                checked: false,
+                indentation: currentItem.indentation
+            };
+
+            const newItems = [...checklistItems];
+            newItems[index] = { ...currentItem, content: beforeText };
+            newItems.splice(index + 1, 0, newItem);
+            setChecklistItems(newItems);
+            setFocusItemId(newItem.id);
+            setTimeout(() => {
+                const el = document.getElementById(`list-item-${newItem.id}`) as HTMLTextAreaElement;
+                if (el) {
+                    el.focus();
+                    el.setSelectionRange(0, 0);
+                }
+            }, 0);
+            return;
+        }
+
         const newItem: ChecklistItem = {
             id: safeRandomUUID(),
             content: "",
             checked: false,
-            indentation: checklistItems[index].indentation
+            indentation: currentItem.indentation
         };
 
         const newItems = [...checklistItems];
@@ -997,10 +1036,38 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         setFocusItemId(newItem.id);
     };
 
-    const handleBackspaceItem = (id: string) => {
+    const handleBackspaceItem = (id: string, cursorPosition?: number, currentContent?: string) => {
         const index = checklistItems.findIndex(i => i.id === id);
         if (index > 0) {
             const previousItem = checklistItems[index - 1];
+            const item = checklistItems[index];
+            const textToMerge = currentContent !== undefined ? currentContent : item.content;
+
+            // If the item has text and cursor is at position 0, merge it into the previous item
+            if (cursorPosition === 0 && textToMerge.length > 0) {
+                const combinedContent = previousItem.content + textToMerge;
+                if (combinedContent.length > LIST_ITEM_MAX) {
+                    toast.error(`Maximum ${LIST_ITEM_MAX} characters per item`);
+                    return;
+                }
+                const mergePos = previousItem.content.length;
+                const newItems = checklistItems
+                    .filter(i => i.id !== id)
+                    .map(i => i.id === previousItem.id ? { ...i, content: combinedContent } : i);
+
+                setChecklistItems(newItems);
+                setFocusItemId(previousItem.id);
+                setTimeout(() => {
+                    const el = document.getElementById(`list-item-${previousItem.id}`) as HTMLTextAreaElement;
+                    if (el) {
+                        el.focus();
+                        el.setSelectionRange(mergePos, mergePos);
+                    }
+                }, 0);
+                return;
+            }
+
+            // Normal backspace when item is empty
             setFocusItemId(previousItem.id);
             setChecklistItems(prev => prev.filter(i => i.id !== id));
             setTimeout(() => {
@@ -1225,6 +1292,59 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         onClose();
     };
 
+    // Formatting sub-buttons (B/I/U). Rendered inline next to T on desktop,
+    // and in a dedicated row above the footer on mobile (narrow screens
+    // can't fit nine icon buttons in one row).
+    const canFormat = showFormatting && !!editor && !isChecklistMode;
+    const formattingButtons = editor ? (
+        <>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`text-secondary ${editor.isActive('bold') ? 'bg-accent' : ''}`}
+                        onClick={() => editor.chain().focus().toggleBold().run()}
+                    >
+                        <Bold className="h-4 w-4" />
+                        <span className="sr-only">Bold</span>
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Bold</p></TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`text-secondary ${editor.isActive('italic') ? 'bg-accent' : ''}`}
+                        onClick={() => editor.chain().focus().toggleItalic().run()}
+                    >
+                        <Italic className="h-4 w-4" />
+                        <span className="sr-only">Italic</span>
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Italic</p></TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`text-secondary ${editor.isActive('underline') ? 'bg-accent' : ''}`}
+                        onClick={() => editor.chain().focus().toggleUnderline().run()}
+                    >
+                        <Underline className="h-4 w-4" />
+                        <span className="sr-only">Underline</span>
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Underline</p></TooltipContent>
+            </Tooltip>
+        </>
+    ) : null;
+
     return (
         <>
             {fullscreenImageSrc && createPortal(
@@ -1257,7 +1377,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
             <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseEditor()}>
                 <DialogContent
-                    className={cn("note-editor-dialog", isNoteTinted(color) && "note-tinted", "fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-[80vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-lg flex flex-col p-0 gap-0 bg-note-editor-background dark:bg-note-editor-background text-black dark:text-white pt-[env(safe-area-inset-top)] outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 origin-center data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-300 data-[state=open]:ease-md3-decelerate data-[state=closed]:ease-md3-accelerate")}
+                    className={cn("note-editor-dialog", isNoteTinted(color) && "note-tinted", "fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-auto sm:max-h-[80vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-lg flex flex-col p-0 gap-0 bg-note-editor-background dark:bg-note-editor-background text-black dark:text-white pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:pb-0 outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 origin-center data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-300 data-[state=open]:ease-md3-decelerate data-[state=closed]:ease-md3-accelerate")}
                     style={{
                         ...(isMobile ? {
                             '--tw-enter-translate-x': '0',
@@ -1295,7 +1415,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                         onClick={() => setIsPinned(!isPinned)}
                                         className={isPinned ? "text-yellow-400" : "text-secondary"}
                                     >
-                                        <Pin className="h-5 w-5" />
+                                        <Pin className={`h-5 w-5 ${isPinned ? "fill-yellow-400" : ""}`} />
                                         <span className="sr-only">{isPinned ? "Unpin" : "Pin"}</span>
                                     </Button>
                                 </TooltipTrigger>
@@ -1338,7 +1458,14 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     </div>
 
                     {/* Scrollable Body */}
-                    <div className="flex-1 overflow-y-auto p-4">
+                    <div
+                        className="flex-1 overflow-y-auto p-4 cursor-text"
+                        onClick={(e) => {
+                            if (e.target === e.currentTarget && !isChecklistMode && editor) {
+                                editor.chain().focus('end').run();
+                            }
+                        }}
+                    >
                         {/* Hidden file input */}
                         <input
                             ref={fileInputRef}
@@ -1564,13 +1691,52 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                         )}
                                     </div>
                                 )}
+                                {/* Tag chips — below checklist content */}
+                                {(() => {
+                                    const tagList = tags.split(",").map(t => t.trim()).filter(Boolean);
+                                    return tagList.length > 0 ? (
+                                        <div className="mt-3 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                            {tagList.map((tag) => (
+                                                <span
+                                                    key={tag}
+                                                    className="px-2.5 py-1 text-xs rounded-full bg-background text-secondary-foreground border border-black/10 dark:border-white/10"
+                                                >
+                                                    {tag}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    ) : null;
+                                })()}
                             </div>
                         ) : (
-                            <div onClick={() => editor?.chain().focus().run()} className="w-full h-full cursor-text">
+                            <div onClick={() => editor?.chain().focus().run()} className="w-full cursor-text">
                                 <EditorContent editor={editor} className="outline-none" />
+                                {/* Tag chips — below text content */}
+                                {(() => {
+                                    const tagList = tags.split(",").map(t => t.trim()).filter(Boolean);
+                                    return tagList.length > 0 ? (
+                                        <div className="mt-3 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                            {tagList.map((tag) => (
+                                                <span
+                                                    key={tag}
+                                                    className="px-2.5 py-1 text-xs rounded-full bg-background text-secondary-foreground border border-black/10 dark:border-white/10"
+                                                >
+                                                    {tag}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    ) : null;
+                                })()}
                             </div>
                         )}
                     </div>
+
+                    {/* Mobile formatting bar — sits above the footer so the icon row can't overflow */}
+                    {isMobile && canFormat && (
+                        <div className="flex items-center gap-2 px-2 py-1 border-t border-gray-200 dark:border-gray-700 shrink-0">
+                            {formattingButtons}
+                        </div>
+                    )}
 
                     {/* Footer */}
                     <DialogFooter className="flex flex-row items-center justify-between sm:justify-between p-2 border-t border-gray-200 dark:border-gray-700 shrink-0">
@@ -1612,7 +1778,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Button variant="ghost" size="icon" disabled={isDeleted} onClick={handleToggleMode} className="text-secondary">
-                                        <ListChecks className={`h-5 w-5 ${isChecklistMode ? "text-primary" : ""}`} />
+                                        <ListChecks className="h-5 w-5" />
                                         <span className="sr-only">{isChecklistMode ? "Hide Checkboxes" : "Show Checkboxes"}</span>
                                     </Button>
                                 </TooltipTrigger>
@@ -1635,6 +1801,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                 <TooltipContent><p>Labels</p></TooltipContent>
                             </Tooltip>
 
+                            {/* Rich text formatting is text-notes only — checklist items are plain text,
+                                so the whole T group is hidden rather than shown as a dead toggle. */}
+                            {!isChecklistMode && (
+                            <div className={`flex items-center gap-2 rounded-lg transition-colors ${!isMobile && canFormat ? "bg-muted px-1" : ""}`}>
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Button
@@ -1651,6 +1821,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                 <TooltipContent><p>Formatting</p></TooltipContent>
                             </Tooltip>
 
+                            {!isMobile && canFormat && formattingButtons}
+                            </div>
+                            )}
+
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Button
@@ -1666,54 +1840,6 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                 <TooltipContent><p>File Info</p></TooltipContent>
                             </Tooltip>
 
-                            {showFormatting && editor && !isChecklistMode && (
-                                <>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className={`text-secondary ${editor.isActive('bold') ? 'bg-accent' : ''}`}
-                                                onClick={() => editor.chain().focus().toggleBold().run()}
-                                            >
-                                                <Bold className="h-4 w-4" />
-                                                <span className="sr-only">Bold</span>
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent><p>Bold</p></TooltipContent>
-                                    </Tooltip>
-
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className={`text-secondary ${editor.isActive('italic') ? 'bg-accent' : ''}`}
-                                                onClick={() => editor.chain().focus().toggleItalic().run()}
-                                            >
-                                                <Italic className="h-4 w-4" />
-                                                <span className="sr-only">Italic</span>
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent><p>Italic</p></TooltipContent>
-                                    </Tooltip>
-
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className={`text-secondary ${editor.isActive('underline') ? 'bg-accent' : ''}`}
-                                                onClick={() => editor.chain().focus().toggleUnderline().run()}
-                                            >
-                                                <Underline className="h-4 w-4" />
-                                                <span className="sr-only">Underline</span>
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent><p>Underline</p></TooltipContent>
-                                    </Tooltip>
-                                </>
-                            )}
                         </div>
 
                         <div className="flex gap-2">

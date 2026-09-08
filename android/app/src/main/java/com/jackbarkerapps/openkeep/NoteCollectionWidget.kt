@@ -26,6 +26,7 @@ import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.updateAll
 import androidx.glance.background
 import androidx.glance.color.ColorProvider
 import androidx.glance.layout.Alignment
@@ -205,16 +206,11 @@ class NoteCollectionGlanceWidget : GlanceAppWidget() {
             )
 
             val lines = note.content.split("\n")
-            val checkboxRegex = Regex("^\\s*-\\s\\[([ xX])\\]\\s(.*)$")
             val checkboxLines = mutableListOf<Triple<Int, Boolean, String>>()
 
             for ((idx, line) in lines.withIndex()) {
-                val match = checkboxRegex.find(line)
-                if (match != null) {
-                    val checked = match.groupValues[1].lowercase() == "x"
-                    val text = match.groupValues[2]
-                    checkboxLines.add(Triple(idx, checked, text))
-                }
+                val item = ChecklistMarkdown.parse(line) ?: continue
+                checkboxLines.add(Triple(idx, item.isChecked, item.text))
             }
 
             if (checkboxLines.isEmpty()) {
@@ -279,25 +275,19 @@ class CollectionToggleCheckboxAction : ActionCallback {
             val lines = note.content.split("\n").toMutableList()
             if (lineIndex < 0 || lineIndex >= lines.size) return
 
-            val line = lines[lineIndex]
-            val checkboxRegex = Regex("^(\\s*)-\\s\\[([ xX])\\]\\s(.*)$")
-            val match = checkboxRegex.find(line)
-            if (match != null) {
-                val indent = match.groupValues[1]
-                val checked = match.groupValues[2].lowercase() == "x"
-                val text = match.groupValues[3]
-                lines[lineIndex] = "${indent}- [${if (checked) " " else "x"}] $text"
-                val newContent = lines.joinToString("\n")
+            val toggled = ChecklistMarkdown.toggle(lines[lineIndex]) ?: return
+            lines[lineIndex] = toggled
 
-                val updatedNote = note.copy(
-                    content = newContent,
-                    updatedAt = System.currentTimeMillis()
-                )
-                repo.saveNote(updatedNote)
-                
-                // Force widget update
-                NoteCollectionGlanceWidget().update(context, glanceId)
-            }
+            val updatedNote = note.copy(
+                content = lines.joinToString("\n"),
+                updatedAt = System.currentTimeMillis()
+            )
+            repo.saveNote(updatedNote)
+
+            // Refresh every widget, not just the tapped instance: the same note can
+            // appear on other Note Collection widgets and on any Single Note widget.
+            NoteCollectionGlanceWidget().updateAll(context)
+            SingleNoteGlanceWidget().updateAll(context)
         } catch (e: Exception) {
             android.util.Log.e("ToggleCheckboxAction", "Error", e)
         }

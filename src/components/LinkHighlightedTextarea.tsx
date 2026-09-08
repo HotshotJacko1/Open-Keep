@@ -1,29 +1,62 @@
 import React, { useRef, useEffect } from 'react';
 
-const urlRegex = /(https?:\/\/[^\s]+)/g;
+const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+const trailingPunctuationRegex = /[.,;:!?)\]}'"]+$/;
 
 function renderTextWithLinks(text: string) {
     if (!text) return null;
-    const parts = text.split(urlRegex);
-    return parts.map((part, i) => {
-        if (part.match(urlRegex)) {
-            return (
-                <a
-                    key={i}
-                    href={part}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline pointer-events-auto cursor-pointer text-inherit"
-                    onClick={(e) => {
-                        // Let it open
-                    }}
-                >
-                    {part}
-                </a>
+    const elements: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    urlRegex.lastIndex = 0;
+    while ((match = urlRegex.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+            elements.push(
+                <span key={`text-${lastIndex}`}>{text.substring(lastIndex, match.index)}</span>
             );
         }
-        return <span key={i}>{part}</span>;
-    });
+
+        let rawUrl = match[0];
+        const punctMatch = rawUrl.match(trailingPunctuationRegex);
+        let punctuation = "";
+        if (punctMatch) {
+            punctuation = punctMatch[0];
+            rawUrl = rawUrl.slice(0, -punctuation.length);
+        }
+
+        const href = /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(rawUrl)
+            ? rawUrl
+            : `https://${rawUrl}`;
+
+        elements.push(
+            <a
+                key={`link-${match.index}`}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline pointer-events-auto cursor-pointer text-inherit"
+            >
+                {rawUrl}
+            </a>
+        );
+
+        if (punctuation) {
+            elements.push(
+                <span key={`punct-${match.index + rawUrl.length}`}>{punctuation}</span>
+            );
+        }
+
+        lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < text.length) {
+        elements.push(
+            <span key={`text-${lastIndex}`}>{text.substring(lastIndex)}</span>
+        );
+    }
+
+    return elements;
 }
 
 interface LinkHighlightedTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {

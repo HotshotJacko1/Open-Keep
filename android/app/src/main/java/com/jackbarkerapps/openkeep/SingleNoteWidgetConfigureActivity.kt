@@ -95,13 +95,15 @@ class SingleNoteWidgetConfigureActivity : AppCompatActivity() {
 
                                 if (note != null) {
                                     val title = note.title.ifBlank {
-                                        note.content.lines().firstOrNull()?.take(60) ?: "Untitled"
+                                        note.content.lines()
+                                            .firstOrNull { it.isNotBlank() }
+                                            ?.let { formatPreviewLine(it) }
+                                            ?.takeIf { it.isNotBlank() }
+                                            ?.take(60)
+                                            ?: "Untitled"
                                     }
                                     text1.text = title
-                                    val preview = note.content.lines()
-                                        .firstOrNull { it.trimStart().startsWith("-") || it.isNotBlank() }
-                                        ?.take(80) ?: ""
-                                    text2.text = preview
+                                    text2.text = buildPreview(note)
                                 }
                                 return view
                             }
@@ -162,5 +164,42 @@ class SingleNoteWidgetConfigureActivity : AppCompatActivity() {
             setResult(RESULT_OK, resultValue)
             finish()
         }
+    }
+
+    /**
+     * One-line body preview for the note picker.
+     *
+     * The raw `content` column is either checklist markdown (`- [x] Milk`) or the
+     * editor's HTML (`<p>...</p>`), so showing it verbatim leaked both the markdown
+     * checkbox markers and the HTML tags into this list. Checklist markers become real
+     * checkbox glyphs; everything else is run through the HTML parser so tags and
+     * entities resolve to plain text.
+     */
+    private fun buildPreview(note: NoteEntity): String {
+        return note.content.lines()
+            .asSequence()
+            .filter { it.isNotBlank() }
+            .map { formatPreviewLine(it) }
+            .filter { it.isNotBlank() }
+            .take(3)
+            .joinToString("   ")
+            .take(120)
+    }
+
+    private fun formatPreviewLine(raw: String): String {
+        // Checklist markers first - they are markdown, not HTML, so the parser
+        // below would leave the literal "- [ ]" in place.
+        val withBoxes = CHECKBOX_MARKER.replace(raw) { match ->
+            if (match.groupValues[1].equals("x", ignoreCase = true)) "\u2611 " else "\u2610 "
+        }
+        val plain = android.text.Html
+            .fromHtml(withBoxes, android.text.Html.FROM_HTML_MODE_LEGACY)
+            .toString()
+        return WHITESPACE.replace(plain, " ").trim()
+    }
+
+    private companion object {
+        private val CHECKBOX_MARKER = Regex("""^\s*-\s\[([ xX])\]\s?""")
+        private val WHITESPACE = Regex("""\s+""")
     }
 }

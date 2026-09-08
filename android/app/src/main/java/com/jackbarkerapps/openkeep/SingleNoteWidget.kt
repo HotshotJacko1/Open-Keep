@@ -27,6 +27,7 @@ import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.itemsIndexed
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.updateAll
 import androidx.glance.background
 import androidx.glance.color.ColorProvider
 import androidx.glance.layout.Alignment
@@ -144,19 +145,14 @@ class SingleNoteGlanceWidget : GlanceAppWidget() {
             val lines = note.content.split("\n")
             LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
                 itemsIndexed(lines) { index, line ->
-                    val trimmed = line.trimStart()
+                    val item = ChecklistMarkdown.parse(line)
                     when {
-                        trimmed.startsWith("- [ ]") -> {
-                            val text = trimmed.removePrefix("- [ ]").trim()
-                            ChecklistItem(text = text, isChecked = false, noteId = noteId, lineIndex = index)
+                        item != null -> {
+                            ChecklistItem(text = item.text, isChecked = item.isChecked, noteId = noteId, lineIndex = index)
                         }
-                        trimmed.startsWith("- [x]") -> {
-                            val text = trimmed.removePrefix("- [x]").trim()
-                            ChecklistItem(text = text, isChecked = true, noteId = noteId, lineIndex = index)
-                        }
-                        trimmed.isNotBlank() -> {
+                        line.isNotBlank() -> {
                             Text(
-                                text = trimmed,
+                                text = line.trim(),
                                 style = TextStyle(fontSize = 14.sp, color = ColorProvider(day = Color.DarkGray, night = Color.LightGray)),
                                 modifier = GlanceModifier.padding(vertical = 2.dp)
                             )
@@ -206,12 +202,9 @@ class ToggleCheckboxAction : ActionCallback {
             val lines = note.content.split("\n").toMutableList()
             if (lineIndex < 0 || lineIndex >= lines.size) return
 
-            val line = lines[lineIndex]
-            val toggled = when {
-                line.contains("- [ ]") -> line.replace("- [ ]", "- [x]", ignoreCase = false)
-                line.contains("- [x]") -> line.replace("- [x]", "- [ ]", ignoreCase = false)
-                else -> return
-            }
+            // Anchored + indentation-preserving, and only the marker at the start of
+            // the line - never an occurrence inside the item's own text.
+            val toggled = ChecklistMarkdown.toggle(lines[lineIndex]) ?: return
             lines[lineIndex] = toggled
 
             val updatedNote = note.copy(
@@ -219,9 +212,11 @@ class ToggleCheckboxAction : ActionCallback {
                 updatedAt = System.currentTimeMillis()
             )
             dao.insertNote(updatedNote)
-            
-            // Force widget update
-            SingleNoteGlanceWidget().update(context, glanceId)
+
+            // Refresh every widget, not just the tapped instance: the same note can
+            // appear on other Single Note widgets and on any Note Collection widget.
+            SingleNoteGlanceWidget().updateAll(context)
+            NoteCollectionGlanceWidget().updateAll(context)
         } catch (e: Exception) {
             android.util.Log.e("ToggleCheckboxAction", "Error", e)
         }

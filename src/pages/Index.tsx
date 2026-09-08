@@ -7,6 +7,7 @@ import { Filesystem, Directory } from "@capacitor/filesystem";
 import { Capacitor } from "@capacitor/core";
 import NoteCard from "@/components/NoteCard";
 import NoteEditor from "@/components/NoteEditor"; // Unified Editor
+import { InlineNoteCreator } from "@/components/InlineNoteCreator";
 import { useGoogleDrive, isGoogleDriveAuthBusy, isGoogleDriveScopeBlocked } from "@/hooks/use-google-drive";
 import { useOneDrive } from "@/hooks/use-one-drive";
 import { useDropbox } from "@/hooks/use-dropbox";
@@ -166,6 +167,28 @@ const Index = () => {
   const autoSyncTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hasInitialSynced = useRef(false);
 
+  // Pull the notes list back from the database, which is the source of truth.
+  //
+  // The app is not the only writer: the home-screen widgets and the MCP bridge
+  // write straight to the same Room database while the app is backgrounded, so
+  // `notes` in React state can be stale at any moment.
+  const refreshNotesFromDb = useCallback(async () => {
+    try {
+      const reloadedNotes = await loadNotes();
+      setNotes(reloadedNotes);
+      setDbUnavailable(false);
+    } catch (error) {
+      console.error("Failed to reload notes from the database:", error);
+      // Keep existing notes in state — don't clear them
+      setDbUnavailable(true);
+    }
+
+    const savedTags = localStorage.getItem("custom-tags");
+    if (savedTags) {
+      setCustomTags(JSON.parse(savedTags));
+    }
+  }, []);
+
   const performAutoSync = useCallback(async () => {
     if (!activeService) return;
     if (activeService.isSyncing) return;
@@ -293,13 +316,24 @@ const Index = () => {
     }
   }, [activeService, performAutoSync]);
 
-  // Auto-sync on App Resume
+  // Reload on App Resume, then auto-sync if a cloud service is connected.
+  //
+  // The reload is deliberately NOT gated on `activeService`. It used to be, and
+  // that was the bug: with no cloud provider connected nothing ever re-read the
+  // database, so ticking a checkbox in a widget left the app showing the old
+  // content, and the next in-app edit wrote that stale copy back over it — the
+  // tick silently reverted. This is a row scan on an already-open Room instance
+  // (~60ms), not the ~610ms SQLCipher open, which happens once at startup.
+  //
+  // Safe while the editor is open: NoteEditor only re-hydrates from `initialNote`
+  // when it (re)opens or the note id changes, neither of which a setNotes() here
+  // triggers, so in-progress edits are not clobbered.
   useEffect(() => {
-    if (!activeService) return;
-
     const setupResumeListener = async () => {
       const listener = await CapacitorApp.addListener('appStateChange', ({ isActive }) => {
-        if (isActive) {
+        if (!isActive) return;
+        void refreshNotesFromDb();
+        if (activeService) {
           performAutoSync();
         }
       });
@@ -311,7 +345,7 @@ const Index = () => {
     return () => {
       listenerPromise.then(listener => listener.remove());
     };
-  }, [activeService, performAutoSync]);
+  }, [activeService, performAutoSync, refreshNotesFromDb]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     // Check if we are at the top of the scroll container
@@ -432,25 +466,9 @@ const Index = () => {
 
   // Reload notes whenever cloud sync writes to the DB
   useEffect(() => {
-    const handleNotesUpdated = async () => {
-      try {
-        const reloadedNotes = await loadNotes();
-        setNotes(reloadedNotes);
-        setDbUnavailable(false);
-      } catch (error) {
-        console.error("Failed to reload notes after sync:", error);
-        // Keep existing notes in state — don't clear them
-        setDbUnavailable(true);
-      }
-
-      const savedTags = localStorage.getItem("custom-tags");
-      if (savedTags) {
-        setCustomTags(JSON.parse(savedTags));
-      }
-    };
-    window.addEventListener("notes-updated", handleNotesUpdated);
-    return () => window.removeEventListener("notes-updated", handleNotesUpdated);
-  }, []);
+    window.addEventListener("notes-updated", refreshNotesFromDb);
+    return () => window.removeEventListener("notes-updated", refreshNotesFromDb);
+  }, [refreshNotesFromDb]);
 
 
   // Back Button Handler (Mobile)
@@ -1116,6 +1134,16 @@ const Index = () => {
             Notes in the bin will be deleted after 30 days.
           </div>
         )}
+
+        {!isMobile && selectedTag !== "bin" && selectedTag !== "archive" && !searchTerm && (
+          <InlineNoteCreator
+            onSaveNote={handleSaveNote}
+            availableTags={uniqueTags}
+            defaultTag={selectedTag && selectedTag !== "bin" && selectedTag !== "archive" ? selectedTag : undefined}
+            onCreateTag={handleCreateTag}
+          />
+        )}
+
         {isLoading && (
           <div
             aria-hidden="true"

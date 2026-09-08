@@ -217,12 +217,14 @@
      heavier than the utility it must beat. That makes it win on specificity
      rather than on stylesheet order. */
   .note-card.note-tinted,
-  .note-editor-dialog.note-tinted {
+  .note-editor-dialog.note-tinted,
+  .note-creator.note-tinted {
     background-color: var(--note-tint);
   }
 
   .dark .note-card.note-tinted,
-  .dark .note-editor-dialog.note-tinted {
+  .dark .note-editor-dialog.note-tinted,
+  .dark .note-creator.note-tinted {
     background-color: var(--note-tint-dark);
   }
 

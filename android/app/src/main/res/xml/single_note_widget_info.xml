@@ -7,7 +7,7 @@
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/widget_single_note_layout"
-    android:previewLayout="@layout/widget_single_note_layout"
+    android:previewLayout="@layout/widget_single_note_preview"
     android:configure="com.jackbarkerapps.openkeep.SingleNoteWidgetConfigureActivity"
     android:description="@string/widget_single_note_description"
     android:widgetCategory="home_screen"

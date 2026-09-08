@@ -7,7 +7,7 @@
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/note_collection_widget_layout"
-    android:previewLayout="@layout/note_collection_widget_layout"
+    android:previewLayout="@layout/note_collection_widget_preview"
     android:description="@string/widget_note_collection_description"
     android:widgetCategory="home_screen"
     android:configure="com.jackbarkerapps.openkeep.NoteCollectionWidgetConfigureActivity"

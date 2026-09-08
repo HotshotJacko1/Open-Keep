@@ -12,6 +12,7 @@ import { getNoteTintVars, isNoteTinted } from "@/lib/note-colors";
 import useLongPress from "@/hooks/use-long-press";
 import { useState, useEffect } from "react";
 import { getImageSrc } from "@/lib/image-storage";
+import DOMPurify from "dompurify";
 
 interface NoteCardProps {
   note: Note;
@@ -145,10 +146,10 @@ const NoteCard: React.FC<NoteCardProps> = ({
                     e.stopPropagation();
                     onPinToggle(note.id);
                   }}
-                  className={cn(note.isPinned ? "text-amber-400" : "text-muted-foreground")}
+                  className={cn(note.isPinned ? "text-yellow-400" : "text-muted-foreground")}
                   title={note.isPinned ? "Unpin" : "Pin"}
                 >
-                  <Pin className="h-4 w-4" />
+                  <Pin className={cn("h-4 w-4", note.isPinned && "fill-yellow-400")} />
                 </Button>
               </div>
             )}
@@ -222,7 +223,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
         })() : (
           <div
             className="text-sm text-secondary-foreground max-h-[300px] overflow-hidden text-ellipsis prose prose-sm max-w-none min-w-0 w-full dark:prose-invert prose-p:my-0 prose-headings:my-1 [overflow-wrap:anywhere] [word-break:break-word] [&_*]:[overflow-wrap:anywhere] [&_*]:[word-break:break-word] pointer-events-none [&_a]:no-underline [&_a]:text-inherit [&_a]:cursor-default"
-            dangerouslySetInnerHTML={{ __html: note.content }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(note.content) }}
           />
         )}
         {note.tags.length > 0 && (
@@ -230,7 +231,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
             {note.tags.map((tag) => (
               <span
                 key={tag}
-                className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 max-w-full whitespace-normal break-words [overflow-wrap:anywhere]"
+                className="px-2 py-1 text-xs rounded-full bg-background text-secondary-foreground border border-black/10 dark:border-white/10 max-w-full whitespace-normal break-words [overflow-wrap:anywhere]"
               >
                 {tag}
               </span>

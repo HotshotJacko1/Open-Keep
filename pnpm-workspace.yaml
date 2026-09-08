@@ -1,3 +1,5 @@
+packages:
+  - .
 allowBuilds:
   # dyad-default-allow-builds begin
   # dyad-default-allow-builds-schema=v1
@@ -86,6 +88,8 @@ allowBuilds:
   "@scarf/scarf": true
   "@sematext/gc-stats": true
   "@sentry/capacitor": true
+  # dyad-default-allow-builds end
+  "@sentry/cli": true
   "@sentry/profiling-node": true
   "@serialport/bindings": true
   "@serialport/bindings-cpp": true
@@ -372,11 +376,6 @@ allowBuilds:
   zeromq: true
   zlib-sync: true
   zopflipng-bin: true
-  # dyad-default-allow-builds end
-  "@sentry/cli": true
-
-packages:
-  - .
 minimumReleaseAge: 1440
 patchedDependencies:
   '@capgo/capacitor-social-login@8.3.22': patches/@capgo__capacitor-social-login@8.3.22.patch

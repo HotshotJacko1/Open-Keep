@@ -6,7 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 - F-Droid release.
-- E2EE.
+
+## [5.0.1] - 2026-09-14
+
+### Added
+- Bold, italic and underline formatting for note text, via the new formatting button in the editor toolbar.
+- Notes can be written straight from the list on desktop, without opening the editor.
+- Labels are now shown below the content when editing a note.
+
+### Fixed
+- Checkbox ticks made in a widget now appear in the app.
+- Ticking a checkbox now updates every widget showing that note, not just the one you tapped.
+- Widget previews in the widget picker now show a proper preview instead of an empty widget.
+- The single-note widget's note picker no longer shows raw HTML tags and `- [ ]` markers in note previews.
+- The editor toolbar no longer sits under the Android gesture bar.
+- Pressing Enter inside checklist items now splits them or creates blank items, and Backspace at the start merges them back into the previous item.
+- Checklist items with nested sub-items can now be indented under a preceding item.
+- Typing after pasting or writing a link no longer traps newly typed text inside the link.
+- Links in titles and checklist items now recognize `www.` addresses and properly ignore trailing punctuation.
+- Note previews on the notes list are now sanitised before display.
 
 ## [5.0.0] - 2026-09-08
 
