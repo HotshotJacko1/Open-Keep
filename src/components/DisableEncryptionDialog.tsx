@@ -117,7 +117,7 @@ const DisableEncryptionDialog: React.FC<DisableEncryptionDialogProps> = ({ isOpe
                             <Unlock className="w-6 h-6 text-destructive" />
                         </div>
                         <DialogDescription className="text-sm">
-                            Disabling encryption will make your local database and cloud sync payloads readable in plaintext.
+                            Your notes stay encrypted on this device, but with a key anyone with a copy of the app could derive. Anything you sync to the cloud will be uploaded unencrypted.
                             <br />
                             <br />
                             App Lock and Biometrics will remain enabled using your current PIN.

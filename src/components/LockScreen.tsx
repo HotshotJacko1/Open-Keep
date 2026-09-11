@@ -50,23 +50,30 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
         const biometricsEnabled = localStorage.getItem("app-biometrics-enabled") === "true";
         setIsBiometricsEnabled(biometricsEnabled);
 
-        // Auto-trigger biometric if enabled
+        // Auto-trigger biometric if enabled. Only one of these branches ever
+        // runs, so a single handle is enough — but it must be cleared on
+        // unmount, or a fast lock/unlock fires the prompt against a dead
+        // component.
+        let startupTimer: ReturnType<typeof setTimeout>;
+
         if (biometricsEnabled) {
             // Small delay to ensure UI is ready and not conflicting with app resume
-            setTimeout(() => {
+            startupTimer = setTimeout(() => {
                 handleBiometricUnlock();
             }, 300);
         } else {
             // Use a longer delay to ensure the WebView is fully settled before
             // requesting focus and showing the keyboard. Android's WebView
             // actively hides the IME after launch; Keyboard.show() forces it open.
-            setTimeout(() => {
+            startupTimer = setTimeout(() => {
                 inputRef.current?.focus();
                 Keyboard.show().catch(() => {
                     // Keyboard plugin not available on this platform (web/iOS), ignore
                 });
             }, 500);
         }
+
+        return () => clearTimeout(startupTimer);
     }, [isNativeEncryption]);
 
     // Tick the lockout countdown so the UI re-enables itself without a reload.

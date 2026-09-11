@@ -475,32 +475,6 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         fullscreenImageSrcRef.current = fullscreenImageSrc;
     }, [fullscreenImageSrc]);
 
-    // TEMPORARY DEBUG: capture-phase listeners reveal which element actually
-    // receives taps while the fullscreen image overlay is open.
-    useEffect(() => {
-        if (!fullscreenImageSrc) return;
-        const logHit = (label: string) => (e: Event) => {
-            const t = e.target as HTMLElement | null;
-            const cls = t && typeof t.className === 'string' ? t.className.slice(0, 70) : '';
-            console.log(`[fullscreen-debug] ${label}`, {
-                type: e.type,
-                target: t ? `${t.tagName} ${cls}` : String(t),
-                targetPE: t ? getComputedStyle(t).pointerEvents : '?',
-                bodyPE: getComputedStyle(document.body).pointerEvents,
-                overlayPE: fullscreenOverlayRef.current ? getComputedStyle(fullscreenOverlayRef.current).pointerEvents : 'no-overlay',
-                hitOverlay: !!(t && fullscreenOverlayRef.current?.contains(t)),
-            });
-        };
-        const pd = logHit('pointerdown');
-        const cl = logHit('click');
-        document.addEventListener('pointerdown', pd, true);
-        document.addEventListener('click', cl, true);
-        return () => {
-            document.removeEventListener('pointerdown', pd, true);
-            document.removeEventListener('click', cl, true);
-        };
-    }, [fullscreenImageSrc]);
-
     // Mobile Back Button Handling
     useEffect(() => {
         if (!isMobile || !isOpen) return;

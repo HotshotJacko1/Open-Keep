@@ -43,6 +43,21 @@ import { App as CapacitorApp } from "@capacitor/app";
 import { useWidgetDeepLink } from "@/hooks/use-widget-deep-link";
 import { useMcpBridge } from "@/hooks/use-mcp-bridge";
 
+// A corrupt or non-array "custom-tags" value used to white-screen the app: it
+// was parsed unguarded both in the useState initialiser (crash on mount) and in
+// the notes-updated handler (throws inside an event listener after every sync).
+// Guard both through here. Note the Array.isArray check matters as much as the
+// try/catch — JSON.parse("5") succeeds and returns a number, which then blows up
+// on the first spread or .map.
+const readCustomTags = (): string[] => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("custom-tags") ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((t): t is string => typeof t === "string") : [];
+  } catch {
+    return [];
+  }
+};
+
 const Index = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   // Starts true: Index now mounts BEFORE the database has been opened, so an empty
@@ -65,10 +80,7 @@ const Index = () => {
   const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
   const [isFileInfoOpen, setIsFileInfoOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [customTags, setCustomTags] = useState<string[]>(() => {
-    const saved = localStorage.getItem("custom-tags");
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [customTags, setCustomTags] = useState<string[]>(readCustomTags);
   const [showInitialMigrationAsk, setShowInitialMigrationAsk] = useState(false);
   const [showEarlyAccessDialog, setShowEarlyAccessDialog] = useState(false);
   const [showMigrationGuide, setShowMigrationGuide] = useState(false);
@@ -166,6 +178,9 @@ const Index = () => {
   // Auto-Sync Logic
   const autoSyncTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hasInitialSynced = useRef(false);
+  // DB writes started by saveNote/deleteNote that haven't settled yet. Lets the
+  // editor-close sync wait for the editor's final save before uploading.
+  const pendingWritesRef = useRef<Set<Promise<unknown>>>(new Set());
 
   // Pull the notes list back from the database, which is the source of truth.
   //
@@ -183,21 +198,23 @@ const Index = () => {
       setDbUnavailable(true);
     }
 
-    const savedTags = localStorage.getItem("custom-tags");
-    if (savedTags) {
-      setCustomTags(JSON.parse(savedTags));
+    // Guard kept deliberately: when the key is absent (a reset flow removes it)
+    // the previous behaviour was to leave in-memory tags alone, not clear them.
+    if (localStorage.getItem("custom-tags") !== null) {
+      setCustomTags(readCustomTags());
     }
   }, []);
 
-  const performAutoSync = useCallback(async () => {
-    if (!activeService) return;
-    if (activeService.isSyncing) return;
+  // Resolves true if a sync was attempted, false if it was skipped.
+  const performAutoSync = useCallback(async (): Promise<boolean> => {
+    if (!activeService) return false;
+    if (activeService.isSyncing) return false;
     if (
       activeService.name === "Google Drive" &&
       (isGoogleDriveAuthBusy() || isGoogleDriveScopeBlocked())
     ) {
       console.log("Auto-sync: skipping Google Drive (auth in progress or scope blocked)");
-      return;
+      return false;
     }
     console.log("Auto-sync: performAutoSync started for", activeService.name);
     try {
@@ -220,6 +237,7 @@ const Index = () => {
     } catch (error) {
       console.error("Auto-sync failed", error);
     }
+    return true;
   }, [activeService]);
 
   const triggerEditAutoSync = useCallback(() => {
@@ -228,6 +246,8 @@ const Index = () => {
       clearTimeout(autoSyncTimerRef.current);
     }
     autoSyncTimerRef.current = setTimeout(() => {
+      // Null once fired, so a non-null ref always means "an edit is waiting to sync".
+      autoSyncTimerRef.current = null;
       performAutoSync();
     }, 30000); // 30 seconds
   }, [activeService, performAutoSync]);
@@ -261,7 +281,7 @@ const Index = () => {
     showSuccess("Exported all notes");
   };
 
-  const saveNote = async (note: Note) => {
+  const persistNote = async (note: Note) => {
     try {
       const wasTrimmed = await localSaveNote(note);
       triggerEditAutoSync();
@@ -290,7 +310,7 @@ const Index = () => {
     }
   };
 
-  const deleteNote = async (id: string) => {
+  const persistDelete = async (id: string) => {
     try {
       await localDeleteNote(id);
       triggerEditAutoSync();
@@ -305,6 +325,38 @@ const Index = () => {
         setDbUnavailable(true);
       }
     }
+  };
+
+  // Tracks the whole wrapper (write + triggerEditAutoSync), so once it settles
+  // the 30s timer is already armed for that change.
+  const trackWrite = <T,>(write: Promise<T>): Promise<T> => {
+    const pending = pendingWritesRef.current;
+    pending.add(write);
+    const settle = () => { pending.delete(write); };
+    write.then(settle, settle);
+    return write;
+  };
+
+  const saveNote = (note: Note) => trackWrite(persistNote(note));
+  const deleteNote = (id: string) => trackWrite(persistDelete(id));
+
+  // Sync as soon as the editor closes (done, delete or archive), instead of
+  // waiting out the 30s timer. Only when there's something to send: the timer
+  // being armed means an edit hasn't synced yet, so just opening a note to read
+  // it and closing it costs no network round-trip.
+  const handleEditorClose = async () => {
+    setIsEditorOpen(false);
+    // NoteEditor calls onSave()/onDelete() and then onClose() in the same tick
+    // without awaiting, so the final save may still be writing. Uploading now
+    // would miss it.
+    await Promise.allSettled([...pendingWritesRef.current]);
+    if (!autoSyncTimerRef.current) return;
+    clearTimeout(autoSyncTimerRef.current);
+    autoSyncTimerRef.current = null;
+    const attempted = await performAutoSync();
+    // Skipped (a sync already running, or Drive auth busy): keep the 30s backstop
+    // so the change isn't stranded until the next launch/resume.
+    if (!attempted) triggerEditAutoSync();
   };
 
   // Auto-sync on App Launch
@@ -1201,7 +1253,7 @@ const Index = () => {
 
       <NoteEditor
         isOpen={isEditorOpen}
-        onClose={() => setIsEditorOpen(false)}
+        onClose={() => { void handleEditorClose(); }}
         onSave={handleSaveNote}
         onDelete={handleDeleteNote}
         initialNote={editingNote}

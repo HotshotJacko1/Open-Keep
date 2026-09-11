@@ -14,6 +14,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Notes can be written straight from the list on desktop, without opening the editor.
 - Labels are now shown below the content when editing a note.
 
+### Changed
+- Closing a note after editing it now syncs your changes to the cloud straight away, instead of after 30 seconds.
+
 ### Fixed
 - Checkbox ticks made in a widget now appear in the app.
 - Ticking a checkbox now updates every widget showing that note, not just the one you tapped.
@@ -25,6 +28,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Typing after pasting or writing a link no longer traps newly typed text inside the link.
 - Links in titles and checklist items now recognize `www.` addresses and properly ignore trailing punctuation.
 - Note previews on the notes list are now sanitised before display.
+- The app no longer fails to open if its saved list of labels becomes corrupted.
+- The "Disable Encryption" warning now correctly describes what happens to your notes on this device and in the cloud.
+- The "page not found" screen now follows your light or dark theme.
 
 ## [5.0.0] - 2026-09-08
 
