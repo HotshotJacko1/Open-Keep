@@ -5,7 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  '@capgo/capacitor-social-login@8.3.22': 50ac2382110b651e8147d21da5051537b869f78d5edd0d7d0e6c463936d073e6
+  '@capgo/capacitor-social-login@8.3.22':
+    hash: 50ac2382110b651e8147d21da5051537b869f78d5edd0d7d0e6c463936d073e6
+    path: patches/@capgo__capacitor-social-login@8.3.22.patch
 
 importers:
 

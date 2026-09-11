@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Added
 - Bold, italic and underline formatting for note text, via the new formatting button in the editor toolbar.
-- Notes can be written straight from the list on desktop, without opening the editor.
+- Notes can be written straight from the list on th eweb app, without opening the editor.
 - Labels are now shown below the content when editing a note.
 
 ### Changed
