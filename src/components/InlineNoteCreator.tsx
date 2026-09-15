@@ -143,7 +143,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
     editorProps: {
       attributes: {
         class:
-          "prose lg:prose-lg max-w-none focus:outline-none min-h-[40px] text-black dark:text-white",
+          "prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[40px] text-black dark:text-white",
       },
     },
     onUpdate: ({ editor }) => {
@@ -588,9 +588,11 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
               variant="ghost"
               size="icon"
               onClick={() => setIsReminderOpen(true)}
-              className={cn("text-secondary", reminder && "text-amber-500")}
+              className={reminder ? "text-yellow-400" : "text-secondary"}
             >
-              <Bell className="h-5 w-5" />
+              <Bell
+                className={cn("h-5 w-5", reminder && "fill-yellow-400")}
+              />
               <span className="sr-only">Remind me</span>
             </Button>
           </TooltipTrigger>

@@ -10,8 +10,8 @@ android {
         applicationId "com.jackbarkerapps.openkeep"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 46
-        versionName "5.0.1"
+        versionCode 48
+        versionName "5.0.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -70,7 +70,7 @@ dependencies {
     // Pinned to 4.17.0: 4.18.0 sets minCompileSdk=37, which needs AGP 9.1+ and
     // compileSdk 37. Revisit together with the compose-bom bump below.
     implementation "net.zetetic:sqlcipher-android:4.17.0"
-    implementation "androidx.sqlite:sqlite:2.7.0"
+    implementation "androidx.sqlite:sqlite:2.7.1"
     implementation "androidx.security:security-crypto:1.1.0"
 
     // Jetpack Glance and Compose

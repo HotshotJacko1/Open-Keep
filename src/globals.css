@@ -29,6 +29,22 @@
     animation: shake 0.4s cubic-bezier(.36, .07, .19, .97) both;
   }
 
+  @keyframes noteExit {
+    0% {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(0.85) translateY(-8px);
+    }
+  }
+
+  .animate-note-exit {
+    animation: noteExit 0.35s cubic-bezier(0.2, 0, 0, 1) forwards !important;
+    pointer-events: none !important;
+  }
+
   @layer base {
     :root {
       --background: 24 83% 93%;
@@ -167,6 +183,12 @@
 
   /* Tiptap dark mode link color */
   .dark .ProseMirror a {
+    color: white;
+  }
+
+  /* Tiptap dark mode bold/strong color */
+  .dark .ProseMirror strong,
+  .dark .ProseMirror b {
     color: white;
   }
 

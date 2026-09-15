@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { cn, safeRandomUUID } from "@/lib/utils";
 import { Note } from "@/types/note";
 import { toast } from "sonner";
+import { showSuccess } from "@/utils/toast";
 import {
     Dialog,
     DialogContent,
@@ -83,6 +84,23 @@ interface NoteEditorProps {
     autoFocus?: boolean;
     focusTarget?: "title" | "body";
 }
+
+// Moves focus between checklist item textareas (id="list-item-<itemId>") in DOM order,
+// used so ArrowUp/ArrowDown/ArrowLeft/ArrowRight can cross from one item into the next
+// when the cursor is already at the start/end of the current item's content.
+const focusAdjacentListItem = (currentId: string, direction: "next" | "prev"): boolean => {
+    const textareas = Array.from(
+        document.querySelectorAll<HTMLTextAreaElement>('textarea[id^="list-item-"]')
+    );
+    const index = textareas.findIndex((t) => t.id === `list-item-${currentId}`);
+    if (index === -1) return false;
+    const target = textareas[direction === "next" ? index + 1 : index - 1];
+    if (!target) return false;
+    target.focus();
+    const pos = direction === "next" ? 0 : target.value.length;
+    target.setSelectionRange(pos, pos);
+    return true;
+};
 
 interface SortableListItemProps {
     item: ChecklistItem;
@@ -240,6 +258,24 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
                             } else {
                                 if (onIndent) onIndent(item.id);
                             }
+                        } else if (
+                            (e.key === "ArrowDown" || e.key === "ArrowRight") &&
+                            !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey &&
+                            e.currentTarget.selectionStart === e.currentTarget.value.length &&
+                            e.currentTarget.selectionEnd === e.currentTarget.value.length
+                        ) {
+                            if (focusAdjacentListItem(item.id, "next")) {
+                                e.preventDefault();
+                            }
+                        } else if (
+                            (e.key === "ArrowUp" || e.key === "ArrowLeft") &&
+                            !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey &&
+                            e.currentTarget.selectionStart === 0 &&
+                            e.currentTarget.selectionEnd === 0
+                        ) {
+                            if (focusAdjacentListItem(item.id, "prev")) {
+                                e.preventDefault();
+                            }
                         }
                     }}
                     rows={1}
@@ -374,6 +410,24 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
                                 if (onOutdent) onOutdent(item.id);
                             } else {
                                 if (onIndent) onIndent(item.id);
+                            }
+                        } else if (
+                            (e.key === "ArrowDown" || e.key === "ArrowRight") &&
+                            !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey &&
+                            e.currentTarget.selectionStart === e.currentTarget.value.length &&
+                            e.currentTarget.selectionEnd === e.currentTarget.value.length
+                        ) {
+                            if (focusAdjacentListItem(item.id, "next")) {
+                                e.preventDefault();
+                            }
+                        } else if (
+                            (e.key === "ArrowUp" || e.key === "ArrowLeft") &&
+                            !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey &&
+                            e.currentTarget.selectionStart === 0 &&
+                            e.currentTarget.selectionEnd === 0
+                        ) {
+                            if (focusAdjacentListItem(item.id, "prev")) {
+                                e.preventDefault();
                             }
                         }
                     }}
@@ -535,7 +589,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 // Body text stays 16px on mobile so text notes match list notes
                 // (which inherit 16px) and Google Keep's 16sp. No xl step — it
                 // pushed body text above the 20px title on wide screens.
-                class: 'prose lg:prose-lg max-w-none focus:outline-none min-h-[40px] text-black dark:text-white',
+                class: 'prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[40px] text-black dark:text-white',
             },
         },
         onUpdate: ({ editor }) => {
@@ -1260,9 +1314,38 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         if (title.trim() === "" && plainText === "") {
             onDelete(noteIdRef.current);
         } else {
-            onSave(buildNoteFromState({ isArchived: newState }));
+            const savedNote = buildNoteFromState({ isArchived: newState });
+            onSave(savedNote);
+            if (newState) {
+                showSuccess("Note archived", {
+                    action: {
+                        label: "Undo",
+                        onClick: async () => {
+                            const unarchivedNote = {
+                                ...savedNote,
+                                isArchived: false,
+                                updatedAt: Date.now()
+                            };
+                            await onSave(unarchivedNote);
+                        }
+                    }
+                });
+            } else {
+                showSuccess("Note unarchived", {
+                    action: {
+                        label: "Undo",
+                        onClick: async () => {
+                            const rearchivedNote = {
+                                ...savedNote,
+                                isArchived: true,
+                                updatedAt: Date.now()
+                            };
+                            await onSave(rearchivedNote);
+                        }
+                    }
+                });
+            }
         }
-        toast.success(newState ? "Note archived" : "Note unarchived");
         onClose();
     };
 
@@ -1351,7 +1434,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
             <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseEditor()}>
                 <DialogContent
-                    className={cn("note-editor-dialog", isNoteTinted(color) && "note-tinted", "fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-auto sm:max-h-[80vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-lg flex flex-col p-0 gap-0 bg-note-editor-background dark:bg-note-editor-background text-black dark:text-white pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:pb-0 outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 origin-center data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-300 data-[state=open]:ease-md3-decelerate data-[state=closed]:ease-md3-accelerate")}
+                    className={cn("note-editor-dialog", isNoteTinted(color) && "note-tinted", "fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:bottom-auto sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-auto sm:max-h-[90vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-lg flex flex-col p-0 gap-0 bg-note-editor-background dark:bg-note-editor-background text-black dark:text-white pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:pb-0 outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 origin-center data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-300 data-[state=open]:ease-md3-decelerate data-[state=closed]:ease-md3-accelerate")}
                     style={{
                         ...(isMobile ? {
                             '--tw-enter-translate-x': '0',
@@ -1404,9 +1487,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                         size="icon"
                                         disabled={isDeleted}
                                         onClick={() => setIsReminderSheetOpen(true)}
-                                        className={reminder ? "text-amber-500" : "text-secondary"}
+                                        className={reminder ? "text-yellow-400" : "text-secondary"}
                                     >
-                                        <Bell className="h-5 w-5" />
+                                        <Bell className={`h-5 w-5 ${reminder ? "fill-yellow-400" : ""}`} />
                                         <span className="sr-only">{reminder ? "Edit reminder" : "Set reminder"}</span>
                                     </Button>
                                 </TooltipTrigger>
@@ -1433,7 +1516,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
                     {/* Scrollable Body */}
                     <div
-                        className="flex-1 overflow-y-auto p-4 cursor-text"
+                        className="flex-auto overflow-y-auto min-h-0 p-4 cursor-text"
                         onClick={(e) => {
                             if (e.target === e.currentTarget && !isChecklistMode && editor) {
                                 editor.chain().focus('end').run();
@@ -1778,25 +1861,25 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                             {/* Rich text formatting is text-notes only — checklist items are plain text,
                                 so the whole T group is hidden rather than shown as a dead toggle. */}
                             {!isChecklistMode && (
-                            <div className={`flex items-center gap-2 rounded-lg transition-colors ${!isMobile && canFormat ? "bg-muted px-1" : ""}`}>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        disabled={isDeleted}
-                                        className={`text-secondary ${showFormatting ? "bg-accent" : ""}`}
-                                        onClick={() => setShowFormatting(!showFormatting)}
-                                    >
-                                        <Type className="h-5 w-5" />
-                                        <span className="sr-only">Formatting</span>
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent><p>Formatting</p></TooltipContent>
-                            </Tooltip>
+                                <div className={`flex items-center gap-2 rounded-lg transition-colors ${!isMobile && canFormat ? "bg-muted px-1" : ""}`}>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                disabled={isDeleted}
+                                                className={`text-secondary ${showFormatting ? "bg-accent" : ""}`}
+                                                onClick={() => setShowFormatting(!showFormatting)}
+                                            >
+                                                <Type className="h-5 w-5" />
+                                                <span className="sr-only">Formatting</span>
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent><p>Formatting</p></TooltipContent>
+                                    </Tooltip>
 
-                            {!isMobile && canFormat && formattingButtons}
-                            </div>
+                                    {!isMobile && canFormat && formattingButtons}
+                                </div>
                             )}
 
                             <Tooltip>

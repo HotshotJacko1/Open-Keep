@@ -5,7 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), but this project does not adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) because there is no public API.
 
 ## [Unreleased]
+- Added "Undo" button to "Note moved to Bin" toast notification.
+- Added toast notification with "Undo" button when archiving and unarchiving notes.
 - F-Droid release.
+
+## [5.0.2] - 2026-09-21
+
+### Added
+- Pinned notes now appear in their own "Pinned" section at the top of the list, separate from your other notes.
+- Web: In checklists, arrow keys now move between items instead of just within one.
+- Added "Undo" button to "Note moved to Bin" and new "Note moved to Archive" toast notification.
+
+### Fixed
+- Web: Long notes no longer get squeezed into a small scrolling box when opened — the editor now grows to fit the note, up to 90% of the screen.
+- Bold text in notes is now visible in dark mode.
 
 ## [5.0.1] - 2026-09-14
 

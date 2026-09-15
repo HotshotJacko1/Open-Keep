@@ -78,6 +78,7 @@ const Index = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isEditLabelsOpen, setIsEditLabelsOpen] = useState(false);
   const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
+  const [exitingNoteIds, setExitingNoteIds] = useState<Set<string>>(new Set());
   const [isFileInfoOpen, setIsFileInfoOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [customTags, setCustomTags] = useState<string[]>(readCustomTags);
@@ -609,26 +610,72 @@ const Index = () => {
     const note = notes.find(n => n.id === id);
     if (!note) return;
 
+    setExitingNoteIds(prev => new Set(prev).add(id));
+
     const updatedNote = { ...note, isArchived: !note.isArchived, updatedAt: Date.now() };
 
-    setNotes((prevNotes) =>
-      prevNotes.map((n) => (n.id === id ? updatedNote : n))
-    );
-    await saveNote(updatedNote);
+    void saveNote(updatedNote);
+
+    setTimeout(() => {
+      setNotes((prevNotes) =>
+        prevNotes.map((n) => (n.id === id ? updatedNote : n))
+      );
+      setExitingNoteIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      if (updatedNote.isArchived) {
+        showSuccess("Note archived", {
+          action: {
+            label: "Undo",
+            onClick: async () => {
+              const restoredNote = { ...note, isArchived: false, updatedAt: Date.now() };
+              setNotes((prevNotes) =>
+                prevNotes.map((n) => (n.id === id ? restoredNote : n))
+              );
+              await saveNote(restoredNote);
+            }
+          }
+        });
+      } else {
+        showSuccess("Note unarchived", {
+          action: {
+            label: "Undo",
+            onClick: async () => {
+              const restoredNote = { ...note, isArchived: true, updatedAt: Date.now() };
+              setNotes((prevNotes) =>
+                prevNotes.map((n) => (n.id === id ? restoredNote : n))
+              );
+              await saveNote(restoredNote);
+            }
+          }
+        });
+      }
+    }, 320);
   };
 
   const handleDeleteNote = async (id: string) => {
     const note = notes.find((n) => n.id === id);
     if (!note) return;
 
+    setExitingNoteIds(prev => new Set(prev).add(id));
+
     if (note.isDeleted) {
       // Permanent Delete
       if (note.images && note.images.length > 0) {
         await Promise.all(note.images.map(deleteImage));
       }
-      setNotes((prevNotes) => prevNotes.filter((n) => n.id !== id));
-      await deleteNote(id);
-      showSuccess("Note permanently deleted");
+      void deleteNote(id);
+      setTimeout(() => {
+        setNotes((prevNotes) => prevNotes.filter((n) => n.id !== id));
+        setExitingNoteIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        showSuccess("Note permanently deleted");
+      }, 320);
     } else {
       // Soft Delete
       const updatedNote = {
@@ -639,17 +686,42 @@ const Index = () => {
         updatedAt: Math.max(Date.now(), note.updatedAt + 1)
       };
 
-      setNotes((prevNotes) =>
-        prevNotes.map((n) => (n.id === id ? updatedNote : n))
-      );
-      await saveNote(updatedNote);
-      showSuccess("Note moved to Bin");
+      void saveNote(updatedNote);
+      setTimeout(() => {
+        setNotes((prevNotes) =>
+          prevNotes.map((n) => (n.id === id ? updatedNote : n))
+        );
+        setExitingNoteIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        showSuccess("Note moved to Bin", {
+          action: {
+            label: "Undo",
+            onClick: async () => {
+              const restoredNote: Note = {
+                ...note,
+                isDeleted: false,
+                deletedAt: undefined,
+                updatedAt: Date.now()
+              };
+              setNotes((prevNotes) =>
+                prevNotes.map((n) => (n.id === id ? restoredNote : n))
+              );
+              await saveNote(restoredNote);
+            }
+          }
+        });
+      }, 320);
     }
   };
 
   const handleRestoreNote = async (id: string) => {
     const note = notes.find((n) => n.id === id);
     if (!note) return;
+
+    setExitingNoteIds(prev => new Set(prev).add(id));
 
     const updatedNote = {
       ...note,
@@ -658,11 +730,18 @@ const Index = () => {
       updatedAt: Date.now()
     };
 
-    setNotes((prevNotes) =>
-      prevNotes.map((n) => (n.id === id ? updatedNote : n))
-    );
-    await saveNote(updatedNote);
-    showSuccess("Note restored");
+    void saveNote(updatedNote);
+    setTimeout(() => {
+      setNotes((prevNotes) =>
+        prevNotes.map((n) => (n.id === id ? updatedNote : n))
+      );
+      setExitingNoteIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      showSuccess("Note restored");
+    }, 320);
   };
 
   const handleToggleListItem = async (noteId: string, itemId: string) => {
@@ -735,6 +814,21 @@ const Index = () => {
         return b.updatedAt - a.updatedAt; // Sort by most recently updated
       });
   }, [notes, searchTerm, selectedTag, sortMode]);
+
+  const { pinnedNotes, otherNotes } = useMemo(() => {
+    const pinned: Note[] = [];
+    const others: Note[] = [];
+    for (const note of filteredNotes) {
+      if (note.isPinned) {
+        pinned.push(note);
+      } else {
+        others.push(note);
+      }
+    }
+    return { pinnedNotes: pinned, otherNotes: others };
+  }, [filteredNotes]);
+
+  const showPinnedSections = pinnedNotes.length > 0 && selectedTag !== "archive" && selectedTag !== "bin";
 
   const handleNewTextNote = () => {
     const newNoteSkeleton: Note = {
@@ -827,6 +921,14 @@ const Index = () => {
     const selectedNotes = notes.filter(n => selectedNoteIds.has(n.id));
     if (selectedNotes.length === 0) return;
 
+    const ids = Array.from(selectedNoteIds);
+    const archivedSnapshot = [...selectedNotes];
+    setExitingNoteIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.add(id));
+      return next;
+    });
+
     const now = Date.now();
     const updates: Note[] = [];
 
@@ -839,16 +941,48 @@ const Index = () => {
       return note;
     });
 
-    setNotes(newNotes);
-    await Promise.all(updates.map(n => saveNote(n)));
-
     handleClearSelection();
-    showSuccess("Notes archived");
+    void Promise.all(updates.map(n => saveNote(n)));
+
+    setTimeout(() => {
+      setNotes(newNotes);
+      setExitingNoteIds(prev => {
+        const next = new Set(prev);
+        ids.forEach(id => next.delete(id));
+        return next;
+      });
+      showSuccess(selectedNotes.length === 1 ? "Note archived" : `${selectedNotes.length} notes archived`, {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            const undoTime = Date.now();
+            const restoredNotes = archivedSnapshot.map(n => ({
+              ...n,
+              isArchived: false,
+              updatedAt: undoTime
+            }));
+            const restoredMap = new Map(restoredNotes.map(n => [n.id, n]));
+            setNotes((prevNotes) =>
+              prevNotes.map((n) => restoredMap.get(n.id) || n)
+            );
+            await Promise.all(restoredNotes.map(n => saveNote(n)));
+          }
+        }
+      });
+    }, 320);
   };
 
   const handleBulkUnarchive = async () => {
     const selectedNotes = notes.filter(n => selectedNoteIds.has(n.id));
     if (selectedNotes.length === 0) return;
+
+    const ids = Array.from(selectedNoteIds);
+    const unarchivedSnapshot = [...selectedNotes];
+    setExitingNoteIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.add(id));
+      return next;
+    });
 
     const now = Date.now();
     const updates: Note[] = [];
@@ -862,36 +996,72 @@ const Index = () => {
       return note;
     });
 
-    setNotes(newNotes);
-    await Promise.all(updates.map(n => saveNote(n)));
-
     handleClearSelection();
-    showSuccess("Notes unarchived");
+    void Promise.all(updates.map(n => saveNote(n)));
+
+    setTimeout(() => {
+      setNotes(newNotes);
+      setExitingNoteIds(prev => {
+        const next = new Set(prev);
+        ids.forEach(id => next.delete(id));
+        return next;
+      });
+      showSuccess(selectedNotes.length === 1 ? "Note unarchived" : `${selectedNotes.length} notes unarchived`, {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            const undoTime = Date.now();
+            const restoredNotes = unarchivedSnapshot.map(n => ({
+              ...n,
+              isArchived: true,
+              updatedAt: undoTime
+            }));
+            const restoredMap = new Map(restoredNotes.map(n => [n.id, n]));
+            setNotes((prevNotes) =>
+              prevNotes.map((n) => restoredMap.get(n.id) || n)
+            );
+            await Promise.all(restoredNotes.map(n => saveNote(n)));
+          }
+        }
+      });
+    }, 320);
   };
 
   const handleBulkDelete = async () => {
     const selectedNotes = notes.filter(n => selectedNoteIds.has(n.id));
     if (selectedNotes.length === 0) return;
 
+    const ids = Array.from(selectedNoteIds);
+    setExitingNoteIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.add(id));
+      return next;
+    });
+
     const isBinView = selectedTag === "bin";
     const now = Date.now();
 
     if (isBinView) {
-      // Hard delete
-      const idsToDelete = Array.from(selectedNoteIds);
-
-      await Promise.all(selectedNotes.map(async n => {
+      handleClearSelection();
+      void Promise.all(selectedNotes.map(async n => {
         if (n.images && n.images.length > 0) {
           await Promise.all(n.images.map(deleteImage));
         }
         await deleteNote(n.id);
       }));
 
-      setNotes((prevNotes) => prevNotes.filter(note => !selectedNoteIds.has(note.id)));
-      showSuccess("Notes permanently deleted");
+      setTimeout(() => {
+        setNotes((prevNotes) => prevNotes.filter(note => !ids.includes(note.id)));
+        setExitingNoteIds(prev => {
+          const next = new Set(prev);
+          ids.forEach(id => next.delete(id));
+          return next;
+        });
+        showSuccess("Notes permanently deleted");
+      }, 320);
     } else {
-      // Soft delete
       const updates: Note[] = [];
+      const deletedSnapshot = [...selectedNotes];
       const newNotes = notes.map(note => {
         if (selectedNoteIds.has(note.id)) {
           const updated = {
@@ -907,17 +1077,49 @@ const Index = () => {
         return note;
       });
 
-      setNotes(newNotes);
-      await Promise.all(updates.map(n => saveNote(n)));
-      showSuccess("Notes moved to Bin");
-    }
+      handleClearSelection();
+      void Promise.all(updates.map(n => saveNote(n)));
 
-    handleClearSelection();
+      setTimeout(() => {
+        setNotes(newNotes);
+        setExitingNoteIds(prev => {
+          const next = new Set(prev);
+          ids.forEach(id => next.delete(id));
+          return next;
+        });
+        showSuccess(selectedNotes.length === 1 ? "Note moved to Bin" : `${selectedNotes.length} notes moved to Bin`, {
+          action: {
+            label: "Undo",
+            onClick: async () => {
+              const undoTime = Date.now();
+              const restoredNotes = deletedSnapshot.map(n => ({
+                ...n,
+                isDeleted: false,
+                deletedAt: undefined,
+                updatedAt: undoTime
+              }));
+              const restoredMap = new Map(restoredNotes.map(n => [n.id, n]));
+              setNotes((prevNotes) =>
+                prevNotes.map((n) => restoredMap.get(n.id) || n)
+              );
+              await Promise.all(restoredNotes.map(n => saveNote(n)));
+            }
+          }
+        });
+      }, 320);
+    }
   };
 
   const handleBulkRestore = async () => {
     const selectedNotes = notes.filter(n => selectedNoteIds.has(n.id));
     if (selectedNotes.length === 0) return;
+
+    const ids = Array.from(selectedNoteIds);
+    setExitingNoteIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.add(id));
+      return next;
+    });
 
     const now = Date.now();
     const updates: Note[] = [];
@@ -935,10 +1137,18 @@ const Index = () => {
       return note;
     });
 
-    setNotes(newNotes);
-    await Promise.all(updates.map(n => saveNote(n)));
-    showSuccess("Notes restored");
     handleClearSelection();
+    void Promise.all(updates.map(n => saveNote(n)));
+
+    setTimeout(() => {
+      setNotes(newNotes);
+      setExitingNoteIds(prev => {
+        const next = new Set(prev);
+        ids.forEach(id => next.delete(id));
+        return next;
+      });
+      showSuccess("Notes restored");
+    }, 320);
   };
 
   const handleBulkExport = async () => {
@@ -1222,33 +1432,109 @@ const Index = () => {
             ))}
           </div>
         )}
-        <div
-          className={cn(
-            "pt-4 w-full",
-            viewMode === "grid"
-              ? "columns-2 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5"
-              : "flex flex-col space-y-4"
-          )}
-          style={viewMode === "grid" ? {
-            columnGap: isMobile ? "0.5rem" : "1rem",
-          } : undefined}
-        >
-          {!isLoading && filteredNotes.map((note) => (
-            <NoteCard
-              key={note.id}
-              note={note}
-              onEdit={handleEditNote}
-              onPinToggle={handlePinToggle}
-              onArchiveToggle={handleArchiveToggle}
-              onDelete={handleDeleteNote}
-              onRestore={handleRestoreNote}
-              onToggleListItem={handleToggleListItem}
-              isSelected={selectedNoteIds.has(note.id)}
-              isSelectionMode={isSelectionMode}
-              onSelect={handleSelectNote}
-            />
-          ))}
-        </div>
+        {!isLoading && showPinnedSections ? (
+          <div className="pt-4 space-y-6 w-full">
+            {pinnedNotes.length > 0 && (
+              <section aria-label="Pinned notes">
+                <h2 className="text-[11px] font-medium tracking-wider uppercase text-muted-foreground px-2 mb-2 select-none">
+                  PINNED
+                </h2>
+                <div
+                  className={cn(
+                    "w-full",
+                    viewMode === "grid"
+                      ? "columns-2 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5"
+                      : "flex flex-col space-y-4"
+                  )}
+                  style={viewMode === "grid" ? {
+                    columnGap: isMobile ? "0.5rem" : "1rem",
+                  } : undefined}
+                >
+                  {pinnedNotes.map((note) => (
+                    <NoteCard
+                      key={note.id}
+                      note={note}
+                      onEdit={handleEditNote}
+                      onPinToggle={handlePinToggle}
+                      onArchiveToggle={handleArchiveToggle}
+                      onDelete={handleDeleteNote}
+                      onRestore={handleRestoreNote}
+                      onToggleListItem={handleToggleListItem}
+                      isSelected={selectedNoteIds.has(note.id)}
+                      isSelectionMode={isSelectionMode}
+                      onSelect={handleSelectNote}
+                      isExiting={exitingNoteIds.has(note.id)}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+            {otherNotes.length > 0 && (
+              <section aria-label="Other notes">
+                <h2 className="text-[11px] font-medium tracking-wider uppercase text-muted-foreground px-2 mb-2 select-none">
+                  OTHERS
+                </h2>
+                <div
+                  className={cn(
+                    "w-full",
+                    viewMode === "grid"
+                      ? "columns-2 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5"
+                      : "flex flex-col space-y-4"
+                  )}
+                  style={viewMode === "grid" ? {
+                    columnGap: isMobile ? "0.5rem" : "1rem",
+                  } : undefined}
+                >
+                  {otherNotes.map((note) => (
+                    <NoteCard
+                      key={note.id}
+                      note={note}
+                      onEdit={handleEditNote}
+                      onPinToggle={handlePinToggle}
+                      onArchiveToggle={handleArchiveToggle}
+                      onDelete={handleDeleteNote}
+                      onRestore={handleRestoreNote}
+                      onToggleListItem={handleToggleListItem}
+                      isSelected={selectedNoteIds.has(note.id)}
+                      isSelectionMode={isSelectionMode}
+                      onSelect={handleSelectNote}
+                      isExiting={exitingNoteIds.has(note.id)}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "pt-4 w-full",
+              viewMode === "grid"
+                ? "columns-2 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5"
+                : "flex flex-col space-y-4"
+            )}
+            style={viewMode === "grid" ? {
+              columnGap: isMobile ? "0.5rem" : "1rem",
+            } : undefined}
+          >
+            {!isLoading && filteredNotes.map((note) => (
+              <NoteCard
+                key={note.id}
+                note={note}
+                onEdit={handleEditNote}
+                onPinToggle={handlePinToggle}
+                onArchiveToggle={handleArchiveToggle}
+                onDelete={handleDeleteNote}
+                onRestore={handleRestoreNote}
+                onToggleListItem={handleToggleListItem}
+                isSelected={selectedNoteIds.has(note.id)}
+                isSelectionMode={isSelectionMode}
+                onSelect={handleSelectNote}
+                isExiting={exitingNoteIds.has(note.id)}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       <NoteEditor
