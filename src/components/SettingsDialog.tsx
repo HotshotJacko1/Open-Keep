@@ -38,6 +38,7 @@ import ChangePinDialog from "./ChangePinDialog";
 import AppLockDialog from "./AppLockDialog";
 import GoogleKeepMigrationGuide from "./GoogleKeepMigrationGuide";
 import ChangelogDialog from "./ChangelogDialog";
+import kofiLogo from "@/Assets/kofi-logo.png";
 import EnableEncryptionDialog from "./EnableEncryptionDialog";
 import DisableEncryptionDialog from "./DisableEncryptionDialog";
 import { useSession } from "@/context/session-provider";
@@ -510,6 +511,18 @@ PIN code: ${pinCode || 'Not set'}`;
                 className="w-full justify-start"
               >
                 <MessageSquare className="h-4 w-4 mr-2" /> Join the Reddit Community
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => window.open("https://ko-fi.com/D1I1275TCA", "_blank")}
+                className="w-full justify-start"
+              >
+                <img
+                  src={kofiLogo}
+                  alt="Ko-fi"
+                  className="h-4 w-4 mr-2 object-contain"
+                />
+                Donate to Support the Project
               </Button>
               <Button
                 variant="outline"
