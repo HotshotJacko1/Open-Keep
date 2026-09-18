@@ -14,5 +14,5 @@ ext {
     androidxEspressoCoreVersion = '3.7.0'
     cordovaAndroidVersion = '14.0.1'
     kotlinVersion = '2.2.10'
-    roomVersion = '2.8.4'
+    roomVersion = '2.8.5'
 }

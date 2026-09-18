@@ -1,7 +1,25 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 
-type Theme = "dark" | "light" | "system";
+const THEMES = ["dark", "light", "system"] as const;
+
+type Theme = (typeof THEMES)[number];
+
+const isTheme = (value: unknown): value is Theme =>
+  typeof value === "string" && (THEMES as readonly string[]).includes(value);
+
+// Reading localStorage can throw (disabled storage / restricted WebView), and the
+// stored value is untrusted: anything that is not a known Theme must not reach the
+// <html> class list, or the app lands in neither "light" nor "dark" and falls back
+// to whatever the CSS defaults to.
+const readStoredTheme = (storageKey: string, fallback: Theme): Theme => {
+  try {
+    const stored = localStorage.getItem(storageKey);
+    return isTheme(stored) ? stored : fallback;
+  } catch {
+    return fallback;
+  }
+};
 
 type ThemeProviderState = {
   theme: Theme;
@@ -25,8 +43,8 @@ export function ThemeProvider({
   defaultTheme?: Theme;
   storageKey?: string;
 }) {
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
+  const [theme, setTheme] = useState<Theme>(() =>
+    readStoredTheme(storageKey, defaultTheme)
   );
 
   useEffect(() => {
@@ -49,7 +67,11 @@ export function ThemeProvider({
   const value = {
     theme,
     setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme);
+      try {
+        localStorage.setItem(storageKey, theme);
+      } catch {
+        // Persisting the choice is best-effort; it must not break the theme switch.
+      }
       setTheme(theme);
     },
   };

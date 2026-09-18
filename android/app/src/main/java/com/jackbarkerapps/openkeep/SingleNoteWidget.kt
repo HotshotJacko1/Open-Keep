@@ -25,6 +25,7 @@ import androidx.glance.action.actionParametersOf
 import androidx.glance.appwidget.appWidgetBackground
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
+import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.lazy.itemsIndexed
 import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll
@@ -129,7 +130,7 @@ class SingleNoteGlanceWidget : GlanceAppWidget() {
                 return@Column
             }
 
-            val title = note.title.ifBlank { note.content.lines().firstOrNull()?.take(60) ?: "Untitled" }
+            val title = WidgetText.displayTitle(note)
             val openNoteIntent = Intent(Intent.ACTION_VIEW).apply {
                 data = Uri.parse("openkeep://open-note/$noteId")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -142,33 +143,48 @@ class SingleNoteGlanceWidget : GlanceAppWidget() {
                 modifier = GlanceModifier.fillMaxWidth().clickable(actionStartActivity(openNoteIntent)).padding(bottom = 8.dp)
             )
 
-            val lines = note.content.split("\n")
-            LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
-                itemsIndexed(lines) { index, line ->
-                    val item = ChecklistMarkdown.parse(line)
-                    when {
-                        item != null -> {
-                            ChecklistItem(text = item.text, isChecked = item.isChecked, noteId = noteId, lineIndex = index)
-                        }
-                        line.isNotBlank() -> {
-                            Text(
-                                text = line.trim(),
-                                style = TextStyle(fontSize = 14.sp, color = ColorProvider(day = Color.DarkGray, night = Color.LightGray)),
-                                modifier = GlanceModifier.padding(vertical = 2.dp)
-                            )
+            if (WidgetText.isChecklist(note)) {
+                // Line indices must stay aligned with the stored content: the toggle
+                // action flips the marker on exactly this line.
+                val lines = note.content.split("\n")
+                val indented = ChecklistMarkdown.indentedFlags(lines)
+                LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
+                    itemsIndexed(lines) { index, line ->
+                        val item = ChecklistMarkdown.parse(line)
+                        if (item != null) {
+                            ChecklistItem(text = item.text, isChecked = item.isChecked, noteId = noteId, lineIndex = index, indented = indented[index])
+                        } else {
+                            val plain = WidgetText.plainLine(line)
+                            if (plain.isNotEmpty()) BodyText(plain)
                         }
                     }
+                }
+            } else {
+                // Text notes are stored as editor HTML - render the text, not the tags.
+                val paragraphs = WidgetText.plainLines(note.content)
+                LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
+                    items(paragraphs) { paragraph -> BodyText(paragraph) }
                 }
             }
         }
     }
 
     @Composable
-    private fun ChecklistItem(text: String, isChecked: Boolean, noteId: String, lineIndex: Int) {
+    private fun BodyText(text: String) {
+        Text(
+            text = text,
+            style = TextStyle(fontSize = 14.sp, color = ColorProvider(day = Color.DarkGray, night = Color.LightGray)),
+            modifier = GlanceModifier.padding(vertical = 2.dp)
+        )
+    }
+
+    @Composable
+    private fun ChecklistItem(text: String, isChecked: Boolean, noteId: String, lineIndex: Int, indented: Boolean) {
         val actionParamNoteId = ActionParameters.Key<String>("noteId")
         val actionParamLineIndex = ActionParameters.Key<Int>("lineIndex")
         
-        Row(modifier = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        // Sub-items sit one checkbox-width in, as in the app.
+        Row(modifier = GlanceModifier.fillMaxWidth().padding(start = if (indented) 32.dp else 0.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Image(
                 provider = ImageProvider(if (isChecked) android.R.drawable.checkbox_on_background else android.R.drawable.checkbox_off_background),
                 contentDescription = null,

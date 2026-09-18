@@ -51,6 +51,15 @@ const TopBar: React.FC<TopBarProps> = ({
         return null;
     }, [googleDrive.isConnected, oneDrive.isConnected, dropbox.isConnected, googleDrive, oneDrive, dropbox]);
 
+    const [justSynced, setJustSynced] = React.useState(false);
+    const justSyncedTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    React.useEffect(() => {
+        return () => {
+            if (justSyncedTimeoutRef.current) clearTimeout(justSyncedTimeoutRef.current);
+        };
+    }, []);
+
     const handleSync = async () => {
         if (!activeService) return;
         const result = await activeService.sync();
@@ -62,6 +71,10 @@ const TopBar: React.FC<TopBarProps> = ({
                     reason: (result as any).reason
                 }
             }));
+        } else if (result && result.status === "success") {
+            if (justSyncedTimeoutRef.current) clearTimeout(justSyncedTimeoutRef.current);
+            setJustSynced(true);
+            justSyncedTimeoutRef.current = setTimeout(() => setJustSynced(false), 1200);
         }
     };
 
@@ -128,20 +141,25 @@ const TopBar: React.FC<TopBarProps> = ({
                     onClick={handleSync}
                     disabled={activeService.isSyncing}
                     className={cn(
-                        "flex-shrink-0 text-muted-foreground",
-                        (activeService as any).isTokenExpired && "bg-orange-500 hover:bg-orange-600 text-white"
+                        "flex-shrink-0 justify-center text-muted-foreground transition-colors duration-500 ease-in-out min-w-[150px]",
+                        (activeService as any).isTokenExpired && "bg-orange-500 hover:bg-orange-600 text-white",
+                        justSynced && "bg-green-500 hover:bg-green-500 text-white"
                     )}
                 >
                     {activeService.isSyncing ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : justSynced ? (
+                        <Check className="mr-2 h-4 w-4" />
                     ) : (
                         <CloudSync className="mr-2 h-4 w-4" />
                     )}
-                    {activeService.isSyncing 
-                        ? "Syncing..." 
-                        : (activeService as any).isTokenExpired 
-                            ? "Session Expired" 
-                            : "Sync"}
+                    {activeService.isSyncing
+                        ? "Syncing..."
+                        : justSynced
+                            ? "Synced"
+                            : (activeService as any).isTokenExpired
+                                ? "Session Expired"
+                                : "Sync"}
                 </Button>
             )}
 

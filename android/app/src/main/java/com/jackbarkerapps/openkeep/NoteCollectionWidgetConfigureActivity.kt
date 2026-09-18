@@ -61,6 +61,7 @@ class NoteCollectionWidgetConfigureActivity : AppCompatActivity() {
     private lateinit var saveButton: Button
     private lateinit var errorText: TextView
     private var appWidgetId: Int = AppWidgetManager.INVALID_APPWIDGET_ID
+    private var allNotesOptionId: Int = android.view.View.NO_ID
     private val scope = CoroutineScope(Dispatchers.Main)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -135,22 +136,11 @@ class NoteCollectionWidgetConfigureActivity : AppCompatActivity() {
         )
 
         // Add "All Notes" option
-        addRadioOption(FilterPrefs.FILTER_ALL, "All Notes", "Show all non-archived notes", 0)
+        allNotesOptionId = addRadioOption(FilterPrefs.FILTER_ALL, "All Notes", "Show all non-archived notes")
         // Add "Pinned Notes" option
-        addRadioOption(FilterPrefs.FILTER_PINNED, "Pinned Notes", "Show only pinned notes", 1)
+        addRadioOption(FilterPrefs.FILTER_PINNED, "Pinned Notes", "Show only pinned notes")
 
         contentLayout.addView(radioGroup)
-
-        // Labels section header (shown after labels load)
-        val labelHeader = TextView(this)
-        labelHeader.text = "By Label"
-        labelHeader.textSize = 14f
-        labelHeader.setTextColor(0xFF202124.toInt())
-        labelHeader.typeface = android.graphics.Typeface.DEFAULT_BOLD
-        labelHeader.setPadding(0, 16, 0, 8)
-        labelHeader.id = android.R.id.edit // reuse existing ID for reference
-        labelHeader.visibility = android.view.View.GONE
-        contentLayout.addView(labelHeader)
 
         // Save button
         saveButton = Button(this)
@@ -172,9 +162,9 @@ class NoteCollectionWidgetConfigureActivity : AppCompatActivity() {
         setContentView(scrollView)
     }
 
-    private fun addRadioOption(tag: String, label: String, description: String?, id: Int) {
+    private fun addRadioOption(tag: String, label: String, description: String?): Int {
         val radioBtn = RadioButton(this)
-        radioBtn.id = id
+        radioBtn.id = android.view.View.generateViewId()
         radioBtn.text = label
         radioBtn.tag = tag
         radioBtn.setTextColor(0xFF202124.toInt())
@@ -184,6 +174,7 @@ class NoteCollectionWidgetConfigureActivity : AppCompatActivity() {
             radioBtn.contentDescription = description
         }
         radioGroup.addView(radioBtn)
+        return radioBtn.id
     }
 
     private fun loadLabels() {
@@ -193,10 +184,15 @@ class NoteCollectionWidgetConfigureActivity : AppCompatActivity() {
                 populateLabelOptions(labels)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load labels", e)
-                errorText.text = "Could not load labels: ${e.message}"
-                errorText.visibility = android.view.View.GONE
+                errorText.text = if (e is IllegalStateException) {
+                    "Open the Open Keep app once to unlock your notes, then add this widget again to filter by label."
+                } else {
+                    "Could not load labels: ${e.message}"
+                }
+                errorText.visibility = android.view.View.VISIBLE
                 // Still allow selection of All/Pinned
                 progressBar.visibility = android.view.View.GONE
+                radioGroup.check(allNotesOptionId)
                 saveButton.isEnabled = true
             }
         }
@@ -234,40 +230,39 @@ class NoteCollectionWidgetConfigureActivity : AppCompatActivity() {
     private fun populateLabelOptions(tagLabels: List<String>) {
         progressBar.visibility = android.view.View.GONE
 
-        val labelHeader = findViewById<TextView>(android.R.id.edit)
         if (tagLabels.isNotEmpty()) {
-            labelHeader.visibility = android.view.View.VISIBLE
-            // Add a separator
+            // Header, divider and label options all go INSIDE the RadioGroup, after
+            // "Pinned Notes": the group must own every option for exclusive selection,
+            // and anything added to contentLayout instead ends up below the labels.
             val separator = View(this)
             separator.layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 1
-            ).apply { setMargins(0, 8, 0, 8) }
+            ).apply { setMargins(0, 16, 0, 8) }
             separator.setBackgroundColor(0xFFE0E0E0.toInt())
-            contentLayout.addView(separator, contentLayout.indexOfChild(labelHeader) + 1)
+            radioGroup.addView(separator)
 
-            // Create a sub-RadioGroup for labels so they share selection with main group
-            // Actually, we need all options in one RadioGroup for exclusive selection
-            // So we add them to radioGroup
-            var index = 2
+            val labelHeader = TextView(this)
+            labelHeader.text = "By Label"
+            labelHeader.textSize = 14f
+            labelHeader.setTextColor(0xFF202124.toInt())
+            labelHeader.typeface = android.graphics.Typeface.DEFAULT_BOLD
+            labelHeader.setPadding(0, 8, 0, 8)
+            radioGroup.addView(labelHeader)
+
             for (label in tagLabels) {
                 val radioBtn = RadioButton(this)
-                radioBtn.id = index
+                radioBtn.id = android.view.View.generateViewId()
                 radioBtn.text = label
                 radioBtn.tag = FilterPrefs.FILTER_LABEL
                 radioBtn.setTextColor(0xFF202124.toInt())
                 radioBtn.textSize = 16f
                 radioBtn.setPadding(32, 12, 16, 12)
                 radioGroup.addView(radioBtn)
-                index++
             }
-        } else {
-            labelHeader.visibility = android.view.View.GONE
         }
 
         // Select "All Notes" by default
-        if (radioGroup.childCount > 0) {
-            radioGroup.check(0)
-        }
+        radioGroup.check(allNotesOptionId)
 
         saveButton.isEnabled = true
     }

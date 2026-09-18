@@ -116,6 +116,10 @@ export const useDropbox = () => {
                 throw new Error("No PIN found. Please set up a PIN in App Lock settings first.");
             }
 
+            // Read local notes and custom tags BEFORE any database wipe or key import
+            const localNotes = await loadNotes();
+            const localCustomTags = JSON.parse(localStorage.getItem("custom-tags") || "[]");
+
             const cloudKeyConflict = await getCloudKeyConflictIfNeeded(
                 pin,
                 forceResolution,
@@ -141,7 +145,6 @@ export const useDropbox = () => {
             if (!forceResolution) {
                 const cloudKey = await checkDropboxMasterKey();
                 if (cloudKey.exists && cloudKey.payload) {
-                    const localNotes = await loadNotes();
                     const canDecrypt = await canDecryptCloudMasterKey(cloudKey.payload, effectivePin);
                     const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, effectivePin);
                     const isFirstConnect = !localStorage.getItem("dropbox-last-synced");
@@ -156,7 +159,7 @@ export const useDropbox = () => {
                         }
                     } else {
                         if (!isMatch) {
-                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
+                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: canDecrypt ? "first_connect" : "key_mismatch" };
                         } else if (isFirstConnect) {
                             return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
                         }
@@ -164,14 +167,8 @@ export const useDropbox = () => {
                 }
             }
 
-            const localNotes = await loadNotes();
-            const localCustomTags = JSON.parse(localStorage.getItem("custom-tags") || "[]");
             const dropboxForceResolution = forceResolution === "merge" ? undefined : forceResolution;
             const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithDropbox(localNotes, localCustomTags, { masterKeyPayload, forceResolution: dropboxForceResolution });
-
-            if (forceResolution === "cloud") {
-                await wipeDatabaseButKeepKeys();
-            }
 
             // Re-read local DB after sync in case local notes changed while sync was in-flight.
             const currentLocalNotes = await loadNotes();

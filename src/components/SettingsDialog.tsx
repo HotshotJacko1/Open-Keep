@@ -232,7 +232,14 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
 
 
   const handleExportAll = async () => {
-    if (notes.length === 0) {
+    // Binned notes are excluded here for the same reason as Index.tsx's
+    // handleExportAllNotes: the frontmatter carries no "deleted" flag, so an
+    // exported bin note is indistinguishable from a live one and comes back as
+    // a live note on re-import.
+    const exportableNotes = notes.filter((note) => !note.isDeleted);
+    const binnedCount = notes.length - exportableNotes.length;
+
+    if (exportableNotes.length === 0) {
       showError("No notes to export");
       return;
     }
@@ -241,7 +248,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
     try {
       const zip = new JSZip();
 
-      notes.forEach((note) => {
+      exportableNotes.forEach((note) => {
 
         // Sanitize title for filename
         const filename = `${note.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'untitled'}_${note.id.substring(0, 4)}.md`;
@@ -267,11 +274,19 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
           dialogTitle: 'Export All Notes'
         });
 
-        showSuccess(`Export ready`);
+        showSuccess(
+          binnedCount > 0
+            ? `Export ready (${binnedCount} in the bin were not included)`
+            : `Export ready`
+        );
       } else {
         const content = await zip.generateAsync({ type: "blob" });
         saveAs(content, filename);
-        showSuccess("All notes exported successfully");
+        showSuccess(
+          binnedCount > 0
+            ? `All notes exported (${binnedCount} in the bin were not included)`
+            : "All notes exported successfully"
+        );
       }
     } catch (error) {
       console.error("Export error:", error);

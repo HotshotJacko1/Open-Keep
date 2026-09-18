@@ -142,7 +142,7 @@ class NoteCollectionGlanceWidget : GlanceAppWidget() {
                 )
                 if (notes != null && notes.isNotEmpty()) {
                     Text(
-                        text = "${notes.size} notes",
+                        text = if (notes.size == 1) "1 note" else "${notes.size} notes",
                         style = TextStyle(fontSize = 12.sp, color = ColorProvider(day = Color.Gray, night = Color.LightGray))
                     )
                 }
@@ -198,7 +198,7 @@ class NoteCollectionGlanceWidget : GlanceAppWidget() {
                 .padding(12.dp)
                 .clickable(actionStartActivity(openNoteIntent))
         ) {
-            val title = note.title.ifBlank { "Untitled" }
+            val title = WidgetText.displayTitle(note)
             Text(
                 text = title,
                 style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = ColorProvider(day = Color.Black, night = Color.White)),
@@ -207,6 +207,7 @@ class NoteCollectionGlanceWidget : GlanceAppWidget() {
 
             val lines = note.content.split("\n")
             val checkboxLines = mutableListOf<Triple<Int, Boolean, String>>()
+            val indented = ChecklistMarkdown.indentedFlags(lines)
 
             for ((idx, line) in lines.withIndex()) {
                 val item = ChecklistMarkdown.parse(line) ?: continue
@@ -214,9 +215,13 @@ class NoteCollectionGlanceWidget : GlanceAppWidget() {
             }
 
             if (checkboxLines.isEmpty()) {
-                val firstContentLine = lines.firstOrNull { it.trim().isNotEmpty() } ?: ""
+                // Text notes are stored as editor HTML - show the text, not the tags.
+                val preview = WidgetText.plainLines(note.content)
+                    .let { if (note.title.isBlank()) it.drop(1) else it } // first line is already the title
+                    .take(3)
+                    .joinToString("\n")
                 Text(
-                    text = firstContentLine,
+                    text = preview,
                     style = TextStyle(fontSize = 14.sp, color = ColorProvider(day = Color.DarkGray, night = Color.LightGray)),
                     maxLines = 3
                 )
@@ -227,7 +232,7 @@ class NoteCollectionGlanceWidget : GlanceAppWidget() {
                     val actionParamNoteId = ActionParameters.Key<String>("noteId")
                     val actionParamLineIndex = ActionParameters.Key<Int>("lineIndex")
                     
-                    Row(modifier = GlanceModifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(modifier = GlanceModifier.fillMaxWidth().padding(start = if (indented[lineIdx]) 28.dp else 0.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                         Image(
                             provider = ImageProvider(if (checked) android.R.drawable.checkbox_on_background else android.R.drawable.checkbox_off_background),
                             contentDescription = null,

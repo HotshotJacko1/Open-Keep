@@ -186,20 +186,6 @@ class SingleNoteWidgetConfigureActivity : AppCompatActivity() {
             .take(120)
     }
 
-    private fun formatPreviewLine(raw: String): String {
-        // Checklist markers first - they are markdown, not HTML, so the parser
-        // below would leave the literal "- [ ]" in place.
-        val withBoxes = CHECKBOX_MARKER.replace(raw) { match ->
-            if (match.groupValues[1].equals("x", ignoreCase = true)) "\u2611 " else "\u2610 "
-        }
-        val plain = android.text.Html
-            .fromHtml(withBoxes, android.text.Html.FROM_HTML_MODE_LEGACY)
-            .toString()
-        return WHITESPACE.replace(plain, " ").trim()
-    }
-
-    private companion object {
-        private val CHECKBOX_MARKER = Regex("""^\s*-\s\[([ xX])\]\s?""")
-        private val WHITESPACE = Regex("""\s+""")
-    }
+    // Shared with the widgets so the picker and the home screen agree.
+    private fun formatPreviewLine(raw: String): String = WidgetText.previewLine(raw)
 }

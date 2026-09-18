@@ -51,10 +51,20 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
     isChecklist,
+    isTopLevel,
     parseChecklist,
+    serializeChecklist,
+    removeChecklistItems,
+    splitMultilineItemText,
+    groupChecklistForDisplay,
+    moveChecklistItem,
+    indentChecklistItem,
+    groupEnd,
     convertTextToList,
     convertListToText,
-    ChecklistItem
+    CHECKLIST_INDENT,
+    ChecklistItem,
+    ChecklistDisplayRow
 } from "@/utils/markdown";
 import { Capacitor } from "@capacitor/core";
 
@@ -85,6 +95,22 @@ interface NoteEditorProps {
     focusTarget?: "title" | "body";
 }
 
+// The fields that count as "the user changed this note". Used for the baseline
+// taken on open/save and for the live comparison, so both are built the same way.
+const makeNoteSnapshot = (n: Pick<Note, 'title' | 'content' | 'tags' | 'isPinned' | 'isArchived' | 'images' | 'color' | 'reminder' | 'recurrence'> & { type?: string }) =>
+    JSON.stringify({
+        title: n.title,
+        content: n.content,
+        type: n.type === 'list' ? 'list' : 'text',
+        tags: n.tags || [],
+        isPinned: !!n.isPinned,
+        isArchived: !!n.isArchived,
+        images: n.images || [],
+        color: normalizeNoteColor(n.color || DEFAULT_NOTE_COLOR),
+        reminder: n.reminder,
+        recurrence: n.recurrence,
+    });
+
 // Moves focus between checklist item textareas (id="list-item-<itemId>") in DOM order,
 // used so ArrowUp/ArrowDown/ArrowLeft/ArrowRight can cross from one item into the next
 // when the cursor is already at the start/end of the current item's content.
@@ -102,6 +128,113 @@ const focusAdjacentListItem = (currentId: string, direction: "next" | "prev"): b
     return true;
 };
 
+/**
+ * Line breaks must never end up inside an item's text: the note is stored one
+ * item per line, so the text after a line break would stop being part of the
+ * item. Keyboards don't all send Enter as a keydown "Enter" (some Samsung
+ * Keyboard / SwiftKey setups only send a beforeinput line break), so those are
+ * handled here exactly like Enter, and text containing line breaks is split
+ * into items instead of being inserted.
+ */
+const useItemLineBreaks = (
+    textareaRef: React.RefObject<HTMLTextAreaElement | null>,
+    itemId: string,
+    onEnter: (id: string, cursorPosition?: number) => void,
+    onMultilineText?: (id: string, fullText: string, caret: number) => void,
+) => {
+    const handlersRef = useRef({ itemId, onEnter, onMultilineText });
+    handlersRef.current = { itemId, onEnter, onMultilineText };
+
+    useEffect(() => {
+        const el = textareaRef.current;
+        if (!el) return;
+        const handleBeforeInput = (e: InputEvent) => {
+            const { itemId: id, onEnter: enter, onMultilineText: multiline } = handlersRef.current;
+            if (el.readOnly) return;
+            if (e.inputType === "insertLineBreak" || e.inputType === "insertParagraph") {
+                e.preventDefault();
+                enter(id, el.selectionStart ?? undefined);
+                return;
+            }
+            if (
+                multiline &&
+                (e.inputType === "insertText" || e.inputType === "insertReplacementText") &&
+                e.data && /[\r\n]/.test(e.data)
+            ) {
+                e.preventDefault();
+                const start = el.selectionStart ?? el.value.length;
+                const end = el.selectionEnd ?? start;
+                multiline(id, el.value.slice(0, start) + e.data + el.value.slice(end), start + e.data.length);
+            }
+        };
+        el.addEventListener("beforeinput", handleBeforeInput);
+        return () => el.removeEventListener("beforeinput", handleBeforeInput);
+    }, [textareaRef]);
+
+    const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        const multiline = handlersRef.current.onMultilineText;
+        const pasted = e.clipboardData.getData("text/plain");
+        if (!multiline || !/[\r\n]/.test(pasted)) return;
+        e.preventDefault();
+        const el = e.currentTarget;
+        const start = el.selectionStart ?? el.value.length;
+        const end = el.selectionEnd ?? start;
+        multiline(itemId, el.value.slice(0, start) + pasted + el.value.slice(end), start + pasted.length);
+    };
+
+    /** Returns true if the value contained a line break and was handled. */
+    const handleChangeValue = (value: string, caret: number): boolean => {
+        const multiline = handlersRef.current.onMultilineText;
+        if (!multiline || !/[\r\n]/.test(value)) return false;
+        multiline(itemId, value, caret);
+        return true;
+    };
+
+    return { handlePaste, handleChangeValue };
+};
+
+/** Greyed, read-only copy of a parent, shown above its sub-items when the parent is in the other section. */
+const ParentHeaderRow: React.FC<{ item: ChecklistItem }> = ({ item }) => (
+    <div className="flex items-start bg-transparent rounded-md mb-0.1 overflow-hidden opacity-50 select-none" aria-hidden="true">
+        <div className="flex items-start gap-2 w-full py-1">
+            <div className="mt-1 h-6 w-6 shrink-0" />
+            <Checkbox
+                checked={item.checked}
+                disabled
+                tabIndex={-1}
+                className="mt-2 h-4 w-4 bg-transparent border-gray-400 data-[state=checked]:bg-transparent data-[state=checked]:text-black dark:data-[state=checked]:text-white shrink-0"
+            />
+            <span className={`flex-1 text-base text-black dark:text-white py-1 break-words [overflow-wrap:anywhere] ${item.checked ? 'line-through' : ''}`}>
+                {item.content}
+            </span>
+            <div className="mt-1 h-6 w-6 shrink-0" />
+        </div>
+    </div>
+);
+
+/**
+ * A stored line that isn't an item (e.g. text left behind by an old bug).
+ * Shown so it isn't invisible; the note only changes if "Make item" is tapped.
+ */
+const StrayLineRow: React.FC<{ text: string; indented: boolean; disabled?: boolean; onConvert: () => void }> = ({ text, indented, disabled, onConvert }) => (
+    <div className={`flex items-start gap-2 py-1 ${indented ? 'ml-8' : ''}`}>
+        <div className="mt-1 h-6 w-6 shrink-0" />
+        <span className="flex-1 min-w-0 text-base text-gray-500 italic py-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+            {text}
+        </span>
+        {!disabled && (
+            <Button
+                variant="ghost"
+                size="sm"
+                onClick={onConvert}
+                className="h-7 px-2 text-xs text-gray-500 shrink-0"
+            >
+                Make item
+            </Button>
+        )}
+    </div>
+);
+
 interface SortableListItemProps {
     item: ChecklistItem;
     onUpdateItem: (id: string, newContent: string) => void;
@@ -111,6 +244,9 @@ interface SortableListItemProps {
     onIndent?: (id: string) => void;
     onOutdent?: (id: string) => void;
     onBackspace?: (id: string, cursorPosition?: number, currentContent?: string) => void;
+    onMultilineText?: (id: string, fullText: string, caret: number) => void;
+    /** Whether to draw the item indented (see groupChecklistForDisplay). Defaults to its stored indentation. */
+    displayIndented?: boolean;
     autoFocus?: boolean;
     disabled?: boolean;
 }
@@ -124,6 +260,8 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
     onIndent,
     onOutdent,
     onBackspace,
+    onMultilineText,
+    displayIndented,
     autoFocus,
     disabled
 }) => {
@@ -137,6 +275,8 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
     } = useSortable({ id: item.id });
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const { handlePaste, handleChangeValue } = useItemLineBreaks(textareaRef, item.id, onEnter, onMultilineText);
+    const isIndented = displayIndented ?? item.indentation !== "";
     const touchStartRef = useRef<{ x: number, y: number } | null>(null);
     const [swipeX, setSwipeX] = useState(0);
 
@@ -209,7 +349,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
         <div
             ref={setNodeRef}
             style={style}
-            className={`flex items-start bg-transparent rounded-md mb-0.1 overflow-hidden ${item.indentation ? 'ml-8' : ''}`}
+            className={`flex items-start bg-transparent rounded-md mb-0.1 overflow-hidden ${isIndented ? 'ml-8' : ''}`}
         >
             <div
                 className="flex items-start gap-2 w-full py-1 transition-transform duration-75"
@@ -238,9 +378,11 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
                     readOnly={disabled}
                     maxLength={LIST_ITEM_MAX}
                     onChange={(e) => {
+                        if (handleChangeValue(e.target.value, e.target.selectionStart ?? e.target.value.length)) return;
                         onUpdateItem(item.id, e.target.value);
                         adjustHeight();
                     }}
+                    onPaste={handlePaste}
                     onKeyDown={(e) => {
                         if (e.key === "Enter") {
                             e.preventDefault();
@@ -308,10 +450,14 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
     onIndent,
     onOutdent,
     onBackspace,
+    onMultilineText,
+    displayIndented,
     autoFocus,
     disabled
 }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const { handlePaste, handleChangeValue } = useItemLineBreaks(textareaRef, item.id, onEnter, onMultilineText);
+    const isIndented = displayIndented ?? item.indentation !== "";
     const touchStartRef = useRef<{ x: number, y: number } | null>(null);
     const [swipeX, setSwipeX] = useState(0);
 
@@ -372,7 +518,7 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
     }, [autoFocus]);
 
     return (
-        <div className={`flex items-start bg-transparent rounded-md mb-0.1 overflow-hidden ${item.indentation ? 'ml-8' : ''}`}>
+        <div className={`flex items-start bg-transparent rounded-md mb-0.1 overflow-hidden ${isIndented ? 'ml-8' : ''}`}>
             <div
                 className="flex items-start gap-2 w-full py-1 transition-transform duration-75"
                 style={{ transform: `translateX(${swipeX}px)` }}
@@ -391,9 +537,11 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
                     readOnly={disabled}
                     maxLength={LIST_ITEM_MAX}
                     onChange={(e) => {
+                        if (handleChangeValue(e.target.value, e.target.selectionStart ?? e.target.value.length)) return;
                         onUpdateItem(item.id, e.target.value);
                         adjustHeight();
                     }}
+                    onPaste={handlePaste}
                     onKeyDown={(e) => {
                         if (e.key === "Enter") {
                             e.preventDefault();
@@ -481,6 +629,19 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     // Checklist Mode State
     const [isChecklistMode, setIsChecklistMode] = useState(false);
     const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
+    // Non-item lines stored before the first item (see parseChecklist). Lines
+    // after an item travel on the item itself (`trailing`).
+    const leadingLinesRef = useRef<string[]>([]);
+    // Set once the user changes an item. Until then the checklist -> content
+    // effect doesn't write: opening a note must never change it.
+    const itemsEditedRef = useRef(false);
+    const updateItems = (next: ChecklistItem[] | ((prev: ChecklistItem[]) => ChecklistItem[])) => {
+        itemsEditedRef.current = true;
+        setChecklistItems(next);
+    };
+    // The tag text as loaded, so an untouched tag list is compared and saved
+    // exactly as stored (a tag containing a comma would otherwise be split).
+    const initialTagsTextRef = useRef("");
     const [newItemContent, setNewItemContent] = useState("");
     const [focusItemId, setFocusItemId] = useState<string | null>(null);
     const [showCheckedItems, setShowCheckedItems] = useState(true);
@@ -503,6 +664,11 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     // has actually been edited, so opening and closing a note without modifications does not
     // bump its updatedAt timestamp.
     const baselineNoteSnapshotRef = useRef<string | null>(null);
+    // updatedAt of the version this editor last wrote (or opened). After each
+    // save the baseline moves to the saved state, so "dirty" means "changed
+    // since the last save" — otherwise ticking then unticking an item left the
+    // ticked version stored, because the final state matched the opening one.
+    const lastSavedUpdatedAtRef = useRef<number | undefined>(undefined);
 
     const adjustTitleHeight = () => {
         const textarea = titleTextareaRef.current;
@@ -611,6 +777,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 setTitle(initialNote.title);
                 setContent(initialNote.content);
                 setTags(initialNote.tags.join(", "));
+                initialTagsTextRef.current = initialNote.tags.join(", ");
+                itemsEditedRef.current = false;
                 setIsPinned(initialNote.isPinned);
                 setIsArchived(initialNote.isArchived);
                 setReminder(initialNote.reminder);
@@ -621,8 +789,12 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 Promise.all(initialImages.map(getImageSrc)).then(setImageSrcs);
 
                 // Update Editor Content
+                // emitUpdate: false — TipTap 3 emits an update by default, which ran
+                // onUpdate and replaced `content` with the editor's re-serialised
+                // HTML the moment a note opened (for list notes too, since the
+                // hidden editor is loaded as well). Opening must not change a note.
                 if (editor) {
-                    editor.commands.setContent(initialNote.content);
+                    editor.commands.setContent(initialNote.content, { emitUpdate: false });
                 }
 
                 // Detect mode: prefer explicit 'type' field so empty-body list notes
@@ -632,26 +804,24 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 const isList = initialNote.type === 'list' || isChecklist(initialNote.content);
                 setIsChecklistMode(isList);
                 if (isList) {
-                    const { items } = parseChecklist(initialNote.content);
+                    const { items, leading } = parseChecklist(initialNote.content);
+                    leadingLinesRef.current = leading;
                     setChecklistItems(items.map(i => ({ ...i, id: safeRandomUUID() })));
+                } else {
+                    leadingLinesRef.current = [];
                 }
 
-                baselineNoteSnapshotRef.current = JSON.stringify({
-                    title: initialNote.title,
-                    content: initialNote.content,
+                baselineNoteSnapshotRef.current = makeNoteSnapshot({
+                    ...initialNote,
                     type: isList ? 'list' : 'text',
-                    tags: initialNote.tags || [],
-                    isPinned: !!initialNote.isPinned,
-                    isArchived: !!initialNote.isArchived,
                     images: initialImages,
-                    color: normalizeNoteColor(initialNote.color || DEFAULT_NOTE_COLOR),
-                    reminder: initialNote.reminder,
-                    recurrence: initialNote.recurrence,
                 });
+                lastSavedUpdatedAtRef.current = initialNote.updatedAt;
             } else {
                 // Fresh note
                 noteIdRef.current = safeRandomUUID();
                 baselineNoteSnapshotRef.current = null;
+                lastSavedUpdatedAtRef.current = undefined;
                 setTitle("");
                 setContent("");
                 setTags("");
@@ -659,6 +829,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 setIsArchived(false);
                 setIsChecklistMode(false);
                 setChecklistItems([]);
+                leadingLinesRef.current = [];
+                itemsEditedRef.current = false;
+                initialTagsTextRef.current = "";
                 setShowCheckedItems(true);
                 setImages([]);
                 setImageSrcs([]);
@@ -667,7 +840,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 setColor(DEFAULT_NOTE_COLOR);
 
                 if (editor) {
-                    editor.commands.setContent('');
+                    editor.commands.setContent('', { emitUpdate: false });
                 }
             }
 
@@ -718,19 +891,16 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
     // Sync Checklist Items -> Content string (Only when in checklist mode)
     // This now writes internal content state.
+    //
+    // Only after the user has changed an item: filling checklistItems when a note
+    // opens must not rewrite its content (that used to drop every line that
+    // wasn't an item, and made untouched notes look edited).
     useEffect(() => {
-        if (isChecklistMode && isOpen && !isClosingRef.current) {
-            const newContent = checklistItems
-                .map(item => `${item.indentation}- [${item.checked ? 'x' : ' '}] ${item.content}`)
-                .join('\n');
-
-            // Avoid infinite loop if content is already same (though comparison might be expensive)
-            if (newContent !== content) {
-                setContent(newContent);
-                // We typically don't update Editor here because we are in Checklist Mode (hidden editor).
-                // But if we switch back, we want fresh content.
-                // We'll handle that in toggle.
-            }
+        if (!isChecklistMode || !isOpen || isClosingRef.current) return;
+        if (!itemsEditedRef.current) return;
+        const newContent = serializeChecklist(checklistItems, leadingLinesRef.current);
+        if (newContent !== content) {
+            setContent(newContent);
         }
     }, [checklistItems, isChecklistMode, isOpen]);
 
@@ -747,13 +917,23 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     }, [isChecklistMode, editor]);
 
 
+    // Stray (non-item) text in a list note counts as content.
+    const hasStrayText = (items: ChecklistItem[], leading: string[]) =>
+        leading.some(line => line.trim() !== "") ||
+        items.some(item => (item.trailing ?? []).some(line => line.trim() !== ""));
+
+    const tagsFromText = (text: string) => text.split(",").map((tag) => tag.trim()).filter(Boolean);
+    const currentTags = (): string[] =>
+        initialNote && tags === initialTagsTextRef.current ? (initialNote.tags || []) : tagsFromText(tags);
+
     // Helper: is the note empty?
     const isNoteEmpty = () => {
         if (title.trim() !== "") return false;
         if (images.length > 0) return false;
         if (isChecklistMode) {
             // Empty list = no items, or every item has blank content
-            return checklistItems.every(item => item.content.trim() === "");
+            return checklistItems.every(item => item.content.trim() === "") &&
+                !hasStrayText(checklistItems, leadingLinesRef.current);
         }
         const plainText = content.replace(/<[^>]+>/g, '').trim();
         return plainText === "";
@@ -769,15 +949,15 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             return true;
         }
 
-        const currentSnapshot = JSON.stringify({
+        const currentSnapshot = makeNoteSnapshot({
             title,
             content: contentOverride !== undefined ? contentOverride : content,
             type: isChecklistMode ? 'list' : 'text',
-            tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
-            isPinned: !!isPinned,
-            isArchived: !!isArchived,
+            tags: currentTags(),
+            isPinned,
+            isArchived,
             images,
-            color: normalizeNoteColor(color),
+            color,
             reminder,
             recurrence,
         });
@@ -804,14 +984,14 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             : isNoteDirty();
         const effectiveUpdatedAt = dirty
             ? Date.now()
-            : (initialNote?.updatedAt || Date.now());
+            : (lastSavedUpdatedAtRef.current || initialNote?.updatedAt || Date.now());
 
         return {
             id: noteIdRef.current,
             title,
             content,
             type: isChecklistMode ? 'list' : 'text',
-            tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+            tags: currentTags(),
             isPinned,
             isArchived,
             createdAt: initialNote?.createdAt || Date.now(),
@@ -824,6 +1004,14 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         };
     };
 
+    // Saves from the editor's own autosave/close paths, then moves the baseline
+    // to what was saved (see lastSavedUpdatedAtRef).
+    const saveFromEditor = (note: Note) => {
+        onSave(note);
+        baselineNoteSnapshotRef.current = makeNoteSnapshot(note);
+        lastSavedUpdatedAtRef.current = note.updatedAt;
+    };
+
     // Auto-save logic
     useEffect(() => {
         if (!isOpen) {
@@ -834,7 +1022,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
         // Don't save if completely empty
         const plainText = content.replace(/<[^>]+>/g, '').trim();
-        const checklistEmpty = isChecklistMode && checklistItems.every(item => item.content.trim() === "");
+        const checklistEmpty = isChecklistMode &&
+            checklistItems.every(item => item.content.trim() === "") &&
+            !hasStrayText(checklistItems, leadingLinesRef.current);
         if (title.trim() === "" && plainText === "" && images.length === 0) {
             return;
         }
@@ -848,7 +1038,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         }
 
         saveTimeoutRef.current = setTimeout(() => {
-            onSave(buildNoteFromState());
+            saveFromEditor(buildNoteFromState());
         }, 500);
 
         return () => {
@@ -898,8 +1088,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             setShowFormatting(false);
 
             // Hydrate checklist items for UI
-            const { items } = parseChecklist(newContent);
-            setChecklistItems(items.map(i => ({ ...i, id: safeRandomUUID() })));
+            const { items, leading } = parseChecklist(newContent);
+            leadingLinesRef.current = leading;
+            updateItems(items.map(i => ({ ...i, id: safeRandomUUID() })));
         }
     };
 
@@ -909,86 +1100,64 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         useSensor(KeyboardSensor)
     );
 
+    // Ticked items are shown at the bottom, but they stay in place in the
+    // stored list: which item a sub-item belongs to is worked out from its
+    // position, so nothing here may reorder items just because of a tick.
+    // See groupChecklistForDisplay in utils/markdown.ts.
+    const visibleItemsInSection = (items: ChecklistItem[], checked: boolean): ChecklistItem[] => {
+        const display = groupChecklistForDisplay(items);
+        return (checked ? display.checked : display.unchecked)
+            .flatMap((row: ChecklistDisplayRow) => (row.kind === 'item' ? [row.item] : []));
+    };
+
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over, delta } = event;
+        const activeId = active.id as string;
 
         // Handle horizontal indentation
         if (Math.abs(delta.x) > 40) {
             if (delta.x > 40) {
-                handleIndent(active.id as string);
+                handleIndent(activeId);
             } else if (delta.x < -40) {
-                handleOutdent(active.id as string);
+                handleOutdent(activeId);
             }
         }
 
-        if (active.id !== over?.id && over) {
-            setChecklistItems((items) => {
-                const unchecked = items.filter(i => !i.checked);
-                const checked = items.filter(i => i.checked);
-
-                const oldIndex = unchecked.findIndex((item) => item.id === active.id);
-                const newIndex = unchecked.findIndex((item) => item.id === over.id);
-
-                if (oldIndex === -1 || newIndex === -1) return items;
-
-                const movedItem = unchecked[oldIndex];
-                const children: ChecklistItem[] = [];
-
-                // If moving a parent, find its children
-                if (movedItem.indentation === "") {
-                    for (let i = oldIndex + 1; i < unchecked.length; i++) {
-                        if (unchecked[i].indentation !== "") {
-                            children.push(unchecked[i]);
-                        } else {
-                            break;
-                        }
-                    }
-                }
-
-                const newUnchecked = [...unchecked];
-                // Remove the group
-                newUnchecked.splice(oldIndex, 1 + children.length);
-
-                // Find where the 'over' item is now
-                const overItem = unchecked[newIndex];
-                let insertIndex = newUnchecked.findIndex(i => i.id === overItem.id);
-
-                // If we are moving down (oldIndex < newIndex), we might want to insert AFTER the over item
-                // especially if the over item also has children. 
-                // But for now, let's just insert at the found index.
-                if (oldIndex < newIndex) {
-                    insertIndex += 1;
-                }
-
-                newUnchecked.splice(insertIndex, 0, movedItem, ...children);
-
-                return [...newUnchecked, ...checked];
-            });
+        if (over && activeId !== over.id) {
+            const overId = over.id as string;
+            const visibleIds = visibleItemsInSection(checklistItems, false).map(i => i.id);
+            const movingDown = visibleIds.indexOf(activeId) < visibleIds.indexOf(overId);
+            updateItems(items => moveChecklistItem(items, activeId, overId, movingDown));
         }
     };
 
     const handleIndent = (id: string) => {
-        setChecklistItems(prev => {
-            const index = prev.findIndex(i => i.id === id);
-            // Can't indent if it's the first item or not found
-            if (index <= 0) return prev;
-
-            return prev.map(item => {
-                if (item.id === id) {
-                    return { ...item, indentation: "    " };
-                }
-                return item;
-            });
-        });
+        const item = checklistItems.find(i => i.id === id);
+        if (!item) return;
+        // Nest under the item shown directly above, not whatever hidden
+        // (ticked) item happens to be above it in the stored list.
+        const section = visibleItemsInSection(checklistItems, item.checked);
+        const pos = section.findIndex(i => i.id === id);
+        const aboveId = pos > 0 ? section[pos - 1].id : null;
+        updateItems(prev => indentChecklistItem(prev, id, aboveId));
     };
 
     const handleOutdent = (id: string) => {
-        setChecklistItems(prev => prev.map(item => {
+        updateItems(prev => prev.map(item => {
             if (item.id === id) {
                 return { ...item, indentation: "" };
             }
             return item;
         }));
+    };
+
+    // Indentation for an item inserted directly after `index`: a new item
+    // placed between a top-level item and its sub-items becomes its first
+    // sub-item, instead of taking those sub-items over.
+    const indentationForInsertAfter = (items: ChecklistItem[], index: number): string => {
+        const current = items[index];
+        if (isTopLevel(current) && groupEnd(items, index) > index + 1) return CHECKLIST_INDENT;
+        return current.indentation;
     };
 
     const handleInsertItemAfter = (currentId: string, cursorPosition?: number) => {
@@ -1013,7 +1182,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
             const newItems = [...checklistItems];
             newItems.splice(index, 0, newItem);
-            setChecklistItems(newItems);
+            updateItems(newItems);
             setTimeout(() => {
                 const el = document.getElementById(`list-item-${currentItem.id}`) as HTMLTextAreaElement;
                 if (el) {
@@ -1033,13 +1202,15 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 id: safeRandomUUID(),
                 content: afterText,
                 checked: false,
-                indentation: currentItem.indentation
+                indentation: indentationForInsertAfter(checklistItems, index),
+                // Lines stored after the item stay after its second half.
+                trailing: currentItem.trailing,
             };
 
             const newItems = [...checklistItems];
-            newItems[index] = { ...currentItem, content: beforeText };
+            newItems[index] = { ...currentItem, content: beforeText, trailing: [] };
             newItems.splice(index + 1, 0, newItem);
-            setChecklistItems(newItems);
+            updateItems(newItems);
             setFocusItemId(newItem.id);
             setTimeout(() => {
                 const el = document.getElementById(`list-item-${newItem.id}`) as HTMLTextAreaElement;
@@ -1055,57 +1226,125 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             id: safeRandomUUID(),
             content: "",
             checked: false,
-            indentation: currentItem.indentation
+            indentation: indentationForInsertAfter(checklistItems, index)
         };
 
         const newItems = [...checklistItems];
         newItems.splice(index + 1, 0, newItem);
-        setChecklistItems(newItems);
+        updateItems(newItems);
         setFocusItemId(newItem.id);
     };
 
-    const handleBackspaceItem = (id: string, cursorPosition?: number, currentContent?: string) => {
+    // Text containing line breaks (a paste, or a keyboard inserting a line
+    // break): the first line stays in the item, every other non-blank line
+    // becomes a new item right after it.
+    const handleMultilineItemText = (id: string, fullText: string, caret: number) => {
         const index = checklistItems.findIndex(i => i.id === id);
-        if (index > 0) {
-            const previousItem = checklistItems[index - 1];
-            const item = checklistItems[index];
-            const textToMerge = currentContent !== undefined ? currentContent : item.content;
+        if (index === -1) return;
+        const current = checklistItems[index];
+        const { lines, caretLine, caretOffset } = splitMultilineItemText(fullText, caret);
 
-            // If the item has text and cursor is at position 0, merge it into the previous item
-            if (cursorPosition === 0 && textToMerge.length > 0) {
-                const combinedContent = previousItem.content + textToMerge;
-                if (combinedContent.length > LIST_ITEM_MAX) {
-                    toast.error(`Maximum ${LIST_ITEM_MAX} characters per item`);
-                    return;
-                }
-                const mergePos = previousItem.content.length;
-                const newItems = checklistItems
-                    .filter(i => i.id !== id)
-                    .map(i => i.id === previousItem.id ? { ...i, content: combinedContent } : i);
+        let extra = lines.slice(1);
+        const room = Math.max(0, LIST_ITEMS_MAX - checklistItems.length);
+        if (extra.length > room) {
+            extra = extra.slice(0, room);
+            toast.error(`Maximum ${LIST_ITEMS_MAX} items per checklist`);
+        }
+        let clipped = false;
+        const clip = (text: string) => {
+            if (text.length <= LIST_ITEM_MAX) return text;
+            clipped = true;
+            return text.slice(0, LIST_ITEM_MAX);
+        };
 
-                setChecklistItems(newItems);
-                setFocusItemId(previousItem.id);
-                setTimeout(() => {
-                    const el = document.getElementById(`list-item-${previousItem.id}`) as HTMLTextAreaElement;
-                    if (el) {
-                        el.focus();
-                        el.setSelectionRange(mergePos, mergePos);
-                    }
-                }, 0);
+        const indentation = indentationForInsertAfter(checklistItems, index);
+        const newItems: ChecklistItem[] = extra.map(text => ({
+            id: safeRandomUUID(),
+            content: clip(text),
+            checked: current.checked,
+            indentation,
+        }));
+        const updatedCurrent: ChecklistItem = {
+            ...current,
+            content: clip(lines[0]),
+            trailing: newItems.length > 0 ? [] : current.trailing,
+        };
+        if (newItems.length > 0) newItems[newItems.length - 1].trailing = current.trailing;
+        if (clipped) toast.error(`Maximum ${LIST_ITEM_MAX} characters per item`);
+
+        updateItems([
+            ...checklistItems.slice(0, index),
+            updatedCurrent,
+            ...newItems,
+            ...checklistItems.slice(index + 1),
+        ]);
+
+        const targetLine = Math.min(caretLine, newItems.length);
+        const target = targetLine === 0 ? updatedCurrent : newItems[targetLine - 1];
+        const offset = targetLine === caretLine ? Math.min(caretOffset, target.content.length) : target.content.length;
+        if (target.id !== id) setFocusItemId(target.id);
+        setTimeout(() => {
+            const el = document.getElementById(`list-item-${target.id}`) as HTMLTextAreaElement | null;
+            if (el) {
+                el.focus();
+                el.setSelectionRange(offset, offset);
+            }
+        }, 0);
+    };
+
+    const handleBackspaceItem = (id: string, cursorPosition?: number, currentContent?: string) => {
+        const item = checklistItems.find(i => i.id === id);
+        if (!item) return;
+        // "Previous" means the item shown directly above in the same section,
+        // never a hidden ticked item that sits in between in the stored list.
+        const section = visibleItemsInSection(checklistItems, item.checked);
+        const pos = section.findIndex(i => i.id === id);
+        if (pos <= 0) return;
+        const previousItem = section[pos - 1];
+        const textToMerge = currentContent !== undefined ? currentContent : item.content;
+
+        // If the item has text and cursor is at position 0, merge it into the previous item
+        if (cursorPosition === 0 && textToMerge.length > 0) {
+            const combinedContent = previousItem.content + textToMerge;
+            if (combinedContent.length > LIST_ITEM_MAX) {
+                toast.error(`Maximum ${LIST_ITEM_MAX} characters per item`);
                 return;
             }
-
-            // Normal backspace when item is empty
+            const mergePos = previousItem.content.length;
+            const removed = removeChecklistItems(checklistItems, leadingLinesRef.current, new Set([id]));
+            leadingLinesRef.current = removed.leading;
+            updateItems(removed.items.map(i => i.id === previousItem.id ? { ...i, content: combinedContent } : i));
             setFocusItemId(previousItem.id);
-            setChecklistItems(prev => prev.filter(i => i.id !== id));
             setTimeout(() => {
                 const el = document.getElementById(`list-item-${previousItem.id}`) as HTMLTextAreaElement;
                 if (el) {
                     el.focus();
-                    el.setSelectionRange(el.value.length, el.value.length);
+                    el.setSelectionRange(mergePos, mergePos);
                 }
             }, 0);
+            return;
         }
+
+        // Normal backspace when item is empty. If it was a top-level item with
+        // sub-items, those become top-level rather than silently joining
+        // the item above.
+        let base = checklistItems;
+        if (isTopLevel(item)) {
+            const idx = base.findIndex(i => i.id === id);
+            const end = groupEnd(base, idx);
+            base = base.map((it, i) => (i > idx && i < end ? { ...it, indentation: "" } : it));
+        }
+        const removed = removeChecklistItems(base, leadingLinesRef.current, new Set([id]));
+        leadingLinesRef.current = removed.leading;
+        setFocusItemId(previousItem.id);
+        updateItems(removed.items);
+        setTimeout(() => {
+            const el = document.getElementById(`list-item-${previousItem.id}`) as HTMLTextAreaElement;
+            if (el) {
+                el.focus();
+                el.setSelectionRange(el.value.length, el.value.length);
+            }
+        }, 0);
     };
 
     const handleAddItem = () => {
@@ -1120,70 +1359,138 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 checked: false,
                 indentation: ""
             };
-            setChecklistItems(prev => [...prev, newItem]);
+            updateItems(prev => [...prev, newItem]);
             setNewItemContent("");
             setFocusItemId(null);
         }
     };
 
+    // Typing (or pasting) into the "List item" box at the bottom.
+    const handleNewItemBoxChange = (value: string) => {
+        if (!value) {
+            setNewItemContent("");
+            return;
+        }
+        const lines = /[\r\n]/.test(value)
+            ? value.split(/\r\n|\r|\n/).filter(line => line.trim() !== "")
+            : [value];
+        if (lines.length === 0) {
+            setNewItemContent("");
+            return;
+        }
+        const room = Math.max(0, LIST_ITEMS_MAX - checklistItems.length);
+        if (lines.length > room) toast.error(`Maximum ${LIST_ITEMS_MAX} items per checklist`);
+        const newItems: ChecklistItem[] = lines.slice(0, room).map(text => ({
+            id: safeRandomUUID(),
+            content: text.slice(0, LIST_ITEM_MAX),
+            checked: false,
+            indentation: "",
+        }));
+        setNewItemContent("");
+        if (newItems.length === 0) return;
+        updateItems(prev => [...prev, ...newItems]);
+        setFocusItemId(newItems[newItems.length - 1].id);
+    };
+
     const handleRemoveItem = (id: string) => {
-        setChecklistItems(prev => {
+        const baseLeading = leadingLinesRef.current;
+        updateItems(prev => {
             const index = prev.findIndex(i => i.id === id);
             if (index === -1) return prev;
 
             const item = prev[index];
             const idsToRemove = new Set([id]);
 
-            // If this is a parent item (no indentation), also remove its children
-            if (item.indentation === "") {
-                for (let i = index + 1; i < prev.length; i++) {
-                    if (prev[i].indentation !== "") {
-                        idsToRemove.add(prev[i].id);
-                    } else {
-                        break;
-                    }
-                }
+            // A top-level item takes its sub-items with it (ticked ones too:
+            // they stay next to it in the stored list).
+            if (isTopLevel(item)) {
+                const end = groupEnd(prev, index);
+                for (let i = index + 1; i < end; i++) idsToRemove.add(prev[i].id);
             }
 
-            return prev.filter(i => !idsToRemove.has(i.id));
+            // Computed from baseLeading, not the ref, so this updater stays
+            // pure if React calls it twice.
+            const removed = removeChecklistItems(prev, baseLeading, idsToRemove);
+            leadingLinesRef.current = removed.leading;
+            return removed.items;
         });
     };
 
     const handleUpdateItem = (id: string, newText: string) => {
-        setChecklistItems(prev => prev.map(i => i.id === id ? { ...i, content: newText } : i));
+        updateItems(prev => prev.map(i => i.id === id ? { ...i, content: newText } : i));
     };
 
     const handleToggleItem = (id: string) => {
-        setChecklistItems(prev => {
+        updateItems(prev => {
             const itemIndex = prev.findIndex(i => i.id === id);
             if (itemIndex === -1) return prev;
 
             const item = prev[itemIndex];
             const isChecked = !item.checked;
 
-            // If checking or unchecking a parent, also toggle its sub-items
-            const itemsToToggle = [id];
-            if (item.indentation === "") {
-                for (let i = itemIndex + 1; i < prev.length; i++) {
-                    if (prev[i].indentation !== "") {
-                        itemsToToggle.push(prev[i].id);
-                    } else {
-                        break;
-                    }
-                }
+            // Ticking or unticking a top-level item does the same to its
+            // sub-items. A sub-item never changes its parent's tick.
+            const itemsToToggle = new Set([id]);
+            if (isTopLevel(item)) {
+                const end = groupEnd(prev, itemIndex);
+                for (let i = itemIndex + 1; i < end; i++) itemsToToggle.add(prev[i].id);
             }
 
-            const updatedItems = prev.map(i =>
-                itemsToToggle.includes(i.id) ? { ...i, checked: isChecked } : i
+            // Toggled in place — no re-sort (see visibleItemsInSection).
+            return prev.map(i =>
+                itemsToToggle.has(i.id) ? { ...i, checked: isChecked, marker: undefined } : i
             );
-
-            // Re-sort: unchecked items maintain order, checked items go to bottom
-            const unchecked = updatedItems.filter(i => !i.checked);
-            const checked = updatedItems.filter(i => i.checked);
-
-            return [...unchecked, ...checked];
         });
     };
+
+    // "Make item" on a stray line: it becomes an unticked item in the same place.
+    const handleConvertStrayLine = (ownerId: string | null, lineIndex: number) => {
+        if (checklistItems.length >= LIST_ITEMS_MAX) {
+            toast.error(`Maximum ${LIST_ITEMS_MAX} items per checklist`);
+            return;
+        }
+        const ownerIndex = ownerId === null ? -1 : checklistItems.findIndex(i => i.id === ownerId);
+        if (ownerId !== null && ownerIndex === -1) return;
+        const lines = ownerId === null ? leadingLinesRef.current : (checklistItems[ownerIndex].trailing ?? []);
+        const text = lines[lineIndex];
+        if (text === undefined) return;
+
+        const newItem: ChecklistItem = {
+            id: safeRandomUUID(),
+            content: text.trim().slice(0, LIST_ITEM_MAX),
+            checked: false,
+            indentation: ownerId === null ? "" : indentationForInsertAfter(checklistItems, ownerIndex),
+            trailing: lines.slice(lineIndex + 1),
+        };
+        const before = lines.slice(0, lineIndex);
+
+        if (ownerId === null) {
+            leadingLinesRef.current = before;
+            updateItems([newItem, ...checklistItems]);
+        } else {
+            const owner = checklistItems[ownerIndex];
+            updateItems([
+                ...checklistItems.slice(0, ownerIndex),
+                { ...owner, trailing: before },
+                newItem,
+                ...checklistItems.slice(ownerIndex + 1),
+            ]);
+        }
+        setFocusItemId(newItem.id);
+    };
+
+    const renderStrayLines = (ownerId: string | null, lines: string[] | undefined, indented: boolean) =>
+        (lines ?? []).map((text, lineIndex) =>
+            text.trim() === "" ? null : (
+                <StrayLineRow
+                    key={`stray-${ownerId ?? 'top'}-${lineIndex}`}
+                    text={text}
+                    indented={indented}
+                    disabled={isDeleted}
+                    onConvert={() => handleConvertStrayLine(ownerId, lineIndex)}
+                />
+            )
+        );
 
     const handleCloseEditor = () => {
         // Lock effects so nothing resets isChecklistMode during the close animation
@@ -1197,36 +1504,45 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         let currentChecklistItems = checklistItems;
         let currentContent = content;
 
+        let currentLeading = leadingLinesRef.current;
+
         if (isChecklistMode) {
             const untickedItems = currentChecklistItems.filter(i => !i.checked);
             if (untickedItems.length > 0) {
                 const lastUnticked = untickedItems[untickedItems.length - 1];
-                if (lastUnticked.content.trim() === "") {
-                    currentChecklistItems = currentChecklistItems.filter(i => i.id !== lastUnticked.id);
+                // Tidy away a trailing empty item only when the note is being
+                // saved anyway — closing an untouched note must not change it.
+                if (lastUnticked.content.trim() === "" && (!initialNote || isNoteDirty())) {
+                    const removed = removeChecklistItems(currentChecklistItems, currentLeading, new Set([lastUnticked.id]));
+                    currentChecklistItems = removed.items;
+                    currentLeading = removed.leading;
                     // Don't call setChecklistItems here — we're closing the dialog and only need
                     // the local variable for the save/delete decision. A state update here would
                     // trigger a re-render before onClose(), causing the checklist sync effect to
                     // run and potentially flick the UI to text mode during the close animation.
-                    currentContent = currentChecklistItems
-                        .map(item => `${item.indentation}- [${item.checked ? 'x' : ' '}] ${item.content}`)
-                        .join('\n');
+                    currentContent = serializeChecklist(currentChecklistItems, currentLeading);
                 }
             }
         }
 
         const plainText = currentContent.replace(/<[^>]+>/g, '').trim();
-        const checklistIsEmpty = isChecklistMode && currentChecklistItems.every(item => item.content.trim() === "");
+        const checklistIsEmpty = isChecklistMode &&
+            currentChecklistItems.every(item => item.content.trim() === "") &&
+            !hasStrayText(currentChecklistItems, currentLeading);
 
         // Cleanup empty note if needed (but save if it has images)
         if (title.trim() === "" && images.length === 0 && (plainText === "" || checklistIsEmpty)) {
             onDelete(noteIdRef.current);
         } else if (!initialNote || isNoteDirty(currentContent)) {
             // Save if it's a new note or if actual changes were made
-            onSave(buildNoteFromState({ content: currentContent }));
+            saveFromEditor(buildNoteFromState({ content: currentContent }));
         }
         onClose();
     };
     handleCloseEditorRef.current = handleCloseEditor;
+
+    const checklistDisplay = groupChecklistForDisplay(checklistItems);
+    const checkedItemCount = checklistDisplay.checked.filter(row => row.kind === 'item').length;
 
     const handleDelete = () => {
         onDelete(noteIdRef.current);
@@ -1315,7 +1631,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             onDelete(noteIdRef.current);
         } else {
             const savedNote = buildNoteFromState({ isArchived: newState });
-            onSave(savedNote);
+            saveFromEditor(savedNote);
             if (newState) {
                 showSuccess("Note archived", {
                     action: {
@@ -1644,23 +1960,30 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                     onDragEnd={handleDragEnd}
                                 >
                                     <SortableContext
-                                        items={checklistItems.filter(i => !i.checked).map(item => item.id)}
+                                        items={checklistDisplay.unchecked.flatMap(row => row.kind === 'item' ? [row.item.id] : [])}
                                         strategy={verticalListSortingStrategy}
                                     >
-                                        {checklistItems.filter(i => !i.checked).map((item) => (
-                                            <SortableListItem
-                                                key={item.id}
-                                                item={item}
-                                                onUpdateItem={handleUpdateItem}
-                                                onRemoveItem={handleRemoveItem}
-                                                onToggleItem={handleToggleItem}
-                                                onEnter={handleInsertItemAfter}
-                                                onIndent={handleIndent}
-                                                onOutdent={handleOutdent}
-                                                onBackspace={handleBackspaceItem}
-                                                autoFocus={item.id === focusItemId}
-                                                disabled={isDeleted}
-                                            />
+                                        {renderStrayLines(null, leadingLinesRef.current, false)}
+                                        {checklistDisplay.unchecked.map((row) => row.kind === 'parent' ? (
+                                            <ParentHeaderRow key={`parent-${row.item.id}`} item={row.item} />
+                                        ) : (
+                                            <React.Fragment key={row.item.id}>
+                                                <SortableListItem
+                                                    item={row.item}
+                                                    displayIndented={row.indented}
+                                                    onUpdateItem={handleUpdateItem}
+                                                    onRemoveItem={handleRemoveItem}
+                                                    onToggleItem={handleToggleItem}
+                                                    onEnter={handleInsertItemAfter}
+                                                    onIndent={handleIndent}
+                                                    onOutdent={handleOutdent}
+                                                    onBackspace={handleBackspaceItem}
+                                                    onMultilineText={handleMultilineItemText}
+                                                    autoFocus={row.item.id === focusItemId}
+                                                    disabled={isDeleted}
+                                                />
+                                                {renderStrayLines(row.item.id, row.item.trailing, row.indented)}
+                                            </React.Fragment>
                                         ))}
                                     </SortableContext>
                                 </DndContext>
@@ -1670,23 +1993,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                         value={newItemContent}
                                         maxLength={LIST_ITEM_MAX}
                                         onChange={(e) => {
-                                            const val = e.target.value;
-                                            if (val) {
-                                                const newItemId = safeRandomUUID();
-                                                const newItem = {
-                                                    id: newItemId,
-                                                    content: val,
-                                                    checked: false,
-                                                    indentation: ""
-                                                };
-                                                setChecklistItems(prev => [...prev, newItem]);
-                                                setNewItemContent("");
-                                                setFocusItemId(newItemId);
-                                                e.target.style.height = 'auto';
-                                            } else {
-                                                setNewItemContent("");
-                                                e.target.style.height = 'auto';
-                                            }
+                                            handleNewItemBoxChange(e.target.value);
+                                            e.target.style.height = 'auto';
                                         }}
                                         onKeyDown={(e) => {
                                             if (e.key === "Enter") {
@@ -1699,7 +2007,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                                 }, 0);
                                             } else if (e.key === "Backspace" && e.currentTarget.value === "" && checklistItems.length > 0) {
                                                 e.preventDefault();
-                                                const previousItem = checklistItems[checklistItems.length - 1];
+                                                const visibleUnticked = visibleItemsInSection(checklistItems, false);
+                                                const previousItem = visibleUnticked[visibleUnticked.length - 1];
+                                                if (!previousItem) return;
                                                 setFocusItemId(previousItem.id);
                                                 setTimeout(() => {
                                                     const el = document.getElementById(`list-item-${previousItem.id}`) as HTMLTextAreaElement;
@@ -1716,7 +2026,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                         className="bg-transparent text-base text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] flex-1 py-1"
                                     />
                                 </div>
-                                {checklistItems.some(i => i.checked) && (
+                                {checkedItemCount > 0 && (
                                     <div className="mt-4 flex flex-col gap-2">
                                         <Button
                                             variant="ghost"
@@ -1724,25 +2034,31 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                             onClick={() => setShowCheckedItems(!showCheckedItems)}
                                         >
                                             {showCheckedItems ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                                            {checklistItems.filter(i => i.checked).length} checked items
+                                            {checkedItemCount} checked {checkedItemCount === 1 ? 'item' : 'items'}
                                         </Button>
 
                                         {showCheckedItems && (
                                             <div className="flex flex-col">
-                                                {checklistItems.filter(i => i.checked).map((item) => (
-                                                    <CheckedListItem
-                                                        key={item.id}
-                                                        item={item}
-                                                        onUpdateItem={handleUpdateItem}
-                                                        onRemoveItem={handleRemoveItem}
-                                                        onToggleItem={handleToggleItem}
-                                                        onEnter={handleInsertItemAfter}
-                                                        onIndent={handleIndent}
-                                                        onOutdent={handleOutdent}
-                                                        onBackspace={handleBackspaceItem}
-                                                        autoFocus={item.id === focusItemId}
-                                                        disabled={isDeleted}
-                                                    />
+                                                {checklistDisplay.checked.map((row) => row.kind === 'parent' ? (
+                                                    <ParentHeaderRow key={`parent-${row.item.id}`} item={row.item} />
+                                                ) : (
+                                                    <React.Fragment key={row.item.id}>
+                                                        <CheckedListItem
+                                                            item={row.item}
+                                                            displayIndented={row.indented}
+                                                            onUpdateItem={handleUpdateItem}
+                                                            onRemoveItem={handleRemoveItem}
+                                                            onToggleItem={handleToggleItem}
+                                                            onEnter={handleInsertItemAfter}
+                                                            onIndent={handleIndent}
+                                                            onOutdent={handleOutdent}
+                                                            onBackspace={handleBackspaceItem}
+                                                            onMultilineText={handleMultilineItemText}
+                                                            autoFocus={row.item.id === focusItemId}
+                                                            disabled={isDeleted}
+                                                        />
+                                                        {renderStrayLines(row.item.id, row.item.trailing, row.indented)}
+                                                    </React.Fragment>
                                                 ))}
                                             </div>
                                         )}

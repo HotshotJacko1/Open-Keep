@@ -30,6 +30,23 @@ internal object ChecklistMarkdown {
         )
     }
 
+    /**
+     * For each line, whether it should be drawn as a sub-item. Mirrors
+     * groupChecklistForDisplay in src/utils/markdown.ts: any non-empty indent is a
+     * sub-item (the app has a single nesting level), but a sub-item with no
+     * top-level item above it (e.g. imported content) is shown flat.
+     */
+    fun indentedFlags(lines: List<String>): BooleanArray {
+        val flags = BooleanArray(lines.size)
+        var seenTopLevel = false
+        lines.forEachIndexed { i, line ->
+            val item = parse(line) ?: return@forEachIndexed
+            if (item.indent.isEmpty()) seenTopLevel = true
+            else flags[i] = seenTopLevel
+        }
+        return flags
+    }
+
     /** Returns the line with its marker flipped, or null if it is not a checklist item. */
     fun toggle(line: String): String? {
         val item = parse(line) ?: return null

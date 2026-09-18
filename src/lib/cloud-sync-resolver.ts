@@ -46,6 +46,7 @@ export const resolveCloudKeyImport = async (
   }
 
   if (forceResolution === "cloud") {
+    await wipeDatabaseButKeepKeys();
     await importMasterKey(cloudPayload, importPin);
     if (importPin !== localPin) {
       if (!importPin) {
@@ -59,14 +60,10 @@ export const resolveCloudKeyImport = async (
     return { ok: true, effectivePin: importPin };
   }
 
-  // merge
-  if (localPin && importPin !== localPin) {
-    await exportMasterKey(localPin);
-    await changeEncryptionKey(localPin, importPin);
-  } else if (!localPin) {
-    await changeEncryptionKey("", importPin);
-  }
-
+  // merge: wipe local DB and import the cloud master key.
+  // Existing local notes are captured in memory before this call and will be
+  // merged and saved during sync write-back.
+  await wipeDatabaseButKeepKeys();
   await importMasterKey(cloudPayload, importPin);
   if (!importPin) {
     localStorage.removeItem("app-passcode");
@@ -78,7 +75,7 @@ export const resolveCloudKeyImport = async (
   return { ok: true, effectivePin: importPin };
 };
 
-/** Prompt for PIN when cloud data exists but no local PIN is configured. */
+/** Prompt for PIN when cloud data exists but cannot be decrypted with local credentials. */
 export const getCloudKeyConflictIfNeeded = async (
   localPin: string | null,
   forceResolution: "local" | "cloud" | "merge" | undefined,
@@ -89,8 +86,8 @@ export const getCloudKeyConflictIfNeeded = async (
   const cloudKey = await checkCloudKey();
   if (cloudKey.exists && cloudKey.payload) {
     const effectivePin = localPin || "";
-    const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, effectivePin);
-    if (!isMatch) {
+    const canDecrypt = await canDecryptCloudMasterKey(cloudKey.payload, effectivePin);
+    if (!canDecrypt) {
       return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
     }
   }

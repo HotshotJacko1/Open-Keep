@@ -58,8 +58,11 @@ class KeyManager(private val context: Context) {
         // Migrate from standardPrefs if present (old location)
         val legacySaltString = standardPrefs.getString(SALT_KEY, null)
         if (legacySaltString != null) {
-            // Copy to securePrefs so it shares the same lifecycle as the V2 blob
+            // Copy to securePrefs so it shares the same lifecycle as the V2 blob,
+            // then drop the legacy copy. Leaving it behind would let a wiped salt
+            // be resurrected from standardPrefs on the next derive after clearAll().
             securePrefs.edit().putString(SALT_KEY, legacySaltString).apply()
+            standardPrefs.edit().remove(SALT_KEY).apply()
             return Base64.decode(legacySaltString, Base64.DEFAULT)
         }
 
@@ -253,6 +256,15 @@ class KeyManager(private val context: Context) {
 
     fun clearAll() {
         clear()
-        securePrefs.edit().remove(ENCRYPTED_MASTER_KEY_V2).apply()
+        // Wipe the KDF salt alongside the wrapped master key, so a reset does not
+        // re-derive the identical local KEK from the same PIN. Matches Swift's
+        // clearAll(). Both stores are cleared: the salt normally lives in
+        // securePrefs, but a pre-migration install may still hold a legacy copy
+        // in standardPrefs that getOrGenerateSalt() would otherwise migrate back.
+        securePrefs.edit()
+            .remove(ENCRYPTED_MASTER_KEY_V2)
+            .remove(SALT_KEY)
+            .apply()
+        standardPrefs.edit().remove(SALT_KEY).apply()
     }
 }

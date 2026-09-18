@@ -57,18 +57,11 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.jackbarkerapps.openkeep.TOGGLE_CHECKBOX" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/single_note_widget_info" />
         </receiver>
-
-        <!-- RemoteViewsService for SingleNoteWidget -->
-        <service
-            android:name=".SingleNoteWidgetRemoteViewsService"
-            android:exported="false"
-            android:permission="android.permission.BIND_REMOTEVIEWS" />
 
         <!-- Configuration Activity for SingleNoteWidget -->
         <activity
@@ -92,12 +85,6 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/note_collection_widget_info" />
         </receiver>
-
-        <!-- RemoteViewsService for NoteCollectionWidget -->
-        <service
-            android:name=".NoteCollectionWidgetService"
-            android:exported="false"
-            android:permission="android.permission.BIND_REMOTEVIEWS" />
 
         <!-- Configuration Activity for NoteCollectionWidget -->
         <activity

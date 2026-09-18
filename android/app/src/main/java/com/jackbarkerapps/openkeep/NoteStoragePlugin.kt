@@ -31,7 +31,9 @@ class NoteStoragePlugin : Plugin() {
      */
     private fun refreshWidgets() {
         try {
-            val context = activity ?: return
+            // Plugin context, not activity: the activity can be null while the app is
+            // backgrounded, which used to skip the refresh silently.
+            val context = this.context ?: return
             val appWidgetManager = AppWidgetManager.getInstance(context)
 
             // Refresh NoteCollectionWidget (Glance)
@@ -213,6 +215,7 @@ class NoteStoragePlugin : Plugin() {
                     try {
                         keyManager.upgradeToV2(masterKey, pin)
                         keyManager.storeMasterKey(masterKey)
+                        refreshWidgets()
                         call.resolve()
                     } catch (e: Exception) {
                         android.util.Log.e("NoteStorage", "Failed to store master key for auto-unlock", e)
@@ -314,6 +317,7 @@ class NoteStoragePlugin : Plugin() {
             val keyManager = com.jackbarkerapps.openkeep.security.KeyManager(context)
             keyManager.clear()
             NoteRepository.reset()
+            refreshWidgets()
             call.resolve()
         } catch (e: Exception) {
             call.reject("Lock failed: ${e.message}")
@@ -399,6 +403,7 @@ class NoteStoragePlugin : Plugin() {
                 }
 
                 android.util.Log.d("NoteStorage", "clearAllData process completed")
+                refreshWidgets()
                 call.resolve()
             } catch (e: Exception) {
                 val errorMsg = "Clear data failed: ${e.javaClass.simpleName} - ${e.message ?: "null"}"
@@ -448,6 +453,7 @@ class NoteStoragePlugin : Plugin() {
                     android.util.Log.e("NoteStorage", "Error deleting database file during wipe", e)
                 }
 
+                refreshWidgets()
                 call.resolve()
             } catch (e: Exception) {
                 call.reject("Failed to wipe database: ${e.message}")
@@ -488,6 +494,7 @@ class NoteStoragePlugin : Plugin() {
                     ))
                 }
                 repository.bulkInsert(notesList)
+                refreshWidgets()
                 call.resolve()
             } catch (e: Exception) {
                 call.reject("Migration failed: ${e.message}")
@@ -528,6 +535,7 @@ class NoteStoragePlugin : Plugin() {
                 // Keep auto-unlock matching the current Master Key
                 val newMasterKey = keyManager.getMasterKeyForPin(newPin)
                 keyManager.storeMasterKey(newMasterKey)
+                refreshWidgets()
 
                 call.resolve()
             } catch (e: Exception) {
@@ -569,6 +577,8 @@ class NoteStoragePlugin : Plugin() {
             // Re-initialize repository with the newly imported master key to prove it works
             val masterKey = keyManager.getMasterKeyForPin(pin)
             NoteRepository.reinitialize(context, masterKey)
+            repository = NoteRepository(context)
+            refreshWidgets()
 
             call.resolve()
         } catch (e: Exception) {

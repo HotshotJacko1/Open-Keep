@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Pin, Archive, Trash2, Square, Check, RotateCcw, Bell, ChevronDown, ChevronRight } from "lucide-react";
 import { formatReminderLabel } from "@/utils/reminder";
 import { cn } from "@/lib/utils";
-import { isChecklist, parseChecklist, ChecklistItem } from "@/utils/markdown";
+import { isChecklist, parseChecklist, groupChecklistForDisplay, ChecklistDisplayRow } from "@/utils/markdown";
 import { getNoteTintVars, isNoteTinted } from "@/lib/note-colors";
 
 import useLongPress from "@/hooks/use-long-press";
@@ -68,14 +68,18 @@ const NoteCard: React.FC<NoteCardProps> = ({
   const isList = isChecklist(note.content);
   // Parse and split content for display
   const parsedItems = isList ? parseChecklist(note.content).items : null;
-  const uncheckedItems = parsedItems ? parsedItems.filter(item => !item.checked) : [];
-  const checkedItems = parsedItems ? parsedItems.filter(item => item.checked) : [];
+  // Same grouping as the editor: ticked items at the bottom in stored order,
+  // with a greyed parent above sub-items whose parent is in the other section.
+  const display: ReturnType<typeof groupChecklistForDisplay> = parsedItems
+    ? groupChecklistForDisplay(parsedItems)
+    : { unchecked: [], checked: [] };
+  const checkedItemCount = display.checked.filter(row => row.kind === 'item').length;
 
   // Limit total visible items to 8
   const maxItems = 8;
-  const visibleUnchecked = uncheckedItems.slice(0, maxItems);
+  const visibleUnchecked = display.unchecked.slice(0, maxItems);
   const remainingSlots = Math.max(0, maxItems - visibleUnchecked.length);
-  const visibleChecked = checkedItems.slice(0, remainingSlots);
+  const visibleChecked = display.checked.slice(0, remainingSlots);
 
   const [showCompleted, setShowCompleted] = useState(true);
 
@@ -161,8 +165,19 @@ const NoteCard: React.FC<NoteCardProps> = ({
       </CardHeader>
       <CardContent className="px-4 pb-4 pt-0">
         {isList && parsedItems ? (() => {
-          const renderItem = (item: ChecklistItem, index: number) => {
-            const indentLevel = Math.floor((item.indentation?.length ?? 0) / 2);
+          const renderItem = (row: ChecklistDisplayRow) => {
+            const item = row.item;
+            if (row.kind === 'parent') {
+              return (
+                <li key={`parent-${item.id}`} className="flex items-start gap-2 text-sm text-black dark:text-white w-full overflow-hidden opacity-50" aria-hidden="true">
+                  <div className="h-6 w-6 shrink-0" />
+                  <span className={cn(item.checked && "line-through", "flex-1 min-w-0 break-words overflow-hidden [overflow-wrap:anywhere] leading-tight mt-0.5")}>
+                    {item.content}
+                  </span>
+                </li>
+              );
+            }
+            const indentLevel = row.indented ? Math.max(1, Math.floor((item.indentation?.length ?? 0) / 2)) : 0;
             return (
               <li key={item.id} className="flex items-start gap-2 text-sm text-black dark:text-white w-full overflow-hidden" style={{ paddingLeft: `${indentLevel * 1}rem` }}>
                 <Button
@@ -198,7 +213,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
               )}
 
               {/* Completed items divider & section */}
-              {checkedItems.length > 0 && (
+              {checkedItemCount > 0 && (
                 <>
                   <button
                     className="flex items-center gap-2 w-full py-1.5 mt-1 text-xs text-muted-foreground hover:text-secondary-foreground transition-colors duration-150"
@@ -212,7 +227,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                     ) : (
                       <ChevronRight className="h-3.5 w-3.5 shrink-0" />
                     )}
-                    <span>{checkedItems.length} completed {checkedItems.length === 1 ? 'item' : 'items'}</span>
+                    <span>{checkedItemCount} completed {checkedItemCount === 1 ? 'item' : 'items'}</span>
                   </button>
                   {showCompleted && (
                     <ul className="space-y-1 w-full overflow-hidden">

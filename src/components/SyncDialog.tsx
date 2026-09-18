@@ -1,5 +1,5 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,11 +9,12 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { useGoogleDrive } from "@/hooks/use-google-drive";
 import { useOneDrive } from "@/hooks/use-one-drive";
 import { useDropbox } from "@/hooks/use-dropbox";
 
-import { Loader2, FolderSync, ArrowLeft, AlertCircle } from "lucide-react";
+import { Loader2, FolderSync, ArrowLeft, AlertCircle, Check } from "lucide-react";
 import { showSuccess, showError } from "@/utils/toast";
 import { loadNotes } from "@/lib/note-storage";
 
@@ -88,11 +89,24 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
 
   const isAnySyncing = googleDrive.isSyncing || oneDrive.isSyncing || dropbox.isSyncing;
 
+  const [justSynced, setJustSynced] = useState(false);
+  const justSyncedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (justSyncedTimeoutRef.current) clearTimeout(justSyncedTimeoutRef.current);
+    };
+  }, []);
+
   const handleSync = async () => {
     if (!activeService) return;
     const result = await activeService.sync();
     if (result && result.status === "conflict" && 'cloudPayload' in result) {
       setConflictData({ activeService, cloudPayload: (result as any).cloudPayload, reason: (result as any).reason });
+    } else if (result && result.status === "success") {
+      if (justSyncedTimeoutRef.current) clearTimeout(justSyncedTimeoutRef.current);
+      setJustSynced(true);
+      justSyncedTimeoutRef.current = setTimeout(() => setJustSynced(false), 1200);
     }
   };
 
@@ -253,10 +267,17 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                     variant="outline"
                     onClick={handleSync}
                     disabled={isAnySyncing}
-                    className="flex-1 text-primary-foreground"
+                    className={cn(
+                      "flex-1 text-primary-foreground transition-colors duration-500 ease-in-out",
+                      justSynced && "bg-green-500 hover:bg-green-500 border-green-500 text-white"
+                    )}
                   >
-                    {activeService.isSyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {activeService.isSyncing ? "Syncing..." : "Sync Now"}
+                    {activeService.isSyncing ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : justSynced ? (
+                      <Check className="mr-2 h-4 w-4" />
+                    ) : null}
+                    {activeService.isSyncing ? "Syncing..." : justSynced ? "Synced" : "Sync Now"}
                   </Button>
                   <Button
                     variant="outline"

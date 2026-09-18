@@ -91,6 +91,10 @@ export const useOneDrive = () => {
                 throw new Error("No PIN found. Please set up a PIN in App Lock settings first.");
             }
 
+            // Read local notes and custom tags BEFORE any database wipe or key import
+            const localNotes = await loadNotes();
+            const localCustomTags = JSON.parse(localStorage.getItem("custom-tags") || "[]");
+
             const cloudKeyConflict = await getCloudKeyConflictIfNeeded(
                 pin,
                 forceResolution,
@@ -116,7 +120,6 @@ export const useOneDrive = () => {
             if (!forceResolution) {
                 const cloudKey = await checkOneDriveMasterKey();
                 if (cloudKey.exists && cloudKey.payload) {
-                    const localNotes = await loadNotes();
                     const canDecrypt = await canDecryptCloudMasterKey(cloudKey.payload, effectivePin);
                     const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, effectivePin);
                     const isFirstConnect = !localStorage.getItem("onedrive-last-synced");
@@ -131,7 +134,7 @@ export const useOneDrive = () => {
                         }
                     } else {
                         if (!isMatch) {
-                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
+                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: canDecrypt ? "first_connect" : "key_mismatch" };
                         } else if (isFirstConnect) {
                             return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
                         }
@@ -139,14 +142,8 @@ export const useOneDrive = () => {
                 }
             }
 
-            const localNotes = await loadNotes();
-            const localCustomTags = JSON.parse(localStorage.getItem("custom-tags") || "[]");
             const oneDriveForceResolution = forceResolution === "merge" ? undefined : forceResolution;
             const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithOneDrive(localNotes, localCustomTags, { masterKeyPayload, forceResolution: oneDriveForceResolution });
-
-            if (forceResolution === "cloud") {
-                await wipeDatabaseButKeepKeys();
-            }
 
             // Re-read local DB after sync in case local notes changed while sync was in-flight.
             const currentLocalNotes = await loadNotes();

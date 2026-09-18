@@ -272,8 +272,15 @@ export async function rescheduleAllReminders(notes: Note[]): Promise<void> {
       
       // Update in-memory so Index.tsx sees the new time
       n.reminder = nextTime;
-      n.updatedAt = Math.max(Date.now(), n.updatedAt + 1);
-      
+
+      // updatedAt is deliberately NOT bumped. The next occurrence is worked
+      // out from (reminder, recurrence), so every device reaches the same time
+      // on its own next launch -- it doesn't need to travel through sync. This
+      // used to set updatedAt to "now" on every cold start, which showed a
+      // note the user hadn't touched as edited just now, floated it to the top
+      // of a sort-by-edited list, and made it the winner of the next
+      // last-write-wins sync.
+
       // Save it to update the database
       await saveNote(n);
       

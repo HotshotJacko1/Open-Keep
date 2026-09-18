@@ -9,6 +9,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Added toast notification with "Undo" button when archiving and unarchiving notes.
 - F-Droid release.
 
+## [5.0.3] - 2026-09-24
+
+### Added
+- Ko-fi donate button added to Settings.
+- The sync button briefly turns green with a "Synced" tick after a successful sync.
+- Pasting multi-line text into a checklist item splits it into one item per line.
+- Text in a checklist that isn't a list item is now shown, with a "Make item" button to turn it into one.
+
+### Fixed
+- Blank lines and stray text in a checklist are no longer deleted when you open the note.
+- Text notes are no longer marked as edited just by opening them.
+- Line breaks from keyboards that don't send Enter now start a new item instead of hiding text.
+- Sub-items now stay under their own parent after being ticked and unticked.
+- Deleting or ticking an item no longer takes another item's sub-items with it.
+- Ticking an item and unticking it again is now saved.
+- Notes with a repeating reminder are no longer marked as edited every time the app starts.
+- Checklists with ticked items no longer reorder themselves when you tick something.
+- "1 checked items" now reads "1 checked item".
+
 ## [5.0.2] - 2026-09-21
 
 ### Added
@@ -19,6 +38,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 - Web: Long notes no longer get squeezed into a small scrolling box when opened — the editor now grows to fit the note, up to 90% of the screen.
 - Bold text in notes is now visible in dark mode.
+- Opening a checklist note no longer silently rewrites its content — an untouched note is never marked as edited.
+- Cloud sync: notes are no longer lost when merging with a cloud account that uses a different encryption key.
 
 ## [5.0.1] - 2026-09-14
 

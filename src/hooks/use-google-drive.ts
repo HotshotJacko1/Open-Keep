@@ -155,11 +155,19 @@ const refreshAccessTokenFromStorage = async (): Promise<string> => {
 
     const res = await requestGoogleTokens({ refreshToken });
     if (isTokenEndpointFailure(res)) {
-        // e.g. invalid_grant: revoked or expired (~6 months). Drop it so the
-        // interactive sign-in path can recover.
-        console.log(`Google token refresh rejected (${res.error})`);
-        setStoredRefreshToken(null);
-        setAccessToken("");
+        // Only a genuine invalid_grant means the refresh token itself is dead
+        // (revoked, or expired after ~6 months of inactivity) -- drop it so
+        // the interactive sign-in path can recover with a fresh one. Any
+        // other error (rate limiting, a transient 5xx from Google or from
+        // our own edge function, etc.) is not the refresh token's fault;
+        // keep it stored so the next scheduled refresh can simply try again
+        // instead of forcing every future renewal through an interactive
+        // sign-in.
+        console.log(`Google token refresh rejected (${res.error}): ${res.error_description ?? "no description"}`);
+        if (res.error === "invalid_grant") {
+            setStoredRefreshToken(null);
+            setAccessToken("");
+        }
         throw new Error(`Google token refresh failed (${res.error})`);
     }
 
@@ -244,9 +252,15 @@ const nativeGoogleEnsureDriveToken = async (isExplicitLogin = false): Promise<st
         }
 
         // 3. Sign-in restricted to already-authorized accounts. For a returning
-        // user this resolves without any visible prompt.
+        // user this resolves without any visible prompt. If we have no
+        // refresh token stored at all, force the consent screen this time
+        // (forcePrompt) so Google actually issues one -- otherwise a
+        // "silent" auto-select sign-in commonly hands back an access token
+        // with no refresh token, and we're right back here next time it
+        // expires.
+        const needsConsent = !getStoredRefreshToken();
         try {
-            const accessToken = await nativeGoogleSignInAndExchange(false, false);
+            const accessToken = await nativeGoogleSignInAndExchange(false, needsConsent);
             clearGoogleDriveScopeBlock();
             return accessToken;
         } catch (e) {
@@ -437,6 +451,10 @@ export const useGoogleDrive = () => {
                 throw new Error("No PIN found. Please set up a PIN in App Lock settings first.");
             }
 
+            // Read local notes and custom tags BEFORE any database wipe or key import
+            const localNotes = await loadNotes();
+            const localCustomTags = JSON.parse(localStorage.getItem("custom-tags") || "[]");
+
             const cloudKeyConflict = await getCloudKeyConflictIfNeeded(
                 pin,
                 forceResolution,
@@ -462,7 +480,6 @@ export const useGoogleDrive = () => {
             if (!forceResolution) {
                 const cloudKey = await runWithFreshDriveToken(() => checkGoogleDriveMasterKey(), !silent);
                 if (cloudKey.exists && cloudKey.payload) {
-                    const localNotes = await loadNotes();
                     const isFirstConnect = !localStorage.getItem("last-synced-time");
                     const canDecrypt = await canDecryptCloudMasterKey(cloudKey.payload, effectivePin);
                     const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, effectivePin);
@@ -480,7 +497,7 @@ export const useGoogleDrive = () => {
                     } else {
                         if (!isMatch) {
                             // Keys differ and we have local notes — conflict resolution required
-                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
+                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: canDecrypt ? "first_connect" : "key_mismatch" };
                         } else if (isFirstConnect) {
                             // Keys match but this is first connect — ask user which data to keep
                             return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
@@ -489,18 +506,12 @@ export const useGoogleDrive = () => {
                 }
             }
 
-            const localNotes = await loadNotes();
             console.log(`[Google Drive Sync] Loaded ${localNotes.length} local notes for sync`);
-            const localCustomTags = JSON.parse(localStorage.getItem("custom-tags") || "[]");
             const driveForceResolution = forceResolution === "merge" ? undefined : forceResolution;
             const { notes: mergedNotes, customTags: mergedTags } = await runWithFreshDriveToken(
                 () => syncNotesWithDrive(localNotes, localCustomTags, { masterKeyPayload, forceResolution: driveForceResolution }),
                 !silent
             );
-
-            if (forceResolution === "cloud") {
-                await wipeDatabaseButKeepKeys();
-            }
 
             // Re-read local DB state now that sync is complete. Local notes may have changed
             // while the sync was in-flight (e.g. user deleted a note during a long sync).

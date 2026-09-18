@@ -254,9 +254,21 @@ const Index = () => {
   }, [activeService, performAutoSync]);
 
   const handleExportAllNotes = async () => {
+    // Binned notes are excluded, matching handleBulkExport (whose selection can
+    // only ever come from the non-binned list). Exporting them unmarked meant a
+    // re-import silently resurrected deleted notes as live ones -- the frontmatter
+    // carries no "deleted" flag, so nothing downstream could tell them apart.
+    const exportableNotes = notes.filter((note) => !note.isDeleted);
+    const binnedCount = notes.length - exportableNotes.length;
+
+    if (exportableNotes.length === 0) {
+      showError("No notes to export");
+      return;
+    }
+
     const zip = new JSZip();
 
-    await Promise.all(notes.map(async (note) => {
+    await Promise.all(exportableNotes.map(async (note) => {
       const safeTitle = note.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'untitled';
       const filename = `${safeTitle}_${note.id.substring(0, 4)}.md`;
 
@@ -279,7 +291,13 @@ const Index = () => {
 
     const content = await zip.generateAsync({ type: "blob" });
     saveAs(content, "notes_export.zip");
-    showSuccess("Exported all notes");
+    // Say so rather than dropping them silently -- this path is reachable from the
+    // storage-full toast, where the user is trying to rescue their data.
+    showSuccess(
+      binnedCount > 0
+        ? `Exported all notes (${binnedCount} in the bin were not included)`
+        : "Exported all notes"
+    );
   };
 
   const persistNote = async (note: Note) => {
