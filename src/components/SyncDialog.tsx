@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useGoogleDrive } from "@/hooks/use-google-drive";
 import { useOneDrive } from "@/hooks/use-one-drive";
 import { useDropbox } from "@/hooks/use-dropbox";
+import { FULL_BUILD_PLAY_URL, FULL_BUILD_GITHUB_URL } from "@/lib/build-flavor";
 
 import { Loader2, FolderSync, ArrowLeft, AlertCircle, Check } from "lucide-react";
 import { showSuccess, showError } from "@/utils/toast";
@@ -156,20 +157,38 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
 
             {!activeService ? (
               <div className="flex flex-col gap-2">
-                <Button
-                  onClick={async () => {
-                    showSuccess("Initiating Google Login...");
-                    const result = await googleDrive.login();
-                    if (result && result.status === "conflict" && 'cloudPayload' in result) {
-                      setConflictData({ activeService: googleDrive, cloudPayload: (result as any).cloudPayload, reason: (result as any).reason });
-                    }
-                  }}
-                  className="w-full justify-start"
-                  variant="outline"
-                  type="button"
-                >
-                  <FolderSync className="mr-2 h-4 w-4" /> Sync with Google Drive
-                </Button>
+                {googleDrive.isAvailable ? (
+                  <Button
+                    onClick={async () => {
+                      showSuccess("Initiating Google Login...");
+                      const result = await googleDrive.login();
+                      if (result && result.status === "conflict" && 'cloudPayload' in result) {
+                        setConflictData({ activeService: googleDrive, cloudPayload: (result as any).cloudPayload, reason: (result as any).reason });
+                      }
+                    }}
+                    className="w-full justify-start"
+                    variant="outline"
+                    type="button"
+                  >
+                    <FolderSync className="mr-2 h-4 w-4" /> Sync with Google Drive
+                  </Button>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    <Button className="w-full justify-start" variant="outline" type="button" disabled>
+                      <FolderSync className="mr-2 h-4 w-4" /> Sync with Google Drive
+                    </Button>
+                    <p className="text-xs text-primary-foreground/70 px-1">
+                      Google Drive sync is available in the full build at{" "}
+                      <a href={FULL_BUILD_PLAY_URL} target="_blank" rel="noreferrer" className="underline">
+                        Google Play
+                      </a>{" "}
+                      or{" "}
+                      <a href={FULL_BUILD_GITHUB_URL} target="_blank" rel="noreferrer" className="underline">
+                        GitHub
+                      </a>.
+                    </p>
+                  </div>
+                )}
                 <Button onClick={() => oneDrive.login()} className="w-full justify-start" variant="outline" type="button">
                   <FolderSync className="mr-2 h-4 w-4" /> Sync with OneDrive
                 </Button>

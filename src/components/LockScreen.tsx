@@ -283,7 +283,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
                     <Button
                         variant="ghost"
                         size="lg"
-                        className="mt-4 flex gap-2 items-center text-foreground"
+                        className="mt-4 flex gap-2 items-center text-text-primary dark:text-text-primary"
                         onClick={handleBiometricUnlock}
                     >
                         <Fingerprint className="w-6 h-6" />

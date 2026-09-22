@@ -942,24 +942,29 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     /**
      * Checks whether the current editor state has actually diverged from the snapshot
      * taken when the note was opened. If false, no user edit has occurred.
+     *
+     * Accepts the same field overrides buildNoteFromState does (e.g. a just-toggled
+     * isArchived/isPinned) so a caller that flips a value and immediately builds/saves
+     * a note in the same tick isn't compared against its own stale closure state --
+     * setIsArchived(!isArchived) hasn't re-rendered yet when this runs.
      */
-    const isNoteDirty = (contentOverride?: string): boolean => {
+    const isNoteDirty = (overrides?: Partial<Note>): boolean => {
         if (!initialNote || baselineNoteSnapshotRef.current === null) {
             // New note has no baseline
             return true;
         }
 
         const currentSnapshot = makeNoteSnapshot({
-            title,
-            content: contentOverride !== undefined ? contentOverride : content,
+            title: overrides?.title !== undefined ? overrides.title : title,
+            content: overrides?.content !== undefined ? overrides.content : content,
             type: isChecklistMode ? 'list' : 'text',
-            tags: currentTags(),
-            isPinned,
-            isArchived,
-            images,
-            color,
-            reminder,
-            recurrence,
+            tags: overrides?.tags !== undefined ? overrides.tags : currentTags(),
+            isPinned: overrides?.isPinned !== undefined ? overrides.isPinned : isPinned,
+            isArchived: overrides?.isArchived !== undefined ? overrides.isArchived : isArchived,
+            images: overrides?.images !== undefined ? overrides.images : images,
+            color: overrides?.color !== undefined ? overrides.color : color,
+            reminder: overrides?.reminder !== undefined ? overrides.reminder : reminder,
+            recurrence: overrides?.recurrence !== undefined ? overrides.recurrence : recurrence,
         });
 
         return currentSnapshot !== baselineNoteSnapshotRef.current;
@@ -979,9 +984,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
      * colour set and no title or body is still discarded on close.
      */
     const buildNoteFromState = (overrides?: Partial<Note>): Note => {
-        const dirty = overrides?.content !== undefined
-            ? isNoteDirty(overrides.content)
-            : isNoteDirty();
+        const dirty = isNoteDirty(overrides);
         const effectiveUpdatedAt = dirty
             ? Date.now()
             : (lastSavedUpdatedAtRef.current || initialNote?.updatedAt || Date.now());
@@ -1533,7 +1536,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         // Cleanup empty note if needed (but save if it has images)
         if (title.trim() === "" && images.length === 0 && (plainText === "" || checklistIsEmpty)) {
             onDelete(noteIdRef.current);
-        } else if (!initialNote || isNoteDirty(currentContent)) {
+        } else if (!initialNote || isNoteDirty({ content: currentContent })) {
             // Save if it's a new note or if actual changes were made
             saveFromEditor(buildNoteFromState({ content: currentContent }));
         }

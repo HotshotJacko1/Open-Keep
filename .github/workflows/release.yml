@@ -1,0 +1,94 @@
+name: Release APKs
+
+# Builds and signs both the "play" (full, with Google Drive sync) and "fdroid"
+# (no Google Play Services) flavors and attaches both APKs to a GitHub Release,
+# on every pushed version tag (v5.0.4, v5.1.0, etc).
+#
+# Needs four repo secrets (Settings -> Secrets and variables -> Actions):
+#   PLAY_KEYSTORE_BASE64  -- your existing Play Store keystore, base64-encoded
+#   KEYSTORE_PASSWORD
+#   KEY_ALIAS
+#   KEY_PASSWORD
+#
+# The first run of this workflow is untested -- it publishes as a DRAFT release
+# so you can check both APKs actually install before hitting "Publish" on
+# github.com. Once you trust it, drop `draft: true` below if you'd rather it
+# publish immediately.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Enable Corepack (uses the pnpm version pinned in package.json)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Decode signing keystore
+        run: echo "${{ secrets.PLAY_KEYSTORE_BASE64 }}" | base64 -d > android/app/release-signing.jks
+
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build & sign play flavor (full, with Google Drive sync)
+        env:
+          VITE_APP_FLAVOR: play
+          CI_KEYSTORE_PATH: release-signing.jks
+          CI_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          CI_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          CI_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          pnpm run build
+          npx cap sync android
+          cd android && ./gradlew assemblePlayRelease
+
+      - name: Build & sign fdroid flavor (no Google Play Services)
+        env:
+          VITE_APP_FLAVOR: fdroid
+          CI_KEYSTORE_PATH: release-signing.jks
+          CI_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          CI_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          CI_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          pnpm run build
+          npx cap sync android
+          cd android && ./gradlew assembleFdroidRelease
+
+      - name: Remove decoded keystore
+        if: always()
+        run: rm -f android/app/release-signing.jks
+
+      - name: Rename APKs for the release
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cp android/app/build/outputs/apk/play/release/app-play-release.apk "OpenKeep-${VERSION}-play.apk"
+          cp android/app/build/outputs/apk/fdroid/release/app-fdroid-release.apk "OpenKeep-${VERSION}-fdroid.apk"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            OpenKeep-*.apk
+          generate_release_notes: true

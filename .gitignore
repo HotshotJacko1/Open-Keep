@@ -28,3 +28,10 @@ dist-ssr
 
 # Supabase CLI local project linkage
 supabase/.temp/
+
+# Release signing key material -- must never be committed. The GitHub Actions
+# release workflow decodes this from a repo secret at build time and deletes it
+# again afterwards; see .github/workflows/release.yml
+*.jks
+*.keystore
+android/app/release-signing.jks

@@ -21,6 +21,32 @@ buildscript {
 
 apply from: "variables.gradle"
 
+// F-Droid build support -------------------------------------------------------
+// The "fdroid" product flavor (app/build.gradle) must ship with zero Google
+// Play Services code, per F-Droid's inclusion policy. @capgo/capacitor-social-login
+// reads the "socialLogin.google.dependencyType" gradle property from its OWN
+// build.gradle (node_modules/.../@capgo/capacitor-social-login/android/build.gradle)
+// to decide how to compile its Google provider. Setting it to "compileOnly" keeps
+// the GMS classes resolvable at compile time (so the plugin's GoogleProvider.java
+// still compiles) but excludes them from the shipped APK.
+//
+// This must run in beforeProject, which fires before each project's own
+// build.gradle is evaluated -- by the time a task graph exists it's already too
+// late, the plugin's dependencies{} block has already run.
+//
+// This is a compile-time safety net, not the only one: the app itself must never
+// call SocialLogin.initialize({ google: ... }) on this flavor in the first place
+// (see src/lib/build-flavor.ts and initNativeGoogleAuth() in
+// src/hooks/use-google-drive.ts), since compileOnly alone does not stop the
+// plugin's Google provider from being *constructed* -- only from shipping in
+// the APK.
+def isFdroidBuild = gradle.startParameter.taskNames.any { it.contains("Fdroid") }
+gradle.beforeProject { p ->
+    if (isFdroidBuild && p.name == "capgo-capacitor-social-login") {
+        p.ext.set("socialLogin.google.dependencyType", "compileOnly")
+    }
+}
+
 allprojects {
     repositories {
         google()

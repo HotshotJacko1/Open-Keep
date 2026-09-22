@@ -43,6 +43,14 @@ import { App as CapacitorApp } from "@capacitor/app";
 import { useWidgetDeepLink } from "@/hooks/use-widget-deep-link";
 import { useMcpBridge } from "@/hooks/use-mcp-bridge";
 
+// How long a note sits in the Bin (isDeleted) before it's hard-removed, either
+// by the auto-cleanup sweep below or by a manual "Delete Forever". Manual
+// permanent delete is gated on this too -- hard-removing a note is a local-only
+// operation with no tombstone, so deleting it before this device has had a
+// chance to sync the soft-delete to every cloud-connected device risks a
+// still-live remote copy getting merged back in on the next sync.
+const BIN_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
 // A corrupt or non-array "custom-tags" value used to white-screen the app: it
 // was parsed unguarded both in the useState initialiser (crash on mount) and in
 // the notes-updated handler (throws inside an event listener after every sync).
@@ -418,6 +426,28 @@ const Index = () => {
     };
   }, [activeService, performAutoSync, refreshNotesFromDb]);
 
+  // Warn before closing the tab/window if a cloud provider is connected and an
+  // edit hasn't made it out yet — otherwise closing right after an edit can
+  // silently drop it before the 30s debounce timer (or an in-flight upload)
+  // gets to run. Native builds don't get "closed" this way, so skip there.
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) return;
+    if (!activeService) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      const hasUnsyncedEdits =
+        autoSyncTimerRef.current !== null ||
+        activeService.isSyncing ||
+        pendingWritesRef.current.size > 0;
+      if (!hasUnsyncedEdits) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [activeService]);
+
   const handleTouchStart = (e: React.TouchEvent) => {
     // Check if we are at the top of the scroll container
     if (activeService && (!scrollContainerRef.current || scrollContainerRef.current.scrollTop <= 1) && !isSelectionMode) {
@@ -498,8 +528,7 @@ const Index = () => {
 
         // AUTO-DELETE CLEANUP (30 days)
         const now = Date.now();
-        const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-        const notesToPermanentlyDelete = loadedNotes.filter(n => n.isDeleted && n.deletedAt && (now - n.deletedAt > thirtyDays));
+        const notesToPermanentlyDelete = loadedNotes.filter(n => n.isDeleted && n.deletedAt && (now - n.deletedAt > BIN_RETENTION_MS));
 
         if (notesToPermanentlyDelete.length > 0) {
           console.log(`Cleaning up ${notesToPermanentlyDelete.length} old deleted notes`);
@@ -676,6 +705,11 @@ const Index = () => {
   const handleDeleteNote = async (id: string) => {
     const note = notes.find((n) => n.id === id);
     if (!note) return;
+
+    if (note.isDeleted && note.deletedAt && Date.now() - note.deletedAt < BIN_RETENTION_MS) {
+      showError("Notes in the Bin are deleted automatically after 30 days.");
+      return;
+    }
 
     setExitingNoteIds(prev => new Set(prev).add(id));
 
@@ -1049,35 +1083,54 @@ const Index = () => {
     const selectedNotes = notes.filter(n => selectedNoteIds.has(n.id));
     if (selectedNotes.length === 0) return;
 
-    const ids = Array.from(selectedNoteIds);
-    setExitingNoteIds(prev => {
-      const next = new Set(prev);
-      ids.forEach(id => next.add(id));
-      return next;
-    });
-
     const isBinView = selectedTag === "bin";
     const now = Date.now();
 
     if (isBinView) {
-      handleClearSelection();
-      void Promise.all(selectedNotes.map(async n => {
-        if (n.images && n.images.length > 0) {
-          await Promise.all(n.images.map(deleteImage));
-        }
-        await deleteNote(n.id);
-      }));
+      // Only hard-delete notes that have been in the Bin long enough for the
+      // soft-delete to have synced everywhere; see BIN_RETENTION_MS.
+      const eligibleNotes = selectedNotes.filter(n => !n.deletedAt || now - n.deletedAt >= BIN_RETENTION_MS);
+      const blockedCount = selectedNotes.length - eligibleNotes.length;
+      const eligibleIds = eligibleNotes.map(n => n.id);
 
-      setTimeout(() => {
-        setNotes((prevNotes) => prevNotes.filter(note => !ids.includes(note.id)));
+      handleClearSelection();
+
+      if (eligibleIds.length > 0) {
         setExitingNoteIds(prev => {
           const next = new Set(prev);
-          ids.forEach(id => next.delete(id));
+          eligibleIds.forEach(id => next.add(id));
           return next;
         });
-        showSuccess("Notes permanently deleted");
-      }, 320);
+
+        void Promise.all(eligibleNotes.map(async n => {
+          if (n.images && n.images.length > 0) {
+            await Promise.all(n.images.map(deleteImage));
+          }
+          await deleteNote(n.id);
+        }));
+
+        setTimeout(() => {
+          setNotes((prevNotes) => prevNotes.filter(note => !eligibleIds.includes(note.id)));
+          setExitingNoteIds(prev => {
+            const next = new Set(prev);
+            eligibleIds.forEach(id => next.delete(id));
+            return next;
+          });
+          showSuccess(eligibleIds.length === 1 ? "Note permanently deleted" : "Notes permanently deleted");
+        }, 320);
+      }
+
+      if (blockedCount > 0) {
+        showError(`${blockedCount} note${blockedCount === 1 ? "" : "s"} can't be deleted yet — the Bin removes notes automatically after 30 days.`);
+      }
     } else {
+      const ids = Array.from(selectedNoteIds);
+      setExitingNoteIds(prev => {
+        const next = new Set(prev);
+        ids.forEach(id => next.add(id));
+        return next;
+      });
+
       const updates: Note[] = [];
       const deletedSnapshot = [...selectedNotes];
       const newNotes = notes.map(note => {

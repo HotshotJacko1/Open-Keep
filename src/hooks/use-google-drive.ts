@@ -15,6 +15,7 @@ import {
 import { setCloudSyncState, useCloudSyncState } from "@/lib/cloud-sync-state";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
+import { isGoogleDriveSyncAvailable } from "@/lib/build-flavor";
 
 export { isGoogleDriveAuthBusy, isGoogleDriveScopeBlocked } from "@/lib/google-drive-auth-state";
 
@@ -176,6 +177,16 @@ const refreshAccessTokenFromStorage = async (): Promise<string> => {
 };
 
 const initNativeGoogleAuth = async () => {
+    if (!isGoogleDriveSyncAvailable) {
+        // This build never bundles Google Play Services (see src/lib/build-flavor.ts).
+        // Every native Google Drive code path -- login, logout, silent token
+        // refresh -- funnels through this one function first, so this is the
+        // single place that needs to refuse before SocialLogin.initialize()
+        // ever runs and constructs a GoogleProvider.
+        throw new Error(
+            "Google Drive sync isn't available in this build. Get the full build from Google Play or GitHub for Google Drive sync."
+        );
+    }
     await SocialLogin.initialize({
         google: {
             webClientId: GOOGLE_WEB_CLIENT_ID,
@@ -638,6 +649,7 @@ export const useGoogleDrive = () => {
         lastSynced,
         userEmail,
         isConnected: !!userEmail,
-        isTokenExpired
+        isTokenExpired,
+        isAvailable: isGoogleDriveSyncAvailable
     };
 };
