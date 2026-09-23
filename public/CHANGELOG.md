@@ -5,9 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), but this project does not adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) because there is no public API.
 
 ## [Unreleased]
-- Added "Undo" button to "Note moved to Bin" toast notification.
-- Added toast notification with "Undo" button when archiving and unarchiving notes.
-- F-Droid release.
+
+## [5.0.5] - 2026-09-23
+
+### Changed
+- Removed the unused Facebook SDK from the Android app.
+- F-Droid build no longer contains any Google sign-in code, and is smaller.
+- Release builds are now reproducible, so F-Droid can publish the app with the same signature as the GitHub APK.
+
+## [5.0.4] - 2026-09-22
+
+### Added
+- Undo button on the "Note moved to Bin" toast.
+- Undo button on the new "Note moved to Archive" toast.
+- F-Droid release: a GMS-free build, alongside the existing Play Store build.
 
 ## [5.0.3] - 2026-09-24
 

@@ -1,1 +1,1 @@
-Open Keep is a simple, privacy-focused notes and lists app.
+Open source notes app with exporting, cloud sync, app lock, & encryption.

@@ -10,10 +10,13 @@ name: Release APKs
 #   KEY_ALIAS
 #   KEY_PASSWORD
 #
-# The first run of this workflow is untested -- it publishes as a DRAFT release
-# so you can check both APKs actually install before hitting "Publish" on
-# github.com. Once you trust it, drop `draft: true` below if you'd rather it
-# publish immediately.
+# Releases publish immediately (not as drafts): F-Droid's reproducible-build
+# check downloads OpenKeep-<version>-fdroid.apk from the release, rebuilds the
+# same commit itself, and only publishes if the two match byte-for-byte.
+# So the fdroid build below must stay identical to the recipe in fdroiddata
+# (metadata/com.jackbarkerapps.openkeep.yml): same Node version, built first
+# from a clean checkout, VITE_APP_FLAVOR=fdroid for both the web build and
+# `cap sync`. Change one, change the other.
 
 on:
   push:
@@ -37,7 +40,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: "22.23.2"
 
       - name: Enable Corepack (uses the pnpm version pinned in package.json)
         run: corepack enable
@@ -51,18 +54,6 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      - name: Build & sign play flavor (full, with Google Drive sync)
-        env:
-          VITE_APP_FLAVOR: play
-          CI_KEYSTORE_PATH: release-signing.jks
-          CI_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          CI_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          CI_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          pnpm run build
-          npx cap sync android
-          cd android && ./gradlew assemblePlayRelease
-
       - name: Build & sign fdroid flavor (no Google Play Services)
         env:
           VITE_APP_FLAVOR: fdroid
@@ -75,6 +66,18 @@ jobs:
           npx cap sync android
           cd android && ./gradlew assembleFdroidRelease
 
+      - name: Build & sign play flavor (full, with Google Drive sync)
+        env:
+          VITE_APP_FLAVOR: play
+          CI_KEYSTORE_PATH: release-signing.jks
+          CI_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          CI_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          CI_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          pnpm run build
+          npx cap sync android
+          cd android && ./gradlew assemblePlayRelease
+
       - name: Remove decoded keystore
         if: always()
         run: rm -f android/app/release-signing.jks
@@ -82,13 +85,13 @@ jobs:
       - name: Rename APKs for the release
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          cp android/app/build/outputs/apk/play/release/app-play-release.apk "OpenKeep-${VERSION}-play.apk"
+          cp android/app/build/outputs/apk/play/release/app-play-release.apk "OpenKeep-${VERSION}-android-full.apk"
           cp android/app/build/outputs/apk/fdroid/release/app-fdroid-release.apk "OpenKeep-${VERSION}-fdroid.apk"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          draft: true
+          draft: false
           files: |
             OpenKeep-*.apk
           generate_release_notes: true

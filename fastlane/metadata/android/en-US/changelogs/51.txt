@@ -1,0 +1,3 @@
+- Removed the unused Facebook SDK.
+- F-Droid build: no Google sign-in code, smaller.
+- Reproducible builds: same signature as the GitHub APK.

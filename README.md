@@ -1,5 +1,7 @@
 # Welcome to Open Keep
 
+**[Changelog](public/CHANGELOG.md)**
+
 ## Features
 Open source notes app with exporting, cloud sync, app lock, & encryption.
 

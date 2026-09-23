@@ -1,0 +1,2 @@
+- Undo button on "note moved to Bin" and "note moved to Archive" toasts.
+- F-Droid release: a GMS-free build.

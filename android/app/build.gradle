@@ -10,8 +10,8 @@ android {
         applicationId "com.jackbarkerapps.openkeep"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 50
-        versionName "5.0.4"
+        versionCode 51
+        versionName "5.0.5"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -58,6 +58,11 @@ android {
     }
     buildFeatures {
         compose true
+    }
+    // F-Droid reproducible builds: the dependency-info block is an encrypted
+    // blob only Google can read, and it breaks byte-for-byte comparison.
+    dependenciesInfo {
+        includeInApk = false
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_21
