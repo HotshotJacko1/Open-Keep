@@ -13,33 +13,37 @@ export class ImportManager {
     report: ImportReport;
     notes: ImportNote[];
   }> {
-    
-    // Find the first matching importer
-    let selectedImporter: Importer | undefined;
-    for (const importer of this.importers) {
-      if (importer.detect(input)) {
-        selectedImporter = importer;
-        break;
-      }
-    }
 
-    if (!selectedImporter) {
+    // Run every importer that recognises the batch, not just the first: a
+    // stray Keep .json alongside a folder of .md files must import both.
+    // Each importer only reads its own file type, so nothing is imported twice.
+    const selectedImporters = this.importers.filter(importer => importer.detect(input));
+
+    if (selectedImporters.length === 0) {
       throw new Error("No supported import format detected in the provided files.");
     }
 
-    const importedNotes = await selectedImporter.parse(input);
+    const importedNotes: ImportNote[] = [];
+    for (const importer of selectedImporters) {
+      importedNotes.push(...await importer.parse(input));
+    }
 
     const tagsCreated = new Set<string>();
     importedNotes.forEach(note => {
       note.tags?.forEach(tag => tagsCreated.add(tag));
     });
 
+    const filesSkipped = input.files.filter(
+      file => !selectedImporters.some(importer => importer.handles(file))
+    ).length;
+
     const report: ImportReport = {
-      source: selectedImporter.name,
+      source: selectedImporters.map(importer => importer.name).join(" + "),
       notesImported: importedNotes.length,
       tagsCreated: tagsCreated.size,
-      failedNotes: 0 // We're silently skipping failed parse attempts for now in the Importer, 
-                     // a more robust system might track them.
+      failedNotes: 0, // We're silently skipping failed parse attempts for now in the Importer,
+                      // a more robust system might track them.
+      filesSkipped,
     };
 
     return {

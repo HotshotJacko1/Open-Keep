@@ -86,7 +86,7 @@ const msalConfig: Configuration = {
                         break;
                 }
             },
-            logLevel: LogLevel.Verbose,
+            logLevel: import.meta.env.DEV ? LogLevel.Verbose : LogLevel.Warning,
         },
     }
 };
@@ -518,14 +518,13 @@ export const syncNotesWithOneDrive = async (
 };
 
 export const logoutFromOneDrive = async () => {
-    // Optional: Clear local cache?
-    // msalInstance.logoutPopup(); // This might redirect user to logout page
-
-    // For "disconnect", we usually just clear local tokens. 
-    // True logout clears cookies on MS server.
-    // Let's just remove the active account.
-    const account = msalInstance.getActiveAccount();
-    if (account) {
-        msalInstance.setActiveAccount(null);
+    // "Disconnect" is local-only: we don't redirect to the Microsoft logout page.
+    // clearCache() with no account drops every MSAL entry (accounts, id/access/
+    // refresh tokens, metadata) from localStorage so nothing outlives the disconnect.
+    msalInstance.setActiveAccount(null);
+    try {
+        await msalInstance.clearCache();
+    } catch (e) {
+        console.warn("[OneDrive] Failed to clear MSAL cache on disconnect", e);
     }
 };

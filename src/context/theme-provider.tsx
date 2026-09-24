@@ -53,12 +53,21 @@ export function ThemeProvider({
     root.classList.remove("light", "dark");
 
     if (theme === "system") {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light";
+      // Follow OS light/dark switches while the app is open, not just at mount.
+      const query = window.matchMedia("(prefers-color-scheme: dark)");
+      const applySystemTheme = () => {
+        root.classList.remove("light", "dark");
+        root.classList.add(query.matches ? "dark" : "light");
+      };
 
-      root.classList.add(systemTheme);
-      return;
+      applySystemTheme();
+      // Safari < 14 only has the deprecated addListener/removeListener.
+      if (typeof query.addEventListener === "function") {
+        query.addEventListener("change", applySystemTheme);
+        return () => query.removeEventListener("change", applySystemTheme);
+      }
+      query.addListener(applySystemTheme);
+      return () => query.removeListener(applySystemTheme);
     }
 
     root.classList.add(theme);

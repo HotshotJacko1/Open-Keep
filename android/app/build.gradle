@@ -27,6 +27,9 @@ android {
         // android/build.gradle and src/lib/build-flavor.ts.
         create("play") {
             dimension = "distribution"
+            // Android Studio otherwise picks fdroidDebug (alphabetical), which
+            // has no Google sign-in and breaks Drive sync when run locally.
+            isDefault = true
         }
         create("fdroid") {
             dimension = "distribution"

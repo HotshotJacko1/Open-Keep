@@ -658,7 +658,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
                 <button
                   type="button"
                   onClick={() => handleRemoveItem(item.id)}
-                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground p-1 transition-opacity"
+                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-text-primary p-1 transition-opacity"
                 >
                   <X className="h-4 w-4" />
                   <span className="sr-only">Delete item</span>
@@ -669,7 +669,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
             {/* + List item Prompt */}
             <div
               onClick={handleAddNewItem}
-              className="flex items-center gap-2 py-1 text-muted-foreground hover:text-foreground cursor-pointer select-none"
+              className="flex items-center gap-2 py-1 text-muted-foreground hover:text-text-primary cursor-pointer select-none"
             >
               <Plus className="h-4 w-4 ml-6 shrink-0" />
               <span className="text-sm sm:text-base">List item</span>
@@ -681,7 +681,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowCompleted(!showCompleted)}
-                  className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground hover:text-foreground font-medium mb-1"
+                  className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground hover:text-text-primary font-medium mb-1"
                 >
                   {showCompleted ? (
                     <ChevronDown className="h-4 w-4" />
@@ -715,7 +715,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
                       <button
                         type="button"
                         onClick={() => handleRemoveItem(item.id)}
-                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground p-1 transition-opacity"
+                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-text-primary p-1 transition-opacity"
                       >
                         <X className="h-4 w-4" />
                         <span className="sr-only">Delete item</span>
@@ -741,7 +741,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
                   setReminder(undefined);
                   setRecurrence(undefined);
                 }}
-                className="hover:text-foreground ml-0.5"
+                className="hover:text-text-primary ml-0.5"
               >
                 <X className="h-3 w-3" />
                 <span className="sr-only">Remove reminder</span>
@@ -760,7 +760,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
                 onClick={() =>
                   setSelectedTags((prev) => prev.filter((t) => t !== tag))
                 }
-                className="hover:text-foreground ml-0.5"
+                className="hover:text-text-primary ml-0.5"
               >
                 <X className="h-3 w-3" />
                 <span className="sr-only">Remove label</span>
@@ -972,7 +972,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
           type="button"
           variant="ghost"
           onClick={handleSaveAndClose}
-          className="text-sm font-semibold px-4 py-1.5 hover:bg-muted/50 rounded text-foreground"
+          className="text-sm font-semibold px-4 py-1.5 hover:bg-muted/50 rounded text-text-primary hover:text-text-primary"
         >
           Close
         </Button>

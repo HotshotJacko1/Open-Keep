@@ -292,8 +292,10 @@ const downloadMasterKey = async (fileId: string): Promise<string | null> => {
         });
         return normalizeCloudMasterKeyPayload(body);
     } catch (error: unknown) {
+        // Rethrow rather than returning null: callers read a null payload as
+        // "no cloud key" and would upload the local key over the real one.
         console.error("Error downloading master key:", formatDriveError(error));
-        return null;
+        throw error;
     }
 };
 
@@ -602,10 +604,30 @@ export const deleteRemoteData = async (): Promise<void> => {
     }
 
     await withStaleCacheRetry(async () => {
-        const folderId = await resolveFolderId();
-        await driveRequest("DELETE", `https://www.googleapis.com/drive/v3/files/${folderId}`, {
+        // Look the folder up fresh: resolveFolderId would create it just to delete from it, and a
+        // stale cached ID could make the query below silently match nothing.
+        const folderId = await findFolder();
+        if (!folderId) {
+            clearCachedDriveIds();
+            return;
+        }
+
+        // Delete only the files the app writes (including any duplicates), never the folder.
+        // Under drive.file scope the app can't see files the user added to "Open Keep Notes"
+        // themselves, so it can't tell whether the folder is really empty — and deleting the
+        // folder would take those files with it.
+        const q = encodeURIComponent(
+            `'${folderId}' in parents and trashed=false and (name='${NOTES_FILE_NAME}' or name='${ENCRYPTED_KEY_FILE_NAME}')`
+        );
+        const { body } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)&pageSize=100`, {
             headers: getHeaders(),
         });
+        const files: { id: string }[] = JSON.parse(body).files ?? [];
+        for (const file of files) {
+            await driveRequest("DELETE", `https://www.googleapis.com/drive/v3/files/${file.id}`, {
+                headers: getHeaders(),
+            });
+        }
         clearCachedDriveIds();
     });
 };

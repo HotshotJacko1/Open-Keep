@@ -50,11 +50,17 @@ import { Capacitor } from "@capacitor/core";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { ImportManager } from "@/utils/import-manager";
-import { serializeNoteToMarkdown } from "@/utils/note-markdown-format";
+import { addNotesToZip } from "@/utils/note-export";
 import { ImportInput, ImportInputFile } from "@/types/import";
 import { App } from "@capacitor/app";
 import { Device } from "@capacitor/device";
 import { supabase } from "@/integrations/supabase/client";
+
+// Import limits. Generous next to the note limits in lib/note-limits.ts:
+// a real Keep Takeout is thousands of small JSON files.
+const IMPORT_MAX_FILES = 20_000;
+const IMPORT_MAX_FILE_CHARS = 5 * 1024 * 1024;
+const IMPORT_MAX_TOTAL_CHARS = 200 * 1024 * 1024;
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -113,7 +119,6 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
   useEffect(() => {
     const getAppInfo = async () => {
       if (!Capacitor.isNativePlatform()) {
-        // @ts-ignore
         setAppVersion(__APP_VERSION__);
         return;
       }
@@ -169,29 +174,62 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
     setIsImporting(true);
     try {
       const inputFiles: ImportInputFile[] = [];
+      let totalBytes = 0;
+
+      // Bounds on what an import may pull into memory, so a zip bomb or a huge
+      // archive fails with a clear message instead of freezing the WebView.
+      const addInputFile = (name: string, content: string) => {
+        if (inputFiles.length >= IMPORT_MAX_FILES) {
+          throw new Error(`Too many files to import (limit ${IMPORT_MAX_FILES.toLocaleString()}).`);
+        }
+        if (content.length > IMPORT_MAX_FILE_CHARS) {
+          throw new Error(`"${name}" is too large to import.`);
+        }
+        totalBytes += content.length;
+        if (totalBytes > IMPORT_MAX_TOTAL_CHARS) {
+          throw new Error("Import is too large. Try importing it in smaller parts.");
+        }
+        inputFiles.push({ name, content });
+      };
 
       // We need to read zip contents or direct file contents
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         if (file.name.endsWith('.md') || file.name.endsWith('.json')) {
-          const content = await file.text();
-          inputFiles.push({ name: file.name, content: content });
+          if (file.size > IMPORT_MAX_FILE_CHARS) {
+            throw new Error(`"${file.name}" is too large to import.`);
+          }
+          addInputFile(file.name, await file.text());
         } else if (file.name.endsWith('.zip')) {
           const zip = await JSZip.loadAsync(file);
-          const promises: Promise<void>[] = [];
+          const entries = Object.values(zip.files).filter(
+            (zipEntry) => !zipEntry.dir && (zipEntry.name.endsWith('.md') || zipEntry.name.endsWith('.json'))
+          );
+          if (inputFiles.length + entries.length > IMPORT_MAX_FILES) {
+            throw new Error(`Too many files to import (limit ${IMPORT_MAX_FILES.toLocaleString()}).`);
+          }
 
-          zip.forEach((relativePath, zipEntry) => {
-            if (!zipEntry.dir && (zipEntry.name.endsWith('.md') || zipEntry.name.endsWith('.json'))) {
-              const promise = zipEntry.async("string").then((content) => {
-                inputFiles.push({
-                  name: zipEntry.name.split('/').pop() || zipEntry.name,
-                  content: content
-                });
-              });
-              promises.push(promise);
+          // Reject on the sizes the zip declares before inflating anything.
+          // JSZip keeps them on the private _data field; the post-read checks
+          // in addInputFile still catch an archive that lies about them.
+          const declaredSize = (zipEntry: JSZip.JSZipObject) =>
+            (zipEntry as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize ?? 0;
+          let declaredTotal = totalBytes;
+          for (const zipEntry of entries) {
+            const size = declaredSize(zipEntry);
+            if (size > IMPORT_MAX_FILE_CHARS) {
+              throw new Error(`"${zipEntry.name}" is too large to import.`);
             }
-          });
-          await Promise.all(promises);
+            declaredTotal += size;
+          }
+          if (declaredTotal > IMPORT_MAX_TOTAL_CHARS) {
+            throw new Error("Import is too large. Try importing it in smaller parts.");
+          }
+
+          for (const zipEntry of entries) {
+            const content = await zipEntry.async("string");
+            addInputFile(zipEntry.name.split('/').pop() || zipEntry.name, content);
+          }
         }
       }
 
@@ -214,7 +252,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
         }));
 
         onImportNotes(mappedNotes);
-        showSuccess(`Imported ${result.report.notesImported} notes from ${result.report.source}. Created ${result.report.tagsCreated} tags.`);
+        const skipped = result.report.filesSkipped > 0
+          ? ` Skipped ${result.report.filesSkipped} unrecognised file${result.report.filesSkipped === 1 ? "" : "s"}.`
+          : "";
+        showSuccess(`Imported ${result.report.notesImported} notes from ${result.report.source}. Created ${result.report.tagsCreated} tags.${skipped}`);
       } else {
         showError("No valid notes found to import.");
       }
@@ -248,12 +289,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
     try {
       const zip = new JSZip();
 
-      exportableNotes.forEach((note) => {
-
-        // Sanitize title for filename
-        const filename = `${note.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'untitled'}_${note.id.substring(0, 4)}.md`;
-        zip.file(filename, serializeNoteToMarkdown(note));
-      });
+      await addNotesToZip(zip, exportableNotes);
 
       const filename = `open-keep-export-${new Date().toISOString().split('T')[0]}.zip`;
 

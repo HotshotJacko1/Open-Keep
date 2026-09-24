@@ -3,7 +3,6 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { Note } from "@/types/note";
 import { loadNotes, saveNote as localSaveNote, deleteNote as localDeleteNote, getLegacyWebNotes, migrateWebNotes, clearLegacyWebNotes, isWebReadFailed } from "@/lib/note-storage";
 import { deleteImage } from "@/lib/image-storage";
-import { Filesystem, Directory } from "@capacitor/filesystem";
 import { Capacitor } from "@capacitor/core";
 import NoteCard from "@/components/NoteCard";
 import NoteEditor from "@/components/NoteEditor"; // Unified Editor
@@ -25,7 +24,8 @@ import { cn, safeRandomUUID } from "@/lib/utils";
 import { Menu, Lightbulb, Settings } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { readCustomTags } from "@/lib/custom-tags";
 import { useIsMobile } from "@/hooks/use-mobile";
 import TopBar from "@/components/TopBar";
 import { useSession } from '@/context/session-provider';
@@ -37,7 +37,7 @@ import FileInfo from "@/components/FileInfo";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { toggleCheckboxInContent } from "@/utils/markdown";
-import { serializeNoteToMarkdown } from "@/utils/note-markdown-format";
+import { addNotesToZip } from "@/utils/note-export";
 import { rescheduleAllReminders } from "@/utils/reminder";
 import { App as CapacitorApp } from "@capacitor/app";
 import { useWidgetDeepLink } from "@/hooks/use-widget-deep-link";
@@ -50,21 +50,6 @@ import { useMcpBridge } from "@/hooks/use-mcp-bridge";
 // chance to sync the soft-delete to every cloud-connected device risks a
 // still-live remote copy getting merged back in on the next sync.
 const BIN_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
-
-// A corrupt or non-array "custom-tags" value used to white-screen the app: it
-// was parsed unguarded both in the useState initialiser (crash on mount) and in
-// the notes-updated handler (throws inside an event listener after every sync).
-// Guard both through here. Note the Array.isArray check matters as much as the
-// try/catch — JSON.parse("5") succeeds and returns a number, which then blows up
-// on the first spread or .map.
-const readCustomTags = (): string[] => {
-  try {
-    const parsed = JSON.parse(localStorage.getItem("custom-tags") ?? "[]");
-    return Array.isArray(parsed) ? parsed.filter((t): t is string => typeof t === "string") : [];
-  } catch {
-    return [];
-  }
-};
 
 const Index = () => {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -139,10 +124,19 @@ const Index = () => {
           }
 
           if (widgetAction.type === "toggle-checkbox") {
-            handleToggleListItem(widgetAction.noteId, `line-${widgetAction.lineIndex}`);
-            clearAction();
+            // Same wait-for-load rule as open-note: toggling before the note exists
+            // in state would silently no-op and the tap would be lost.
+            const note = notes.find((n) => n.id === widgetAction.noteId);
+            if (note && !note.isDeleted) {
+              handleToggleListItem(note.id, `line-${widgetAction.lineIndex}`);
+              clearAction();
+            } else if (notesLoadedRef.current) {
+              clearAction();
+            }
           }
-        }, [widgetAction, notes]);
+          // isLoading is a dep so a still-pending action is re-evaluated once
+          // notesLoadedRef flips, even if that load produced no new notes array.
+        }, [widgetAction, notes, isLoading]);
 
   const getHeaderContent = () => {
     if (selectedTag === "archive") {
@@ -275,27 +269,7 @@ const Index = () => {
     }
 
     const zip = new JSZip();
-
-    await Promise.all(exportableNotes.map(async (note) => {
-      const safeTitle = note.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'untitled';
-      const filename = `${safeTitle}_${note.id.substring(0, 4)}.md`;
-
-      zip.file(filename, serializeNoteToMarkdown(note));
-
-      if (note.images && note.images.length > 0) {
-        const imgFolder = zip.folder(`${safeTitle}_images`);
-        if (imgFolder) {
-          for (const imgPath of note.images) {
-            try {
-              const { data } = await Filesystem.readFile({ path: imgPath, directory: Directory.Data });
-              imgFolder.file(imgPath.split('/').pop() || 'image.jpg', data, { base64: true });
-            } catch (e) {
-              console.warn("Failed to export image", imgPath);
-            }
-          }
-        }
-      }
-    }));
+    await addNotesToZip(zip, exportableNotes);
 
     const content = await zip.generateAsync({ type: "blob" });
     saveAs(content, "notes_export.zip");
@@ -1225,30 +1199,7 @@ const Index = () => {
   const handleBulkExport = async () => {
     const zip = new JSZip();
     const selectedNotes = notes.filter((n) => selectedNoteIds.has(n.id));
-
-    // Support exporting images async
-    await Promise.all(selectedNotes.map(async (note) => {
-
-      // Sanitize title for filename
-      const safeTitle = note.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'untitled';
-      const filename = `${safeTitle}_${note.id.substring(0, 4)}.md`;
-
-      zip.file(filename, serializeNoteToMarkdown(note));
-
-      if (note.images && note.images.length > 0) {
-        const imgFolder = zip.folder(`${safeTitle}_images`);
-        if (imgFolder) {
-          for (const imgPath of note.images) {
-            try {
-              const { data } = await Filesystem.readFile({ path: imgPath, directory: Directory.Data });
-              imgFolder.file(imgPath.split('/').pop() || 'image.jpg', data, { base64: true });
-            } catch (e) {
-              console.warn("Failed to export image", imgPath);
-            }
-          }
-        }
-      }
-    }));
+    await addNotesToZip(zip, selectedNotes);
 
     const content = await zip.generateAsync({ type: "blob" });
     saveAs(content, "notes_export.zip");
@@ -1692,7 +1643,8 @@ const Index = () => {
               <Menu className="h-6 w-6 text-muted-foreground" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-64 p-0 bg-sidebar dark:bg-sidebar text-sidebar-foreground border-r-sidebar-border pt-[env(safe-area-inset-top)] flex flex-col">
+          <SheetContent side="left" className="w-64 p-0 bg-sidebar dark:bg-sidebar text-sidebar-foreground border-r-sidebar-border pt-[env(safe-area-inset-top)] flex flex-col" aria-describedby={undefined}>
+            <SheetTitle className="sr-only">Navigation menu</SheetTitle>
             <div className="p-4 text-2xl font-bold text-sidebar-primary flex items-center shrink-0">
               <Lightbulb className="mr-2 h-6 w-6 text-yellow-500" fill="currentColor" />
               <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
@@ -1717,7 +1669,7 @@ const Index = () => {
 
   return (
     <div
-      className="h-screen flex flex-col bg-background dark:bg-background text-foreground overflow-hidden"
+      className="h-screen flex flex-col bg-background dark:bg-background text-text-primary overflow-hidden"
       onClick={handleBackgroundClick} // Handle click outside
     >
       <TopBar

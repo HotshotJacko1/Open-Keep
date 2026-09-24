@@ -1,5 +1,4 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -282,7 +281,6 @@ const App = () => {
       {/* Mount Index only when unlocked so widget deep links aren't consumed behind the lock screen. */}
       {appState === 'ready' && (
         <TooltipProvider>
-          <Toaster />
           <Sonner />
           <BrowserRouter>
             <Routes>

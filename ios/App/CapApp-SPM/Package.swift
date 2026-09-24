@@ -11,17 +11,17 @@ let package = Package(
             targets: ["CapApp-SPM"])
     ],
     dependencies: [
-        .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.0.0"),
-        .package(name: "CapacitorApp", path: "..\..\..\node_modules\.pnpm\@capacitor+app@8.0.0_@capacitor+core@8.0.0\node_modules\@capacitor\app"),
-        .package(name: "CapacitorBrowser", path: "..\..\..\node_modules\.pnpm\@capacitor+browser@8.0.1_@capacitor+core@8.0.0\node_modules\@capacitor\browser"),
-        .package(name: "CapacitorDevice", path: "..\..\..\node_modules\.pnpm\@capacitor+device@8.0.2_@capacitor+core@8.0.0\node_modules\@capacitor\device"),
-        .package(name: "CapacitorFilesystem", path: "..\..\..\node_modules\.pnpm\@capacitor+filesystem@8.1.0_@capacitor+core@8.0.0\node_modules\@capacitor\filesystem"),
-        .package(name: "CapacitorKeyboard", path: "..\..\..\node_modules\.pnpm\@capacitor+keyboard@8.0.3_@capacitor+core@8.0.0\node_modules\@capacitor\keyboard"),
-        .package(name: "CapacitorLocalNotifications", path: "..\..\..\node_modules\.pnpm\@capacitor+local-notifications@8.0.2_@capacitor+core@8.0.0\node_modules\@capacitor\local-notifications"),
-        .package(name: "CapacitorShare", path: "..\..\..\node_modules\.pnpm\@capacitor+share@8.0.0_@capacitor+core@8.0.0\node_modules\@capacitor\share"),
-        .package(name: "CapgoCapacitorNativeBiometric", path: "..\..\..\node_modules\.pnpm\@capgo+capacitor-native-bio_40b26c4cf3eea31f06c2381be8f2288b\node_modules\@capgo\capacitor-native-biometric"),
-        .package(name: "CapgoCapacitorSocialLogin", path: "..\..\..\node_modules\.pnpm\@capgo+capacitor-social-log_2c81f3971baa6fb6da9b81574f572c4d\node_modules\@capgo\capacitor-social-login"),
-        .package(name: "SentryCapacitor", path: "..\..\..\node_modules\.pnpm\@sentry+capacitor@4.3.0_@ca_a828e4d17f5c60b59b309ff5c622889c\node_modules\@sentry\capacitor")
+        .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.5.2"),
+        .package(name: "CapacitorApp", path: "../../../node_modules/.pnpm/@capacitor+app@8.1.1_@capacitor+core@8.5.2/node_modules/@capacitor/app"),
+        .package(name: "CapacitorBrowser", path: "../../../node_modules/.pnpm/@capacitor+browser@8.0.4_@capacitor+core@8.5.2/node_modules/@capacitor/browser"),
+        .package(name: "CapacitorDevice", path: "../../../node_modules/.pnpm/@capacitor+device@8.0.3_@capacitor+core@8.5.2/node_modules/@capacitor/device"),
+        .package(name: "CapacitorFilesystem", path: "../../../node_modules/.pnpm/@capacitor+filesystem@8.1.3_@capacitor+core@8.5.2/node_modules/@capacitor/filesystem"),
+        .package(name: "CapacitorKeyboard", path: "../../../node_modules/.pnpm/@capacitor+keyboard@8.0.5_@capacitor+core@8.5.2/node_modules/@capacitor/keyboard"),
+        .package(name: "CapacitorLocalNotifications", path: "../../../node_modules/.pnpm/@capacitor+local-notifications@8.3.1_@capacitor+core@8.5.2/node_modules/@capacitor/local-notifications"),
+        .package(name: "CapacitorShare", path: "../../../node_modules/.pnpm/@capacitor+share@8.0.2_@capacitor+core@8.5.2/node_modules/@capacitor/share"),
+        .package(name: "CapgoCapacitorNativeBiometric", path: "../../../node_modules/.pnpm/@capgo+capacitor-native-bio_e57a013180488877101c122b21381d48/node_modules/@capgo/capacitor-native-biometric"),
+        .package(name: "CapgoCapacitorSocialLogin", path: "../../../node_modules/.pnpm/@capgo+capacitor-social-log_9c710762eeaedf09d0c94a8684a8990e/node_modules/@capgo/capacitor-social-login"),
+        .package(name: "SentryCapacitor", path: "../../../node_modules/.pnpm/@sentry+capacitor@4.3.0_@ca_041337efd30131f49182cf7c2cfb2dfa/node_modules/@sentry/capacitor")
     ],
     targets: [
         .target(

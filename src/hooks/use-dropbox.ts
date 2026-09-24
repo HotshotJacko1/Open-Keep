@@ -1,11 +1,11 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { initDropbox, getAuthenticationUrl, handleAuthRedirect, syncNotesWithDropbox, checkDropboxMasterKey } from "@/lib/dropbox";
-import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, canDecryptCloudMasterKey, wipeDatabaseButKeepKeys, SyncResult } from "@/lib/note-storage";
-import { resolveCloudKeyImport, getCloudKeyConflictIfNeeded } from "@/lib/cloud-sync-resolver";
+import type { SyncResult } from "@/lib/note-storage";
+import { runCloudSync, ForceResolution } from "@/lib/cloud-sync-runner";
 import { setupDropboxOAuthRedirect } from "@/lib/dropbox-oauth";
-import { setCloudSyncState, useCloudSyncState } from "@/lib/cloud-sync-state";
+import { useCloudSyncState } from "@/lib/cloud-sync-state";
 import { showSuccess, showError } from "@/utils/toast";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
@@ -108,120 +108,32 @@ export const useDropbox = () => {
         }
     }, []);
 
-    const doInternalSync = async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false): Promise<SyncResult> => {
-        setCloudSyncState("dropbox", true);
-        try {
-            const pin = localStorage.getItem("app-passcode");
-            if (!pin && localStorage.getItem("app-lock-enabled") === "true") {
-                throw new Error("No PIN found. Please set up a PIN in App Lock settings first.");
-            }
-
-            // Read local notes and custom tags BEFORE any database wipe or key import
-            const localNotes = await loadNotes();
-            const localCustomTags = JSON.parse(localStorage.getItem("custom-tags") || "[]");
-
-            const cloudKeyConflict = await getCloudKeyConflictIfNeeded(
-                pin,
-                forceResolution,
-                checkDropboxMasterKey
-            );
-            if (cloudKeyConflict) return cloudKeyConflict;
-
-            const keyImport = await resolveCloudKeyImport(forceResolution, cloudPayload, pin, providedPin);
-            if (keyImport.ok === false) {
-                if (cloudPayload) {
-                    return { status: "conflict", cloudPayload, reason: "key_mismatch" };
-                }
-                return { status: "error", message: keyImport.reason };
-            }
-            const effectivePin = keyImport.effectivePin ?? pin ?? "";
-
-            let masterKeyPayload: string | undefined;
-
-            if (forceResolution === "local" || (!forceResolution)) {
-                masterKeyPayload = await exportMasterKey(effectivePin);
-            }
-
-            if (!forceResolution) {
-                const cloudKey = await checkDropboxMasterKey();
-                if (cloudKey.exists && cloudKey.payload) {
-                    const canDecrypt = await canDecryptCloudMasterKey(cloudKey.payload, effectivePin);
-                    const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, effectivePin);
-                    const isFirstConnect = !localStorage.getItem("dropbox-last-synced");
-                    
-                    if (localNotes.length === 0) {
-                        if (canDecrypt) {
-                            await wipeDatabaseButKeepKeys();
-                            await importMasterKey(cloudKey.payload, effectivePin);
-                            masterKeyPayload = undefined;
-                        } else {
-                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
-                        }
-                    } else {
-                        if (!isMatch) {
-                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: canDecrypt ? "first_connect" : "key_mismatch" };
-                        } else if (isFirstConnect) {
-                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
-                        }
-                    }
-                }
-            }
-
-            const dropboxForceResolution = forceResolution === "merge" ? undefined : forceResolution;
-            const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithDropbox(localNotes, localCustomTags, { masterKeyPayload, forceResolution: dropboxForceResolution });
-
-            // Re-read local DB after sync in case local notes changed while sync was in-flight.
-            const currentLocalNotes = await loadNotes();
-            const currentLocalMap = new Map(currentLocalNotes.map(n => [n.id, n]));
-            let savedCount = 0, skippedCount = 0;
-            await Promise.all(mergedNotes.map(async note => {
-                const current = currentLocalMap.get(note.id);
-                if (current && current.updatedAt > note.updatedAt) {
-                    console.log(`[Dropbox Sync] Write-back skipped for note ${note.id}: local is newer (${new Date(current.updatedAt).toISOString()} > ${new Date(note.updatedAt).toISOString()})`);
-                    skippedCount++;
-                    return;
-                }
-                await saveNote(note, { skipLimits: true });
-                savedCount++;
-            }));
-            console.log(`[Dropbox Sync] Write-back complete: ${savedCount} saved, ${skippedCount} skipped`);
-            localStorage.setItem("custom-tags", JSON.stringify(mergedTags));
-            const now = new Date().toLocaleString();
-            localStorage.setItem("dropbox-last-synced", now);
-            setLastSynced(now);
-            window.dispatchEvent(new Event("notes-updated"));
-            if (!silent) {
-                showSuccess("Notes synced with Dropbox!");
-            }
-            return { status: "success" };
-        } catch (error) {
-            const message = (error as Error).message || "";
-            if (!message.includes("Cannot parse synced data")) {
-                console.error("Dropbox sync failed:", error);
-            }
-            // Check for local DB errors first — don't confuse them with cloud issues
-            if (message.includes("database") || message.includes("INSTANCE") || message.includes("not initialized") || message.includes("sqlcipher")) {
-                if (!silent) showError("Local database access failed. Notes are safe — please restart the app.");
-                return { status: "error", message: "Local database access failed" };
-            }
-            if ((error as any).status === 401) {
+    const doInternalSync = (forceResolution?: ForceResolution, cloudPayload?: string, providedPin?: string, silent: boolean = false): Promise<SyncResult> =>
+        runCloudSync({
+            provider: "dropbox",
+            label: "Dropbox",
+            lastSyncedKey: "dropbox-last-synced",
+            successMessage: "Notes synced with Dropbox!",
+            failureMessage: "Dropbox sync failed.",
+            permissionMessage: "Dropbox didn't grant Open Keep access to its files. Disconnect Dropbox in Settings, then reconnect and allow access.",
+            checkMasterKey: checkDropboxMasterKey,
+            syncNotes: syncNotesWithDropbox,
+            classifyError: (error) => {
+                const status = (error as { status?: number })?.status;
+                // Dropbox reports a missing OAuth scope as a 401 with a missing_scope summary.
+                const summary: string = (error as { error?: { error_summary?: string } })?.error?.error_summary ?? "";
+                if (summary.startsWith("missing_scope")) return "permission";
+                if (status === 401) return "auth";
+                return null;
+            },
+            // Only a short-lived access token is stored, so a 401 means it's dead — drop it.
+            onAuthError: () => {
                 showError("Dropbox session expired. Please reconnect.");
                 disconnect();
-            } else if (message.includes("BAD_DECRYPT") || message.includes("Decryption failed") || message.includes("Cannot parse synced data")) {
-                if (!silent) showError("Cloud notes could not be decrypted. They may be locked with an old, unknown key.");
-                const cloudKey = await checkDropboxMasterKey();
-                if (cloudKey.payload) {
-                    return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
-                }
-                return { status: "error", message };
-            } else {
-                if (!silent) showError("Dropbox sync failed.");
-            }
-            return { status: "error", message };
-        } finally {
-            setCloudSyncState("dropbox", false);
-        }
-    };
+                return { status: "error", message: "Auth required" };
+            },
+            onSynced: setLastSynced,
+        }, { forceResolution, cloudPayload, providedPin, silent });
 
     const sync = useCallback(async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false) => {
         if (!accessToken) {
@@ -242,7 +154,9 @@ export const useDropbox = () => {
         showSuccess("Disconnected from Dropbox.");
     }, []);
 
-    return {
+    // Memoised so the object's identity only changes with its contents;
+    // Index.tsx lists it in effect deps.
+    return useMemo(() => ({
         login,
         sync,
         disconnect,
@@ -251,5 +165,5 @@ export const useDropbox = () => {
         isConnected: !!accessToken,
         // userEmail is not easily available without another API call, skipping for now or fetching in init
         userEmail: accessToken ? "Dropbox User" : null
-    };
+    }), [login, sync, disconnect, isSyncing, lastSynced, accessToken]);
 };

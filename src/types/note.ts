@@ -18,5 +18,9 @@ export interface Note {
     type: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
     interval?: number;
     unit?: 'day' | 'week' | 'month' | 'year';
+    // Original day-of-month (1-31) for month/year recurrences, kept once an
+    // occurrence has been clamped to a shorter month (Jan 31 -> Feb 28).
+    // Set by rescheduleAllReminders; cleared whenever the user picks a date.
+    anchorDay?: number;
   };
 }

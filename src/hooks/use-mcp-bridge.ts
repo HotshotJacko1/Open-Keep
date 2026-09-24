@@ -20,6 +20,7 @@
 //    is markdown-shaped list syntax, not HTML, and blindly editing it here
 //    would corrupt it the same way the app already guards against elsewhere
 import { Capacitor } from "@capacitor/core";
+import DOMPurify from "dompurify";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Note } from "@/types/note";
 import { looksLikeHtml, plainTextToHtml } from "@/utils/note-markdown-format";
@@ -112,7 +113,10 @@ function stripHtml(html: string): string {
 }
 
 function toHtmlIfPlain(text: string): string {
-  return looksLikeHtml(text) ? text : plainTextToHtml(text);
+  // Agent-supplied HTML is sanitised before it is stored, not only when
+  // NoteCard renders it: a stored payload would otherwise survive export and
+  // reach any other app that renders the exported note.
+  return looksLikeHtml(text) ? DOMPurify.sanitize(text) : plainTextToHtml(text);
 }
 
 function withTag(tags: string[], tag: string): string[] {
@@ -122,6 +126,17 @@ function withTag(tags: string[], tag: string): string[] {
 /** True for a note that shouldn't be handed to a mutating tool. */
 function isEditableByAgent(note: Note | undefined): note is Note {
   return !!note && !note.isDeleted && note.type !== "list";
+}
+
+/**
+ * The error to throw when isEditableByAgent() refuses a note. Takes the
+ * un-narrowed type because, with strictNullChecks off, the guard's false
+ * branch narrows `note` to `never`.
+ */
+function agentEditRefusal(note: Note | undefined) {
+  return note?.type === "list"
+    ? { code: "INVALID_PARAMS", message: "This is a checklist note -- editing checklists via AI isn't supported yet." }
+    : { code: "NOT_FOUND", message: "No note with that id." };
 }
 
 export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDeleteTag }: McpBridgeHandlers): McpBridgeState {
@@ -261,11 +276,7 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
 
       case "update_note": {
         const note = findNote(params.id);
-        if (!isEditableByAgent(note)) {
-          throw note?.type === "list"
-            ? { code: "INVALID_PARAMS", message: "This is a checklist note -- editing checklists via AI isn't supported yet." }
-            : { code: "NOT_FOUND", message: "No note with that id." };
-        }
+        if (!isEditableByAgent(note)) throw agentEditRefusal(note);
         if (params.title === undefined && params.content === undefined) {
           throw { code: "INVALID_PARAMS", message: "Provide a title and/or content to update." };
         }
@@ -285,11 +296,7 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
       case "append_to_note":
       case "prepend_to_note": {
         const note = findNote(params.id);
-        if (!isEditableByAgent(note)) {
-          throw note?.type === "list"
-            ? { code: "INVALID_PARAMS", message: "This is a checklist note -- editing checklists via AI isn't supported yet." }
-            : { code: "NOT_FOUND", message: "No note with that id." };
-        }
+        if (!isEditableByAgent(note)) throw agentEditRefusal(note);
         const text = String(params.text ?? "");
         if (!text) throw { code: "INVALID_PARAMS", message: "text is required." };
         const fragment = toHtmlIfPlain(text);

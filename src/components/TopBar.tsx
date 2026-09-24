@@ -101,7 +101,7 @@ const TopBar: React.FC<TopBarProps> = ({
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                className="h-7 w-7 text-muted-foreground hover:text-text-primary"
                             >
                                 <ArrowUpDown className="h-4 w-4" />
                             </Button>
@@ -126,7 +126,7 @@ const TopBar: React.FC<TopBarProps> = ({
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                        className="h-7 w-7 text-muted-foreground hover:text-text-primary"
                         onClick={() => onViewModeChange(viewMode === "grid" ? "list" : "grid")}
                     >
                         {viewMode === "grid" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}

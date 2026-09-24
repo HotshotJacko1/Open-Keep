@@ -35,3 +35,17 @@ supabase/.temp/
 *.jks
 *.keystore
 android/app/release-signing.jks
+
+# pnpm is the package manager (see packageManager in package.json); an npm
+# lockfile would drift from pnpm-lock.yaml and skip pnpm's patchedDependencies.
+/package-lock.json
+
+# TypeScript incremental build info (tsc -b)
+*.tsbuildinfo
+
+# Large binaries kept out of git (C6-08). iOS pulls SQLCipher via SPM from
+# github.com/sqlcipher/SQLCipher.swift (see project.pbxproj), so the vendored
+# xcframework and its zip are dead weight.
+/SQLCipher_Framework/
+/SQLCipher.xcframework.zip
+*.mp4

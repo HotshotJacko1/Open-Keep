@@ -19,12 +19,18 @@ workflows:
     integrations:
       app_store_connect: Codemagic
     scripts:
+      # pnpm (version pinned by package.json's packageManager, via Corepack) is
+      # the only installer that honours pnpm-lock.yaml and the patchedDependencies
+      # in pnpm-workspace.yaml -- npm would silently skip the capgo social-login
+      # patch and resolve an unpinned dependency set.
+      - name: Enable Corepack
+        script: corepack enable
       - name: Install dependencies
-        script: npm install --legacy-peer-deps
+        script: pnpm install --frozen-lockfile
       - name: Build web application
-        script: npm run build
+        script: pnpm build
       - name: Sync Capacitor
-        script: npx cap sync ios
+        script: pnpm exec cap sync ios
       - name: Update Xcode project signing
         script: xcode-project use-profiles
       - name: Increment build number

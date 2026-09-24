@@ -44,7 +44,7 @@ export function parseWidgetDeepLink(url: string): WidgetAction {
     if (actionType === "open-note" && rest[0]) {
       return { type: "open-note", noteId: rest[0] };
     }
-    if (actionType === "toggle-checkbox" && rest.length >= 2) {
+    if (actionType === "toggle-checkbox" && rest.length >= 2 && /^\d+$/.test(rest[1])) {
       return {
         type: "toggle-checkbox",
         noteId: rest[0],

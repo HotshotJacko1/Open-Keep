@@ -1,5 +1,5 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
-import { Importer, ImportInput, ImportNote } from "../../types/import";
+import { Importer, ImportInput, ImportInputFile, ImportNote } from "../../types/import";
 import { isChecklist } from "../markdown";
 import { looksLikeHtml, parseNoteMarkdown, plainTextToHtml } from "../note-markdown-format";
 import { normalizeNoteColor } from "../../lib/note-colors";
@@ -11,11 +11,15 @@ export class MarkdownImporter implements Importer {
     return input.files.some(f => f.name.toLowerCase().endsWith(".md"));
   }
 
+  handles(file: ImportInputFile): boolean {
+    return file.name.toLowerCase().endsWith(".md");
+  }
+
   async parse(input: ImportInput): Promise<ImportNote[]> {
     const notes: ImportNote[] = [];
 
     for (const file of input.files) {
-      if (!file.name.toLowerCase().endsWith(".md")) continue;
+      if (!this.handles(file)) continue;
 
       const fallbackTitle = file.name.replace(/\.md$/i, "");
       const parsed = parseNoteMarkdown(file.content, fallbackTitle);

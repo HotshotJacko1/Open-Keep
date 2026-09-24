@@ -1,5 +1,5 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
-import { Importer, ImportInput, ImportNote } from "../../types/import";
+import { Importer, ImportInput, ImportInputFile, ImportNote } from "../../types/import";
 import { isChecklist } from "../markdown";
 import { looksLikeHtml, plainTextToHtml } from "../note-markdown-format";
 
@@ -41,11 +41,15 @@ export class GoogleKeepImporter implements Importer {
     });
   }
 
+  handles(file: ImportInputFile): boolean {
+    return file.name.toLowerCase().endsWith(".json");
+  }
+
   async parse(input: ImportInput): Promise<ImportNote[]> {
     const notes: ImportNote[] = [];
 
     for (const file of input.files) {
-      if (!file.name.toLowerCase().endsWith(".json")) continue;
+      if (!this.handles(file)) continue;
 
       try {
         const keepData = JSON.parse(file.content) as KeepNote;

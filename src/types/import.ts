@@ -22,10 +22,14 @@ export interface ImportReport {
   notesImported: number;
   tagsCreated: number;
   failedNotes: number;
+  /** Input files that no selected importer reads (e.g. a non-Keep .json). */
+  filesSkipped: number;
 }
 
 export interface Importer {
   name: string;
   detect(input: ImportInput): boolean;
+  /** Whether parse() would read this file, once the importer is selected. */
+  handles(file: ImportInputFile): boolean;
   parse(input: ImportInput): Promise<ImportNote[]>;
 }

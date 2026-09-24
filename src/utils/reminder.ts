@@ -147,41 +147,28 @@ export async function scheduleReminderNotification(note: Note): Promise<boolean 
       // Cancel any existing notification for this note first
       await cancelReminderNotification(note.id);
 
-      // Numeric ID derived from note ID (hash to int)
-      const notifId = hashNoteId(note.id);
-      
-      const scheduleOptions: any = { at: new Date(note.reminder) };
-      
-      if (note.recurrence && note.recurrence.type !== 'none') {
-        scheduleOptions.repeats = true;
-        
-        if (note.recurrence.type === 'daily') scheduleOptions.every = 'day';
-        else if (note.recurrence.type === 'weekly') scheduleOptions.every = 'week';
-        else if (note.recurrence.type === 'monthly') scheduleOptions.every = 'month';
-        else if (note.recurrence.type === 'yearly') scheduleOptions.every = 'year';
-        else if (note.recurrence.type === 'custom') {
-          const { interval, unit } = note.recurrence;
-          if (interval === 1) {
-            scheduleOptions.every = unit;
-          } else if (interval === 2 && unit === 'week') {
-            scheduleOptions.every = 'two-weeks';
-          }
-        }
-      }
+      // Recurring reminders are scheduled as a batch of one-shot notifications
+      // rather than the plugin's `repeats`. With `at` set, both the iOS and
+      // Android plugin ignore `every` and repeat at the gap between *now* and
+      // `at` -- so a daily 08:00 reminder set at 15:00 the day before repeated
+      // every 17 hours, and custom intervals (every 3 days, every 2 months)
+      // couldn't be expressed at all. Computing each occurrence with
+      // nextOccurrenceAfter keeps it on the right wall-clock time across
+      // month lengths and DST. rescheduleAllReminders tops the batch up on
+      // every app launch.
+      const occurrences = upcomingOccurrences(note.reminder, note.recurrence, Date.now());
 
       await LocalNotifications.schedule({
-        notifications: [
-          {
-            id: notifId,
-            title: note.title || "Reminder",
-            body: "You have a note reminder.",
-            schedule: scheduleOptions,
-            sound: undefined,
-            attachments: undefined,
-            actionTypeId: "",
-            extra: { noteId: note.id },
-          },
-        ],
+        notifications: occurrences.map((at, i) => ({
+          id: occurrenceNotificationId(note.id, i),
+          title: note.title || "Reminder",
+          body: "You have a note reminder.",
+          schedule: { at: new Date(at) },
+          sound: undefined,
+          attachments: undefined,
+          actionTypeId: "",
+          extra: { noteId: note.id },
+        })),
       });
 
       return true;
@@ -196,14 +183,7 @@ export async function scheduleReminderNotification(note: Note): Promise<boolean 
         await Notification.requestPermission();
       }
       if (Notification.permission === 'granted') {
-        const delay = note.reminder - Date.now();
-        if (delay > 0) {
-          setTimeout(() => {
-            new Notification(note.title || "Reminder", {
-              body: "You have a note reminder.",
-            });
-          }, delay);
-        }
+        armWebReminder(note, note.reminder);
         return true;
       }
       return false;
@@ -216,18 +196,203 @@ export async function scheduleReminderNotification(note: Note): Promise<boolean 
 export async function cancelReminderNotification(noteId: string): Promise<void> {
   if (Capacitor.isNativePlatform()) {
     try {
-      const notifId = hashNoteId(noteId);
-      await LocalNotifications.cancel({ notifications: [{ id: notifId }] });
+      // Cancel every slot, not just the ones the current recurrence uses: the
+      // note may previously have had a recurrence that scheduled more.
+      const notifications = Array.from({ length: MAX_SCHEDULED_OCCURRENCES }, (_, i) => ({
+        id: occurrenceNotificationId(noteId, i),
+      }));
+      await LocalNotifications.cancel({ notifications });
     } catch (e) {
       console.warn("Failed to cancel notification:", e);
     }
+  } else {
+    clearWebTimer(noteId);
   }
 }
 
+// --- Web reminder scheduling ---
+//
+// The browser has no OS-level scheduler, so web reminders are in-page timers.
+// Two things make a bare setTimeout(fire, delay) unreliable:
+//   * setTimeout stores its delay as a signed 32-bit int. Anything past
+//     ~24.8 days overflows and fires immediately, so long delays are walked
+//     down in MAX_TIMEOUT_MS hops, re-reading the clock at each hop.
+//   * Timers die with the tab. The notes themselves are the persisted
+//     schedule -- rescheduleAllReminders re-arms future reminders on every
+//     load -- and a small "already notified" ledger in localStorage lets a
+//     load fire a reminder that came due while the tab was closed, exactly
+//     once. Only note ids and timestamps go in the ledger, never note text,
+//     since web notes are otherwise stored encrypted.
+
+const MAX_TIMEOUT_MS = 2_147_483_647;
+// A reminder missed by more than this is dropped rather than fired late on
+// the next load, so reopening the app after a long break isn't a flood.
+const MISSED_REMINDER_GRACE_MS = 24 * 60 * 60 * 1000;
+const FIRED_LEDGER_KEY = "open-keep-web-reminders-fired";
+
+const webTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function clearWebTimer(noteId: string): void {
+  const handle = webTimers.get(noteId);
+  if (handle !== undefined) {
+    clearTimeout(handle);
+    webTimers.delete(noteId);
+  }
+}
+
+/** noteId -> reminder timestamp that has already been notified. */
+function readFiredLedger(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(FIRED_LEDGER_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function markWebReminderFired(noteId: string, dueAt: number): void {
+  try {
+    const ledger = readFiredLedger();
+    ledger[noteId] = dueAt;
+    // Anything older than the grace window can never be caught up again, so
+    // its entry is no longer needed.
+    const cutoff = Date.now() - MISSED_REMINDER_GRACE_MS;
+    for (const id of Object.keys(ledger)) {
+      if (ledger[id] < cutoff) delete ledger[id];
+    }
+    localStorage.setItem(FIRED_LEDGER_KEY, JSON.stringify(ledger));
+  } catch {
+    // Storage unavailable -- worst case a missed reminder is shown twice.
+  }
+}
+
+function wasWebReminderFired(noteId: string, dueAt: number): boolean {
+  return readFiredLedger()[noteId] === dueAt;
+}
+
+function showWebReminder(note: Note, dueAt: number): void {
+  // Another tab (or an earlier load's catch-up) may already have shown it.
+  if (wasWebReminderFired(note.id, dueAt)) return;
+  markWebReminderFired(note.id, dueAt);
+  try {
+    new Notification(note.title || "Reminder", {
+      body: "You have a note reminder.",
+      // Same tag across tabs, so duplicates replace rather than stack.
+      tag: `open-keep-reminder-${note.id}`,
+    });
+  } catch (e) {
+    // e.g. Android Chrome only allows notifications via a service worker.
+    console.warn("Failed to show reminder notification:", e);
+  }
+}
+
+function armWebReminder(note: Note, dueAt: number): void {
+  clearWebTimer(note.id);
+  const delay = dueAt - Date.now();
+  if (delay <= 0) return;
+
+  if (delay > MAX_TIMEOUT_MS) {
+    webTimers.set(note.id, setTimeout(() => armWebReminder(note, dueAt), MAX_TIMEOUT_MS));
+    return;
+  }
+
+  webTimers.set(note.id, setTimeout(() => {
+    webTimers.delete(note.id);
+    showWebReminder(note, dueAt);
+    if (note.recurrence && note.recurrence.type !== 'none') {
+      // dueAt may be a clamped occurrence, so anchor on the note's own reminder.
+      const rec = withResolvedAnchor(note.reminder ?? dueAt, note.recurrence);
+      armWebReminder(note, nextOccurrenceAfter(dueAt, rec, Date.now()));
+    }
+  }, delay));
+}
+
+/** On web, fire a reminder that came due while no tab was open (once, and
+ *  only if it's recent enough to still be useful). */
+function catchUpMissedWebReminder(note: Note, dueAt: number, now: number): void {
+  if (Capacitor.isNativePlatform()) return;
+  if (!("Notification" in window) || Notification.permission !== 'granted') return;
+  if (dueAt > now || now - dueAt > MISSED_REMINDER_GRACE_MS) return;
+  showWebReminder(note, dueAt);
+}
+
+
+/** Number of days in the given month (month is 0-based, may overflow into other years) */
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+/** How many months a month/year-based recurrence advances per step, or null
+ *  for day/week-based recurrences (which can't drift and just add days). */
+function monthStep(recurrence: NonNullable<Note['recurrence']>): number | null {
+  if (recurrence.type === 'monthly') return 1;
+  if (recurrence.type === 'yearly') return 12;
+  if (recurrence.type === 'custom') {
+    const interval = recurrence.interval || 1;
+    if (recurrence.unit === 'month') return interval;
+    if (recurrence.unit === 'year') return interval * 12;
+  }
+  return null;
+}
+
+/**
+ * Day-of-month a month/year-based recurrence is anchored to. Once an occurrence
+ * has been clamped (Jan 31 -> Feb 28) the saved reminder no longer carries the
+ * original day, so it's kept in recurrence.anchorDay. The stored value is only
+ * trusted if the reminder is exactly what that anchor would clamp to in the
+ * reminder's own month -- otherwise the reminder was moved without the anchor
+ * being cleared, and the reminder's own day wins.
+ */
+function resolveAnchorDay(reminder: number, recurrence: NonNullable<Note['recurrence']>): number {
+  const d = new Date(reminder);
+  const anchor = recurrence.anchorDay;
+  if (
+    anchor && Number.isInteger(anchor) && anchor >= 1 && anchor <= 31 &&
+    Math.min(anchor, daysInMonth(d.getFullYear(), d.getMonth())) === d.getDate()
+  ) {
+    return anchor;
+  }
+  return d.getDate();
+}
+
+/**
+ * The recurrence with its anchor day pinned to the original reminder's. Needed
+ * wherever occurrences are chained (occurrence n -> n+1): without it, once one
+ * occurrence is clamped to Feb 28 the next is computed from day 28 and the
+ * reminder drifts to the 28th for good.
+ */
+function withResolvedAnchor(reminder: number, recurrence: Note['recurrence']): Note['recurrence'] {
+  if (!recurrence || monthStep(recurrence) === null) return recurrence;
+  return { ...recurrence, anchorDay: resolveAnchorDay(reminder, recurrence) };
+}
 
 /** Calculate the next occurrence for a recurring reminder */
 function nextOccurrenceAfter(reminder: number, recurrence: Note['recurrence'], now: number): number {
   if (!recurrence || recurrence.type === 'none') return reminder;
+  if (reminder > now) return reminder;
+
+  const step = monthStep(recurrence);
+  if (step !== null) {
+    // Month/year based: compute each occurrence from the anchor rather than
+    // stepping from the previous one, and clamp to the last day of the target
+    // month. Stepping with setMonth() overflows (Jan 31 + 1 month = Mar 3) and
+    // the drift then sticks for every later occurrence.
+    const start = new Date(reminder);
+    const anchorDay = resolveAnchorDay(reminder, recurrence);
+    for (let k = 1; k <= 10000; k++) {
+      const year = start.getFullYear();
+      const month = start.getMonth() + k * step;
+      const day = Math.min(anchorDay, daysInMonth(year, month));
+      const next = new Date(
+        year, month, day,
+        start.getHours(), start.getMinutes(), start.getSeconds(), start.getMilliseconds(),
+      );
+      if (next.getTime() > now) return next.getTime();
+    }
+    return reminder;
+  }
+
   const date = new Date(reminder);
 
   // Failsafe limit to avoid infinite loops with corrupted data
@@ -238,22 +403,28 @@ function nextOccurrenceAfter(reminder: number, recurrence: Note['recurrence'], n
       date.setDate(date.getDate() + 1);
     } else if (recurrence.type === 'weekly') {
       date.setDate(date.getDate() + 7);
-    } else if (recurrence.type === 'monthly') {
-      date.setMonth(date.getMonth() + 1);
-    } else if (recurrence.type === 'yearly') {
-      date.setFullYear(date.getFullYear() + 1);
     } else if (recurrence.type === 'custom') {
       const interval = recurrence.interval || 1;
-      const unit = recurrence.unit || 'day';
-      if (unit === 'day') date.setDate(date.getDate() + interval);
-      else if (unit === 'week') date.setDate(date.getDate() + (interval * 7));
-      else if (unit === 'month') date.setMonth(date.getMonth() + interval);
-      else if (unit === 'year') date.setFullYear(date.getFullYear() + interval);
+      if (recurrence.unit === 'week') date.setDate(date.getDate() + (interval * 7));
+      else date.setDate(date.getDate() + interval);
     } else {
       break;
     }
   }
   return date.getTime();
+}
+
+/** The most recent occurrence of a recurring reminder that is <= now (the
+ *  reminder itself if it doesn't recur). */
+function latestOccurrenceAtOrBefore(reminder: number, recurrence: Note['recurrence'], now: number): number {
+  const rec = withResolvedAnchor(reminder, recurrence);
+  let latest = reminder;
+  for (let i = 0; i < 10000; i++) {
+    const next = nextOccurrenceAfter(latest, rec, latest);
+    if (next <= latest || next > now) break;
+    latest = next;
+  }
+  return latest;
 }
 
 /** Reschedule all pending reminders (e.g. on app cold start) */
@@ -266,10 +437,22 @@ export async function rescheduleAllReminders(notes: Note[]): Promise<void> {
 
     if (n.reminder > now) {
       pending.push(n);
-    } else if (n.recurrence && n.recurrence.type !== 'none') {
+      continue;
+    }
+
+    // Past due. Native notifications fire from the OS even with the app
+    // closed; web ones don't, so show it now if it was missed.
+    catchUpMissedWebReminder(n, latestOccurrenceAtOrBefore(n.reminder, n.recurrence, now), now);
+
+    if (n.recurrence && n.recurrence.type !== 'none') {
       // Past-due but recurring — roll forward to the next occurrence
       const nextTime = nextOccurrenceAfter(n.reminder, n.recurrence, now);
-      
+
+      // Month/year recurrences: remember the original day-of-month before the
+      // reminder is overwritten, since the next occurrence may be clamped
+      // (Jan 31 -> Feb 28) and would otherwise lose it for good.
+      n.recurrence = withResolvedAnchor(n.reminder, n.recurrence);
+
       // Update in-memory so Index.tsx sees the new time
       n.reminder = nextTime;
 
@@ -289,6 +472,36 @@ export async function rescheduleAllReminders(notes: Note[]): Promise<void> {
   }
 
   await Promise.all(pending.map(scheduleReminderNotification));
+}
+
+// How many upcoming occurrences of a recurring reminder are handed to the OS
+// at once. iOS only keeps the 64 soonest pending notifications across the
+// whole app, so this stays small enough for several recurring notes to share
+// that budget; the batch is refilled on every launch, so a daily reminder only
+// runs dry if the app goes unopened for this many days.
+const MAX_SCHEDULED_OCCURRENCES = 10;
+
+/** The reminder time plus, if it recurs, the following occurrences --
+ *  only those still in the future, at most MAX_SCHEDULED_OCCURRENCES. */
+function upcomingOccurrences(reminder: number, recurrence: Note['recurrence'], now: number): number[] {
+  const recurs = !!recurrence && recurrence.type !== 'none';
+  const rec = withResolvedAnchor(reminder, recurrence);
+  const first = recurs ? nextOccurrenceAfter(reminder, rec, now - 1) : reminder;
+  const result = [first];
+  while (recurs && result.length < MAX_SCHEDULED_OCCURRENCES) {
+    const prev = result[result.length - 1];
+    const next = nextOccurrenceAfter(prev, rec, prev);
+    if (next <= prev) break; // unknown recurrence type -- don't loop forever
+    result.push(next);
+  }
+  return result;
+}
+
+/** Notification ID for the i-th scheduled occurrence of a note's reminder.
+ *  Occurrence 0 keeps the original single-notification ID, so cancelling a
+ *  reminder also clears one scheduled by an older build. */
+function occurrenceNotificationId(noteId: string, i: number): number {
+  return i === 0 ? hashNoteId(noteId) : hashNoteId(`${noteId}#${i}`);
 }
 
 /** Stable numeric ID from a UUID string (djb2 hash) */

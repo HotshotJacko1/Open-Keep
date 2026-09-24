@@ -46,7 +46,8 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
     if (repeatType.type === 'custom') {
       return { type: 'custom', interval: customInterval, unit: customUnit };
     }
-    return repeatType;
+    // Drop any stored anchorDay: the date being picked now is the new anchor.
+    return { type: repeatType.type };
   };
 
   const handleOptionClick = (option: ReminderOption) => {

@@ -13,7 +13,8 @@ Package manager is **pnpm** (`packageManager: pnpm@10.34.5`). Node version is pi
 ```bash
 pnpm install
 pnpm dev            # vite dev server on port 8080
-pnpm build           # production build (runs prebuild: scripts/sync-version.cjs first)
+pnpm build           # production build: prebuild (scripts/sync-version.cjs), then tsc -b, then vite build
+pnpm typecheck       # tsc -b only (app + vite config projects)
 pnpm build:dev        # development-mode build
 pnpm lint            # eslint .
 pnpm preview          # preview a production build
@@ -38,7 +39,7 @@ npx cap sync ios
 npx cap sync android
 ```
 
-iOS builds are done via Codemagic (`codemagic.yaml`), triggered on push to `main`; it runs `npm run build` then `npx cap sync ios` then an Xcode archive/IPA build.
+iOS builds are done via Codemagic (`codemagic.yaml`), triggered on push to `main`; it runs `pnpm install --frozen-lockfile` (via Corepack) then `pnpm build` then `pnpm exec cap sync ios` then an Xcode archive/IPA build.
 
 ### App versioning
 
@@ -50,7 +51,7 @@ The **single source of truth for app version is `android/app/build.gradle`'s `ve
 
 All note persistence goes through [src/lib/note-storage.ts](src/lib/note-storage.ts), which branches on `Capacitor.isNativePlatform()`:
 
-- **Native (iOS/Android)**: calls through a Capacitor plugin (`registerPlugin<NoteStoragePlugin>("NoteStorage")`) implemented natively in [android/app/src/main/java/com/jackbarkerapps/openkeep/NoteStoragePlugin.kt](android/app/src/main/java/com/jackbarkerapps/openkeep/NoteStoragePlugin.kt) and [ios/App/App/NoteStoragePlugin.swift](ios/App/App/NoteStoragePlugin.swift), backed by an on-disk SQLCipher-encrypted SQLite database (see `SQLCipher_Framework/`, `SQLCipher_Package.swift`). The PIN/passcode is the encryption key.
+- **Native (iOS/Android)**: calls through a Capacitor plugin (`registerPlugin<NoteStoragePlugin>("NoteStorage")`) implemented natively in [android/app/src/main/java/com/jackbarkerapps/openkeep/NoteStoragePlugin.kt](android/app/src/main/java/com/jackbarkerapps/openkeep/NoteStoragePlugin.kt) and [ios/App/App/NoteStoragePlugin.swift](ios/App/App/NoteStoragePlugin.swift), backed by an on-disk SQLCipher-encrypted SQLite database (pulled in via Swift Package Manager from `sqlcipher/SQLCipher.swift`; see `SQLCipher_Package.swift`). The PIN/passcode is the encryption key.
 - **Web**: notes live in `localStorage` (`open-keep-notes` key) and are encrypted/decrypted via the WebCrypto API in [src/lib/web-crypto.ts](src/lib/web-crypto.ts), mirroring the native plugin's method signatures (`initializeDatabaseWeb`, `encryptDataWeb`, etc.).
 
 Both backends expose the same async API surface (`loadNotes`, `saveNote`, `deleteNote`, `initializeDatabase`, `checkDatabaseStatus`, `lockDatabase`, `changeEncryptionKey`, `exportMasterKey`/`importMasterKey` for cross-device key transfer, `wipeDatabaseButKeepKeys`, `clearAllData`). Callers (UI code) should generally go through this module rather than branching on platform themselves.

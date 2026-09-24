@@ -6,12 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-## [5.0.5] - 2026-09-23
+## [5.0.5] - 2026-09-28
 
 ### Changed
 - Removed the unused Facebook SDK from the Android app.
-- F-Droid build no longer contains any Google sign-in code, and is smaller.
-- Release builds are now reproducible, so F-Droid can publish the app with the same signature as the GitHub APK.
+- F-Droid build has no Google sign-in code, and is smaller.
+- Reproducible release builds, so F-Droid matches the GitHub APK.
+- Smaller app: lots of unused code removed.
+- Theme now follows system light/dark changes instantly.
+- Smoother dialog and menu animations.
+- Toggle switches are easier to see.
+
+### Fixed
+- Repeating reminders now fire at the right time.
+- Custom repeats (e.g. every 3 days) now work.
+- Monthly reminders on the 31st no longer drift.
+- Web: reminders missed while closed show when you return.
+- Web: reminders set weeks ahead no longer fire instantly.
+- Exports now include note images.
+- Importing Keep and Markdown files together imports both.
+- Import now tells you how many files were skipped.
+- Huge imports show an error instead of freezing.
+- Widget checkbox taps no longer lost while the app loads.
+- Crashes on older Android devices fixed.
+- Google Drive: deleting cloud data keeps your other files.
+- Google Drive: clearer message when permission is missing.
+- Google Drive: a failed download can't overwrite your cloud key.
+- OneDrive: disconnecting now fully signs you out.
+- AI-written notes are now sanitised before saving.
 
 ## [5.0.4] - 2026-09-22
 

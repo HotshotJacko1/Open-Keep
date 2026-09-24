@@ -49,7 +49,7 @@
     :root {
       --background: 24 83% 93%;
       /* In use */
-      --foreground: 18 100% 98%;
+      --foreground: 0 0% 0%;
 
       --text-primary: 0 0% 0%;
 
@@ -113,7 +113,7 @@
     .dark {
       --background: 26 32% 10%;
       /* In use */
-      --foreground: 27 33% 5%;
+      --foreground: 0 0% 100%;
 
       --text-primary: 0 0% 100%;
       --note-editor-background: 23 29% 5%;
@@ -176,7 +176,7 @@
     }
 
     body {
-      @apply bg-background text-foreground;
+      @apply bg-background text-text-primary;
       overscroll-behavior-y: none;
     }
   }

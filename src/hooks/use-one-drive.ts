@@ -1,11 +1,12 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import { InteractionRequiredAuthError } from "@azure/msal-browser";
 import { initOneDrive, loginToOneDrive, syncNotesWithOneDrive, logoutFromOneDrive, checkOneDriveMasterKey, msalInstance } from "@/lib/one-drive";
 import { setupOneDriveOAuthRedirect } from "@/lib/one-drive-oauth";
-import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, canDecryptCloudMasterKey, wipeDatabaseButKeepKeys, SyncResult } from "@/lib/note-storage";
-import { resolveCloudKeyImport, getCloudKeyConflictIfNeeded } from "@/lib/cloud-sync-resolver";
-import { setCloudSyncState, useCloudSyncState } from "@/lib/cloud-sync-state";
+import type { SyncResult } from "@/lib/note-storage";
+import { runCloudSync, ForceResolution } from "@/lib/cloud-sync-runner";
+import { useCloudSyncState } from "@/lib/cloud-sync-state";
 import { showSuccess, showError } from "@/utils/toast";
 
 let oauthSuccessHandling = false;
@@ -82,117 +83,29 @@ export const useOneDrive = () => {
         }
     }, []);
 
-    const doInternalSync = async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false): Promise<SyncResult> => {
-        setCloudSyncState("onedrive", true);
-        try {
-            await initOneDrive();
-            const pin = localStorage.getItem("app-passcode");
-            if (!pin && localStorage.getItem("app-lock-enabled") === "true") {
-                throw new Error("No PIN found. Please set up a PIN in App Lock settings first.");
-            }
-
-            // Read local notes and custom tags BEFORE any database wipe or key import
-            const localNotes = await loadNotes();
-            const localCustomTags = JSON.parse(localStorage.getItem("custom-tags") || "[]");
-
-            const cloudKeyConflict = await getCloudKeyConflictIfNeeded(
-                pin,
-                forceResolution,
-                checkOneDriveMasterKey
-            );
-            if (cloudKeyConflict) return cloudKeyConflict;
-
-            const keyImport = await resolveCloudKeyImport(forceResolution, cloudPayload, pin, providedPin);
-            if (keyImport.ok === false) {
-                if (cloudPayload) {
-                    return { status: "conflict", cloudPayload, reason: "key_mismatch" };
-                }
-                return { status: "error", message: keyImport.reason };
-            }
-            const effectivePin = keyImport.effectivePin ?? pin ?? "";
-
-            let masterKeyPayload: string | undefined;
-
-            if (forceResolution === "local" || (!forceResolution)) {
-                masterKeyPayload = await exportMasterKey(effectivePin);
-            }
-
-            if (!forceResolution) {
-                const cloudKey = await checkOneDriveMasterKey();
-                if (cloudKey.exists && cloudKey.payload) {
-                    const canDecrypt = await canDecryptCloudMasterKey(cloudKey.payload, effectivePin);
-                    const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, effectivePin);
-                    const isFirstConnect = !localStorage.getItem("onedrive-last-synced");
-                    
-                    if (localNotes.length === 0) {
-                        if (canDecrypt) {
-                            await wipeDatabaseButKeepKeys();
-                            await importMasterKey(cloudKey.payload, effectivePin);
-                            masterKeyPayload = undefined;
-                        } else {
-                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
-                        }
-                    } else {
-                        if (!isMatch) {
-                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: canDecrypt ? "first_connect" : "key_mismatch" };
-                        } else if (isFirstConnect) {
-                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
-                        }
-                    }
-                }
-            }
-
-            const oneDriveForceResolution = forceResolution === "merge" ? undefined : forceResolution;
-            const { notes: mergedNotes, customTags: mergedTags } = await syncNotesWithOneDrive(localNotes, localCustomTags, { masterKeyPayload, forceResolution: oneDriveForceResolution });
-
-            // Re-read local DB after sync in case local notes changed while sync was in-flight.
-            const currentLocalNotes = await loadNotes();
-            const currentLocalMap = new Map(currentLocalNotes.map(n => [n.id, n]));
-            let savedCount = 0, skippedCount = 0;
-            await Promise.all(mergedNotes.map(async note => {
-                const current = currentLocalMap.get(note.id);
-                if (current && current.updatedAt > note.updatedAt) {
-                    console.log(`[OneDrive Sync] Write-back skipped for note ${note.id}: local is newer (${new Date(current.updatedAt).toISOString()} > ${new Date(note.updatedAt).toISOString()})`);
-                    skippedCount++;
-                    return;
-                }
-                await saveNote(note, { skipLimits: true });
-                savedCount++;
-            }));
-            console.log(`[OneDrive Sync] Write-back complete: ${savedCount} saved, ${skippedCount} skipped`);
-            localStorage.setItem("custom-tags", JSON.stringify(mergedTags));
-            const now = new Date().toLocaleString();
-            localStorage.setItem("onedrive-last-synced", now);
-            setLastSynced(now);
-            window.dispatchEvent(new Event("notes-updated"));
-
-            if (!silent) {
-                showSuccess("Notes synced with OneDrive!");
-            }
-            return { status: "success" };
-        } catch (error) {
-            const message = (error as Error).message || "";
-            if (!message.includes("Cannot parse synced data")) {
-                console.error("OneDrive sync failed:", error);
-            }
-            // Check for local DB errors first — don't confuse them with cloud issues
-            if (message.includes("database") || message.includes("INSTANCE") || message.includes("not initialized") || message.includes("sqlcipher")) {
-                if (!silent) showError("Local database access failed. Notes are safe — please restart the app.");
-                return { status: "error", message: "Local database access failed" };
-            }
-            if (message.includes("BAD_DECRYPT") || message.includes("Decryption failed") || message.includes("Cannot parse synced data")) {
-                if (!silent) showError("Cloud notes could not be decrypted. They may be locked with an old, unknown key.");
-                const cloudKey = await checkOneDriveMasterKey();
-                if (cloudKey.payload) {
-                    return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
-                }
-            }
-            if (!silent) showError("OneDrive sync failed. Please reconnect.");
-            return { status: "error", message };
-        } finally {
-            setCloudSyncState("onedrive", false);
-        }
-    };
+    const doInternalSync = (forceResolution?: ForceResolution, cloudPayload?: string, providedPin?: string, silent: boolean = false): Promise<SyncResult> =>
+        runCloudSync({
+            provider: "onedrive",
+            label: "OneDrive",
+            lastSyncedKey: "onedrive-last-synced",
+            successMessage: "Notes synced with OneDrive!",
+            failureMessage: "OneDrive sync failed. Please reconnect.",
+            permissionMessage: "OneDrive denied Open Keep access to its folder. Disconnect OneDrive in Settings, then reconnect and allow access.",
+            prepare: initOneDrive,
+            checkMasterKey: checkOneDriveMasterKey,
+            syncNotes: syncNotesWithOneDrive,
+            classifyError: (error) => {
+                // MSAL couldn't get a token silently and the interactive fallback failed too.
+                if (error instanceof InteractionRequiredAuthError) return "auth";
+                const message = (error as Error)?.message || "";
+                if (message.startsWith("No active account")) return "auth";
+                // one-drive.ts embeds the Graph status as "Graph API error 401: …" or "… (401): …".
+                if (/(Graph API error |\()401\b/.test(message)) return "auth";
+                if (/(Graph API error |\()403\b/.test(message) && message.includes("accessDenied")) return "permission";
+                return null;
+            },
+            onSynced: setLastSynced,
+        }, { forceResolution, cloudPayload, providedPin, silent });
 
     const sync = useCallback(async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false) => {
         if (!userEmail) {
@@ -212,7 +125,9 @@ export const useOneDrive = () => {
         showSuccess("Disconnected from OneDrive.");
     }, []);
 
-    return {
+    // Memoised so the object's identity only changes with its contents;
+    // Index.tsx lists it in effect deps.
+    return useMemo(() => ({
         login,
         sync,
         disconnect,
@@ -220,7 +135,7 @@ export const useOneDrive = () => {
         lastSynced,
         userEmail,
         isConnected: !!userEmail
-    };
+    }), [login, sync, disconnect, isSyncing, lastSynced, userEmail]);
 };
 
 

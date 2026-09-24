@@ -1,18 +1,18 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
 import { SocialLogin } from "@capgo/capacitor-social-login";
 import { Capacitor } from "@capacitor/core";
-import { initGoogleDrive, setAccessToken, getGoogleAccessToken, syncNotesWithDrive, checkGoogleDriveMasterKey, isGoogleDriveAuthError, clearCachedDriveIds } from "@/lib/google-drive";
-import { loadNotes, saveNote, exportMasterKey, importMasterKey, verifyCloudMasterKeyMatch, canDecryptCloudMasterKey, wipeDatabaseButKeepKeys, SyncResult } from "@/lib/note-storage";
-import { resolveCloudKeyImport, getCloudKeyConflictIfNeeded } from "@/lib/cloud-sync-resolver";
+import { initGoogleDrive, setAccessToken, getGoogleAccessToken, syncNotesWithDrive, checkGoogleDriveMasterKey, isGoogleDriveAuthError, isGoogleDriveScopeError, clearCachedDriveIds } from "@/lib/google-drive";
+import type { SyncResult } from "@/lib/note-storage";
+import { runCloudSync, ForceResolution } from "@/lib/cloud-sync-runner";
 import {
     blockGoogleDriveScopeAuth,
     clearGoogleDriveScopeBlock,
     isGoogleDriveScopeBlocked,
     runGoogleDriveTokenEnsure,
 } from "@/lib/google-drive-auth-state";
-import { setCloudSyncState, useCloudSyncState } from "@/lib/cloud-sync-state";
+import { useCloudSyncState } from "@/lib/cloud-sync-state";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { isGoogleDriveSyncAvailable } from "@/lib/build-flavor";
@@ -388,7 +388,9 @@ export const useGoogleDrive = () => {
         },
         scope: "https://www.googleapis.com/auth/drive.file",
         flow: 'auth-code',
-        prompt: userEmail ? '' : 'select_account',
+        // Not in the library's auth-code options type, but useGoogleLogin
+        // forwards every extra prop to GIS initCodeClient at runtime.
+        ...{ prompt: userEmail ? '' : 'select_account' },
         hint: userEmail || undefined,
     });
 
@@ -432,165 +434,46 @@ export const useGoogleDrive = () => {
         }
     };
 
-    const doInternalSync = async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false): Promise<SyncResult> => {
-        setCloudSyncState("google-drive", true);
-        try {
-            await initGoogleDrive();
-
-            if (Capacitor.isNativePlatform()) {
-                const accessToken = await nativeGoogleEnsureDriveToken(!silent);
-                setAccessToken(accessToken);
-            } else {
-                let token = getGoogleAccessToken();
-                if (!token) {
+    const doInternalSync = (forceResolution?: ForceResolution, cloudPayload?: string, providedPin?: string, silent: boolean = false): Promise<SyncResult> =>
+        runCloudSync({
+            provider: "google-drive",
+            label: "Google Drive",
+            lastSyncedKey: "last-synced-time",
+            successMessage: "Notes synced successfully!",
+            failureMessage: "Sync failed. Please reconnect Google Drive.",
+            permissionMessage: "Google Drive permission was not granted. Disconnect Google Drive in Settings, then reconnect and allow Drive access.",
+            prepare: async () => {
+                await initGoogleDrive();
+                if (Capacitor.isNativePlatform()) {
+                    setAccessToken(await nativeGoogleEnsureDriveToken(!silent));
+                } else if (!getGoogleAccessToken()) {
                     try {
-                        token = await refreshAccessTokenFromStorage();
-                    } catch (e) {
-                        if (!silent) {
-                            setCloudSyncState("google-drive", false);
-                            webLogin();
-                            return { status: "error", message: "Re-authenticating..." };
-                        } else {
-                            throw new Error("Web auth required");
-                        }
+                        await refreshAccessTokenFromStorage();
+                    } catch {
+                        throw new Error("Web auth required");
                     }
                 }
-            }
-
-            const pin = localStorage.getItem("app-passcode");
-            if (!pin && localStorage.getItem("app-lock-enabled") === "true") {
-                throw new Error("No PIN found. Please set up a PIN in App Lock settings first.");
-            }
-
-            // Read local notes and custom tags BEFORE any database wipe or key import
-            const localNotes = await loadNotes();
-            const localCustomTags = JSON.parse(localStorage.getItem("custom-tags") || "[]");
-
-            const cloudKeyConflict = await getCloudKeyConflictIfNeeded(
-                pin,
-                forceResolution,
-                () => runWithFreshDriveToken(() => checkGoogleDriveMasterKey(), !silent)
-            );
-            if (cloudKeyConflict) return cloudKeyConflict;
-
-            const keyImport = await resolveCloudKeyImport(forceResolution, cloudPayload, pin, providedPin);
-            if (keyImport.ok === false) {
-                if (cloudPayload) {
-                    return { status: "conflict", cloudPayload, reason: "key_mismatch" };
-                }
-                return { status: "error", message: keyImport.reason };
-            }
-            const effectivePin = keyImport.effectivePin ?? pin ?? "";
-
-            let masterKeyPayload: string | undefined;
-
-            if (forceResolution === "local" || (!forceResolution)) {
-                masterKeyPayload = await exportMasterKey(effectivePin);
-            }
-
-            if (!forceResolution) {
-                const cloudKey = await runWithFreshDriveToken(() => checkGoogleDriveMasterKey(), !silent);
-                if (cloudKey.exists && cloudKey.payload) {
-                    const isFirstConnect = !localStorage.getItem("last-synced-time");
-                    const canDecrypt = await canDecryptCloudMasterKey(cloudKey.payload, effectivePin);
-                    const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, effectivePin);
-
-                    if (localNotes.length === 0) {
-                        if (canDecrypt) {
-                            // Local is empty and we can decrypt the cloud key — auto-restore from cloud
-                            await wipeDatabaseButKeepKeys();
-                            await importMasterKey(cloudKey.payload, effectivePin);
-                            masterKeyPayload = undefined;
-                        } else {
-                            // We cannot decrypt the cloud key. Need the correct PIN.
-                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
-                        }
-                    } else {
-                        if (!isMatch) {
-                            // Keys differ and we have local notes — conflict resolution required
-                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: canDecrypt ? "first_connect" : "key_mismatch" };
-                        } else if (isFirstConnect) {
-                            // Keys match but this is first connect — ask user which data to keep
-                            return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
-                        }
-                    }
-                }
-            }
-
-            console.log(`[Google Drive Sync] Loaded ${localNotes.length} local notes for sync`);
-            const driveForceResolution = forceResolution === "merge" ? undefined : forceResolution;
-            const { notes: mergedNotes, customTags: mergedTags } = await runWithFreshDriveToken(
-                () => syncNotesWithDrive(localNotes, localCustomTags, { masterKeyPayload, forceResolution: driveForceResolution }),
-                !silent
-            );
-
-            // Re-read local DB state now that sync is complete. Local notes may have changed
-            // while the sync was in-flight (e.g. user deleted a note during a long sync).
-            // Only write back a merged note if it is still newer than (or equal to) the
-            // current local copy — this prevents a stale sync from resurrecting deleted notes.
-            const currentLocalNotes = await loadNotes();
-            const currentLocalMap = new Map(currentLocalNotes.map(n => [n.id, n]));
-
-            let savedCount = 0;
-            let skippedCount = 0;
-            await Promise.all(mergedNotes.map(async note => {
-                const current = currentLocalMap.get(note.id);
-                if (current && current.updatedAt > note.updatedAt) {
-                    // Local was modified after the sync started — skip to avoid overwriting
-                    console.log(`[Google Drive Sync] Write-back skipped for note ${note.id} (${note.title}): local is newer (${new Date(current.updatedAt).toISOString()} > ${new Date(note.updatedAt).toISOString()})`);
-                    skippedCount++;
-                    return;
-                }
-                await saveNote(note, { skipLimits: true });
-                savedCount++;
-            }));
-            console.log(`[Google Drive Sync] Write-back complete: ${savedCount} saved, ${skippedCount} skipped (local was newer)`);
-            localStorage.setItem("custom-tags", JSON.stringify(mergedTags));
-
-            const now = new Date().toLocaleString();
-            localStorage.setItem("last-synced-time", now);
-            setLastSynced(now);
-            window.dispatchEvent(new Event("notes-updated"));
-            if (!silent) {
-                showSuccess("Notes synced successfully!");
-            }
-            return { status: "success" };
-        } catch (error) {
-            const message = (error as Error).message || "";
-            if (message === "Web auth required") {
-                setCloudSyncState("google-drive", false);
-                if (!silent && !Capacitor.isNativePlatform()) {
+            },
+            checkMasterKey: () => runWithFreshDriveToken(() => checkGoogleDriveMasterKey(), !silent),
+            syncNotes: (localNotes, localCustomTags, options) =>
+                runWithFreshDriveToken(() => syncNotesWithDrive(localNotes, localCustomTags, options), !silent),
+            classifyError: (error) => {
+                const message = (error as Error)?.message || "";
+                // Checked first: isGoogleDriveAuthError also matches scope failures.
+                if (message.includes("Google Drive permission was not granted") || isGoogleDriveScopeError(error)) return "permission";
+                if (message === "Web auth required" || isGoogleDriveAuthError(error)) return "auth";
+                return null;
+            },
+            onAuthError: (isSilent) => {
+                if (!isSilent && !Capacitor.isNativePlatform()) {
                     webLogin();
                     return { status: "error", message: "Re-authenticating..." };
                 }
+                if (!isSilent) showError("Google Drive session expired. Please reconnect.");
                 return { status: "error", message: "Auth required" };
-            }
-            if (!message.includes("Cannot parse synced data")) {
-                console.error("Sync failed:", error);
-            }
-            // Check for local DB errors first — don't confuse them with cloud issues
-            if (message.includes("database") || message.includes("INSTANCE") || message.includes("not initialized") || message.includes("sqlcipher")) {
-                if (!silent) showError("Local database access failed. Notes are safe — please restart the app.");
-                return { status: "error", message: "Local database access failed" };
-            }
-            if (message.includes("Google Drive permission was not granted")) {
-                showError(message);
-                return { status: "error", message };
-            }
-            if (message.includes("BAD_DECRYPT") || message.includes("Decryption failed") || message.includes("Cannot parse synced data")) {
-                // If it's a silent sync (like auto-sync on refresh), don't spam the UI with errors
-                if (!silent) showError("Cloud notes could not be decrypted. They may be locked with an old, unknown key.");
-                const cloudKey = await checkGoogleDriveMasterKey();
-                if (cloudKey.payload) {
-                    return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
-                }
-            }
-            if (!silent) showError("Sync failed. Please reconnect Google Drive.");
-            return { status: "error", message: (error as Error).message };
-        } finally {
-            setCloudSyncState("google-drive", false);
-        }
-    };
+            },
+            onSynced: setLastSynced,
+        }, { forceResolution, cloudPayload, providedPin, silent });
 
     const sync = useCallback(async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false) => {
         return await doInternalSync(forceResolution, cloudPayload, providedPin, silent);
@@ -641,15 +524,26 @@ export const useGoogleDrive = () => {
         };
     }, [userEmail]);
 
-    return {
-        login,
+    // login/disconnect close over per-render values (webLogin, userEmail), so
+    // expose stable wrappers that always call the latest version. That keeps
+    // the returned object's identity stable, which Index.tsx relies on: it
+    // lists this object in effect deps (listeners were re-added every render).
+    const loginRef = useRef(login);
+    loginRef.current = login;
+    const disconnectRef = useRef(disconnect);
+    disconnectRef.current = disconnect;
+    const stableLogin = useCallback(() => loginRef.current(), []);
+    const stableDisconnect = useCallback(() => disconnectRef.current(), []);
+
+    return useMemo(() => ({
+        login: stableLogin,
         sync,
-        disconnect,
+        disconnect: stableDisconnect,
         isSyncing,
         lastSynced,
         userEmail,
         isConnected: !!userEmail,
         isTokenExpired,
         isAvailable: isGoogleDriveSyncAvailable
-    };
+    }), [stableLogin, sync, stableDisconnect, isSyncing, lastSynced, userEmail, isTokenExpired]);
 };
