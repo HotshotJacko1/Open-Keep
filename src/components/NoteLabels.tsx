@@ -26,6 +26,7 @@ const NoteLabels: React.FC<NoteLabelsProps> = ({
 
     useEffect(() => {
         if (isOpen) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- resets local form state each time the dialog opens (intentional)
             setSearchQuery("");
         }
     }, [isOpen]); // Only reset when dialog opens
@@ -91,7 +92,7 @@ const NoteLabels: React.FC<NoteLabelsProps> = ({
                                 role="checkbox"
                                 tabIndex={0}
                                 aria-checked={isIndeterminate ? "mixed" : isChecked}
-                                className="flex items-center gap-4 px-4 py-3 cursor-pointer select-none transition-colors hover:bg-sidebar-foreground/20 focus-visible:outline-none focus-visible:bg-sidebar-foreground/20"
+                                className="press-feedback flex items-center gap-4 px-4 py-3 cursor-pointer select-none transition-colors hover:bg-sidebar-foreground/20 focus-visible:outline-none focus-visible:bg-sidebar-foreground/20"
                                 onClick={() => onTagToggle(tag)}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' || e.key === ' ') {
@@ -121,7 +122,7 @@ const NoteLabels: React.FC<NoteLabelsProps> = ({
                 {/* Create new label */}
                 {showCreateOption && (
                     <div
-                        className="shrink-0 flex items-center gap-4 px-4 py-3 cursor-pointer select-none border-t border-border transition-colors hover:bg-sidebar-foreground/20"
+                        className="press-feedback shrink-0 flex items-center gap-4 px-4 py-3 cursor-pointer select-none border-t border-border transition-colors hover:bg-sidebar-foreground/20"
                         onClick={handleCreate}
                     >
                         <Plus className="h-5 w-5 shrink-0 text-secondary" />

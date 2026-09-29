@@ -1,29 +1,19 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { initDropbox, getAuthenticationUrl, handleAuthRedirect, syncNotesWithDropbox, checkDropboxMasterKey } from "@/lib/dropbox";
+import { initDropbox, getAuthenticationUrl, handleAuthRedirect, syncNotesWithDropbox, checkDropboxMasterKey, consumeOAuthState, clearDropboxTokens } from "@/lib/dropbox";
 import type { SyncResult } from "@/lib/note-storage";
-import { runCloudSync, ForceResolution } from "@/lib/cloud-sync-runner";
+import { runCloudSync, runOAuthSuccessSync, ForceResolution } from "@/lib/cloud-sync-runner";
 import { setupDropboxOAuthRedirect } from "@/lib/dropbox-oauth";
-import { useCloudSyncState } from "@/lib/cloud-sync-state";
+import { useCloudSyncState, useLastSynced } from "@/lib/cloud-sync-state";
 import { showSuccess, showError } from "@/utils/toast";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 
-let oauthSuccessHandling = false;
-
 export const useDropbox = () => {
     const isSyncing = useCloudSyncState("dropbox");
-    const [lastSynced, setLastSynced] = useState<string | null>(localStorage.getItem("dropbox-last-synced"));
+    const [lastSynced, setLastSynced] = useLastSynced("dropbox-last-synced");
     const [accessToken, setAccessToken] = useState<string | null>(localStorage.getItem("dropbox-access-token"));
-
-    useEffect(() => {
-        const handleNotesUpdated = () => {
-            setLastSynced(localStorage.getItem("dropbox-last-synced"));
-        };
-        window.addEventListener("notes-updated", handleNotesUpdated);
-        return () => window.removeEventListener("notes-updated", handleNotesUpdated);
-    }, []);
 
     // Initialize on mount if token exists, and listen for cross-component token updates
     useEffect(() => {
@@ -43,24 +33,15 @@ export const useDropbox = () => {
     useEffect(() => {
         setupDropboxOAuthRedirect();
 
-        const handleOAuthSuccess = async (event: Event) => {
-            if (oauthSuccessHandling) return;
-            oauthSuccessHandling = true;
-            try {
+        const handleOAuthSuccess = (event: Event) =>
+            runOAuthSuccessSync("dropbox", () => {
                 const token = (event as CustomEvent<{ token: string }>).detail?.token;
                 if (token) {
                     setAccessToken(token);
                 }
-                const syncResult = await doInternalSync(undefined, undefined, undefined, true);
-                if (syncResult.status === "conflict") {
-                    window.dispatchEvent(new CustomEvent("open-sync-conflict", {
-                        detail: { service: "dropbox", payload: (syncResult as any).cloudPayload, reason: (syncResult as any).reason },
-                    }));
-                }
-            } finally {
-                oauthSuccessHandling = false;
-            }
-        };
+                // eslint-disable-next-line react-hooks/immutability -- only called asynchronously after render, when doInternalSync is declared
+                return doInternalSync(undefined, undefined, undefined, true);
+            });
 
         window.addEventListener("dropbox-oauth-success", handleOAuthSuccess);
 
@@ -68,18 +49,17 @@ export const useDropbox = () => {
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get("code");
 
-            if (code && !accessToken) {
+            if (code && !accessToken && consumeOAuthState(urlParams.get("state"))) {
                 try {
                     window.history.replaceState({}, document.title, window.location.pathname);
                     const token = await handleAuthRedirect(code);
                     setAccessToken(token);
-                    localStorage.setItem("dropbox-access-token", token);
                     window.dispatchEvent(new Event("dropbox-token-updated"));
                     initDropbox(token);
                     showSuccess("Connected to Dropbox!");
                     const syncResult = await doInternalSync();
                     if (syncResult.status === "conflict") {
-                        window.dispatchEvent(new CustomEvent("open-sync-conflict", { detail: { service: "dropbox", payload: (syncResult as any).cloudPayload, reason: (syncResult as any).reason } }));
+                        window.dispatchEvent(new CustomEvent("open-sync-conflict", { detail: { service: "dropbox", payload: syncResult.cloudPayload, reason: syncResult.reason } }));
                     }
                 } catch (error) {
                     console.error("Dropbox auth error:", error);
@@ -102,9 +82,9 @@ export const useDropbox = () => {
             } else {
                 window.location.href = encodeURI(url.toString());
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Dropbox Login init failed:", error);
-            showError(`Failed to start Dropbox login: ${error?.message || error}`);
+            showError(`Failed to start Dropbox login: ${(error as Error | undefined)?.message || error}`);
         }
     }, []);
 
@@ -126,7 +106,8 @@ export const useDropbox = () => {
                 if (status === 401) return "auth";
                 return null;
             },
-            // Only a short-lived access token is stored, so a 401 means it's dead — drop it.
+            // The SDK refreshes expired access tokens itself, so a 401 means the refresh
+            // token was revoked (or this is a pre-refresh-token connection) — drop it.
             onAuthError: () => {
                 showError("Dropbox session expired. Please reconnect.");
                 disconnect();
@@ -135,7 +116,7 @@ export const useDropbox = () => {
             onSynced: setLastSynced,
         }, { forceResolution, cloudPayload, providedPin, silent });
 
-    const sync = useCallback(async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false) => {
+    const sync = useCallback(async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false): Promise<SyncResult> => {
         if (!accessToken) {
             showError("Please connect to Dropbox first.");
             return { status: "error", message: "Not connected" };
@@ -146,13 +127,13 @@ export const useDropbox = () => {
 
     const disconnect = useCallback(() => {
         setAccessToken(null);
-        localStorage.removeItem("dropbox-access-token");
+        clearDropboxTokens();
         localStorage.removeItem("dropbox-last-synced");
         setLastSynced(null);
         window.dispatchEvent(new Event("dropbox-token-updated"));
         // Note: We don't revoke token on server here, just forget it locally.
         showSuccess("Disconnected from Dropbox.");
-    }, []);
+    }, [setLastSynced]);
 
     // Memoised so the object's identity only changes with its contents;
     // Index.tsx lists it in effect deps.

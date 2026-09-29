@@ -60,6 +60,10 @@ const TopBar: React.FC<TopBarProps> = ({
         };
     }, []);
 
+    // Only some sync services expose isTokenExpired.
+    const isTokenExpired = (svc: object): boolean =>
+        'isTokenExpired' in svc && !!svc.isTokenExpired;
+
     const handleSync = async () => {
         if (!activeService) return;
         const result = await activeService.sync();
@@ -67,8 +71,8 @@ const TopBar: React.FC<TopBarProps> = ({
             window.dispatchEvent(new CustomEvent('open-sync-conflict', {
                 detail: {
                     service: activeService.name.toLowerCase().replace(' ', ''),
-                    payload: (result as any).cloudPayload,
-                    reason: (result as any).reason
+                    payload: result.cloudPayload,
+                    reason: result.reason
                 }
             }));
         } else if (result && result.status === "success") {
@@ -136,13 +140,13 @@ const TopBar: React.FC<TopBarProps> = ({
 
             {showSyncButton && (
                 <Button
-                    variant={(activeService as any).isTokenExpired ? "destructive" : "ghost"}
+                    variant={isTokenExpired(activeService) ? "destructive" : "ghost"}
                     size="sm"
                     onClick={handleSync}
                     disabled={activeService.isSyncing}
                     className={cn(
-                        "flex-shrink-0 justify-center text-muted-foreground transition-colors duration-500 ease-in-out min-w-[150px]",
-                        (activeService as any).isTokenExpired && "bg-orange-500 hover:bg-orange-600 text-white",
+                        "flex-shrink-0 justify-center text-muted-foreground transition-colors duration-md3-short4 ease-md3-standard min-w-[150px]",
+                        isTokenExpired(activeService) && "bg-orange-500 hover:bg-orange-600 text-white",
                         justSynced && "bg-green-500 hover:bg-green-500 text-white"
                     )}
                 >
@@ -157,7 +161,7 @@ const TopBar: React.FC<TopBarProps> = ({
                         ? "Syncing..."
                         : justSynced
                             ? "Synced"
-                            : (activeService as any).isTokenExpired
+                            : isTokenExpired(activeService)
                                 ? "Session Expired"
                                 : "Sync"}
                 </Button>

@@ -26,23 +26,11 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
           if (isSigningIn) return;
           isSigningIn = true;
           // Attempt anonymous sign-in
-          supabase.auth.signInAnonymously().then(async ({ data, error }) => {
+          // The user_entitlements row is upserted by App.tsx once the session is set.
+          supabase.auth.signInAnonymously().then(({ data, error }) => {
             isSigningIn = false;
             if (!error && data.session) {
               setSession(data.session);
-
-              // Create a new user record in the public Users table
-              const { error: insertError } = await supabase
-                .from('Users')
-                .insert({
-                  user_id: data.session.user.id
-                });
-
-              if (insertError) {
-                console.error("Error creating user record:", insertError);
-              } else {
-                console.log("New user record created in public.Users");
-              }
             } else {
               console.error("Anonymous sign-in failed:", error);
             }

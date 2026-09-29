@@ -69,7 +69,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
           <DialogTitle className="text-xl font-semibold">
             {isSubmitted ? "Thank you!" : "Would you recommend the app?"}
           </DialogTitle>
-          <Button variant="ghost" size="icon" onClick={handleClose} className="h-8 w-8">
+          <Button variant="ghost" size="icon" onClick={handleClose} className="touch-target h-8 w-8">
             <X className="h-5 w-5" />
             <span className="sr-only">Close</span>
           </Button>
@@ -77,7 +77,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
 
         <div className="flex flex-col gap-6 py-4">
           {isSubmitted ? (
-            <div className="flex flex-col items-center gap-4 text-center animate-in fade-in zoom-in duration-300">
+            <div className="flex flex-col items-center gap-4 text-center animate-in fade-in zoom-in duration-md3-medium2 ease-md3-decelerate">
               <p className="text-lg">Thank you for your feedback!</p>
               {isMobile && (
                 <>
@@ -124,7 +124,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
               </div>
 
               {feedback && (
-                <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2">
+                <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 duration-md3-short4 ease-md3-standard-decelerate">
                   <label htmlFor="comments" className="text-sm font-medium">
                     {feedback === "happy"
                       ? "What do you like about it? (Optional)"

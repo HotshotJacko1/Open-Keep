@@ -24,15 +24,27 @@ function fail(err: unknown) {
 export function createServer(bridge: BridgeServer): McpServer {
   const server = new McpServer({ name: "open-keep", version: "0.1.0" });
 
+  // MCP tool annotations. Clients use these to group tools and set default
+  // permissions (Claude Desktop shows "Read-only tools" vs "Write/delete
+  // tools" based on readOnlyHint). Nothing here is truly destructive — every
+  // write is undoable in the app and delete_note is a soft delete — but tag
+  // renames/removals touch many notes at once, so those are flagged.
+  const READ = { readOnlyHint: true, openWorldHint: false } as const;
+  const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
+  const DESTRUCTIVE = { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false } as const;
+
+  type Annotations = typeof READ | typeof WRITE | typeof DESTRUCTIVE;
+
   const tool = (
     name: string,
     op: BridgeOp,
     description: string,
-    inputSchema: Record<string, z.ZodTypeAny>
+    inputSchema: Record<string, z.ZodTypeAny>,
+    annotations: Annotations
   ): void => {
     server.registerTool(
       name,
-      { title: name, description, inputSchema },
+      { title: name, description, inputSchema, annotations },
       async (params: Record<string, unknown>) => {
         try {
           return ok(await bridge.call(op, params));
@@ -49,21 +61,24 @@ export function createServer(bridge: BridgeServer): McpServer {
     "list_all_notes",
     "list_all_notes",
     "List all of the user's Open Keep notes as summaries (title, tags, pinned/archived, timestamps) — not full content. Deleted notes are excluded.",
-    {}
+    {},
+    READ
   );
 
   tool(
     "search_notes",
     "search_notes",
     "Search the user's Open Keep notes by text, matched against title and content.",
-    { query: z.string().min(1).describe("Text to search for") }
+    { query: z.string().min(1).describe("Text to search for") },
+    READ
   );
 
   tool(
     "get_note",
     "get_note",
     "Retrieve the full content of one Open Keep note by id.",
-    { id: z.string().describe("Note id, from list_all_notes or search_notes") }
+    { id: z.string().describe("Note id, from list_all_notes or search_notes") },
+    READ
   );
 
   tool(
@@ -74,7 +89,8 @@ export function createServer(bridge: BridgeServer): McpServer {
       title: z.string().min(1).describe("Note title"),
       content: z.string().default("").describe("Note body"),
       tags: z.array(z.string()).optional().describe('Extra tags, beyond the automatic "ai-created" tag'),
-    }
+    },
+    WRITE
   );
 
   tool(
@@ -85,28 +101,32 @@ export function createServer(bridge: BridgeServer): McpServer {
       id: z.string(),
       title: z.string().optional(),
       content: z.string().optional(),
-    }
+    },
+    WRITE
   );
 
   tool(
     "append_to_note",
     "append_to_note",
     "Add text to the end of an existing note.",
-    { id: z.string(), text: z.string().min(1) }
+    { id: z.string(), text: z.string().min(1) },
+    WRITE
   );
 
   tool(
     "prepend_to_note",
     "prepend_to_note",
     "Add text to the beginning of an existing note.",
-    { id: z.string(), text: z.string().min(1) }
+    { id: z.string(), text: z.string().min(1) },
+    WRITE
   );
 
   tool(
     "delete_note",
     "delete_note",
     "Move a note to the bin (soft delete) — recoverable from Open Keep's bin for 30 days, the same as deleting it by hand. This never permanently deletes a note.",
-    { id: z.string() }
+    { id: z.string() },
+    DESTRUCTIVE
   );
 
   // --- Tag commands ----------------------------------------------------
@@ -115,49 +135,56 @@ export function createServer(bridge: BridgeServer): McpServer {
     "list_tags",
     "list_tags",
     "List every tag currently used across the user's notes.",
-    {}
+    {},
+    READ
   );
 
   tool(
     "add_tags_to_note",
     "add_tags_to_note",
     "Add one or more tags to a note.",
-    { id: z.string(), tags: z.array(z.string()).min(1) }
+    { id: z.string(), tags: z.array(z.string()).min(1) },
+    WRITE
   );
 
   tool(
     "remove_tags_from_note",
     "remove_tags_from_note",
     "Remove one or more tags from a note.",
-    { id: z.string(), tags: z.array(z.string()).min(1) }
+    { id: z.string(), tags: z.array(z.string()).min(1) },
+    WRITE
   );
 
   tool(
     "rename_tag",
     "rename_tag",
     "Rename a tag everywhere it's used. Affects every note carrying it; each note is individually undo-able afterward.",
-    { from: z.string().describe("Current tag name"), to: z.string().describe("New tag name") }
+    { from: z.string().describe("Current tag name"), to: z.string().describe("New tag name") },
+    DESTRUCTIVE
   );
 
   tool(
     "delete_tag",
     "delete_tag",
     "Remove a tag from every note that carries it. Notes themselves are not touched beyond losing that one tag — this does not delete any notes.",
-    { tag: z.string() }
+    { tag: z.string() },
+    DESTRUCTIVE
   );
 
   tool(
     "get_notes_by_tag",
     "get_notes_by_tag",
     "List all notes (summaries) that carry a given tag.",
-    { tag: z.string() }
+    { tag: z.string() },
+    READ
   );
 
   tool(
     "get_tag_by_id",
     "get_tag_by_id",
     "Look up a tag by name. Open Keep tags are plain strings, not separate entities with their own IDs, so the tag name is used as its id.",
-    { id: z.string().describe("The tag name") }
+    { id: z.string().describe("The tag name") },
+    READ
   );
 
   return server;

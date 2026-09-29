@@ -8,8 +8,9 @@
 //
 // Kept as a hand-synced mirror of that package's src/protocol.ts rather
 // than a shared import, since the two live in separate deployables today.
-// If the types drift, the "hello"/"request"/"response" shapes below are
-// the ones that matter -- keep them identical on both sides.
+// If the types drift, the handshake block (BRIDGE_PROTOCOL_VERSION,
+// hello/challenge/auth/hello_ack, proofInput) and the "request"/"response"
+// shapes below are the ones that matter -- keep them identical on both sides.
 
 export interface NoteSummary {
   id: string;
@@ -73,20 +74,97 @@ export interface BridgeResponseErr {
 
 export type BridgeResponse = BridgeResponseOk | BridgeResponseErr;
 
+// --- Handshake (protocol v2) -----------------------------------------------
+//
+// Mutual challenge-response, so the pairing token itself never crosses the
+// wire and the tab never answers a process that can't prove it holds the
+// token too. (v1 sent the raw token in "hello" to whatever was listening on
+// the port, and trusted any hello_ack {ok:true} that came back.)
+//
+//   client -> server  hello     { protocolVersion, clientNonce }
+//   server -> client  challenge { protocolVersion, serverNonce,
+//                                 serverProof = HMAC(token, proofInput("server", ...)) }
+//   client            verifies serverProof; on failure closes WITHOUT sending
+//                     anything else and stops dialling that port
+//   client -> server  auth      { clientProof = HMAC(token, proofInput("client", ...)) }
+//   server -> client  hello_ack { ok } -- only after clientProof checks out
+//
+// Both proofs are bound to the port the connection is on (the client uses
+// the port it dialled, the server the port it bound). Only one process can
+// own 127.0.0.1:<port>, so a squatter on one port can't relay the handshake
+// to a genuine server on another port and pass its proof off as its own.
+// The "server"/"client" role labels stop one side's proof being reflected
+// back as the other's.
+
+/**
+ * Bump on ANY wire change, so mismatched peers fail with a clear
+ * "protocol_mismatch" rather than half-working. v1 (no version field) sent
+ * the token in the clear.
+ */
+export const BRIDGE_PROTOCOL_VERSION = 2;
+
+/** First message the client sends after connecting. Carries no secret. */
 export interface HelloMessage {
   type: "hello";
-  token: string;
+  protocolVersion: number;
+  /** 32 random bytes, lowercase hex. */
+  clientNonce: string;
   appVersion?: string;
 }
+
+/** Server's reply to hello: its own nonce plus proof that it holds the token. */
+export interface ChallengeMessage {
+  type: "challenge";
+  protocolVersion: number;
+  /** 32 random bytes, lowercase hex. */
+  serverNonce: string;
+  /** Lowercase hex HMAC-SHA256(token, proofInput("server", ...)). */
+  serverProof: string;
+}
+
+/** Client's proof, sent only after it has verified the server's. */
+export interface AuthMessage {
+  type: "auth";
+  /** Lowercase hex HMAC-SHA256(token, proofInput("client", ...)). */
+  clientProof: string;
+}
+
+/**
+ * Why a server ended the handshake:
+ *  - protocol_mismatch: the peer speaks a different BRIDGE_PROTOCOL_VERSION
+ *  - bad_proof: the client's proof didn't match this server's token
+ *  - bad_message: a malformed or out-of-order handshake message
+ * A v1 server answers a v2 hello with "bad_token".
+ */
+export type HelloAckReason = "protocol_mismatch" | "bad_proof" | "bad_message";
 
 export interface HelloAck {
   type: "hello_ack";
   ok: boolean;
-  reason?: string;
+  reason?: HelloAckReason | string;
+  protocolVersion?: number;
 }
 
-export type InboundMessage = HelloAck | BridgeRequest;
-export type OutboundMessage = HelloMessage | BridgeResponse;
+/** True for a 32-byte value in lowercase hex -- the shape of every nonce and proof. */
+export function isHex32(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
+}
+
+/**
+ * The exact bytes (UTF-8) each side HMACs with the pairing token as key.
+ * Must be byte-identical on both sides of the bridge.
+ */
+export function proofInput(
+  role: "server" | "client",
+  port: number,
+  clientNonce: string,
+  serverNonce: string
+): string {
+  return `openkeep-bridge/v${BRIDGE_PROTOCOL_VERSION}|${role}|127.0.0.1:${port}|${clientNonce}|${serverNonce}`;
+}
+
+export type InboundMessage = ChallengeMessage | HelloAck | BridgeRequest;
+export type OutboundMessage = HelloMessage | AuthMessage | BridgeResponse;
 
 export class BridgeError extends Error {
   code: BridgeErrorCode;

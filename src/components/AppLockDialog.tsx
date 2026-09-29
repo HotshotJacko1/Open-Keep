@@ -14,6 +14,21 @@ import { Input } from "@/components/ui/input";
 import { showSuccess, showError } from "@/utils/toast";
 import { Fingerprint, ShieldCheck, ArrowLeft, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useBackToClose } from "@/hooks/use-back-to-close";
+import { Capacitor } from "@capacitor/core";
+import { verifyEncryptionPin } from "@/lib/encryption-pin";
+import {
+    APP_LOCK_ENABLED_KEY,
+    BIOMETRICS_ENABLED_KEY,
+    getSessionPin,
+    hasAppLockPin,
+    isAppLockEnabled,
+    isEncryptionEnabled as readEncryptionEnabled,
+    setAppLockPin,
+    setSessionPin,
+    validateNewPin,
+    verifyAppLockPin,
+} from "@/lib/pin";
 
 interface AppLockDialogProps {
     isOpen: boolean;
@@ -31,6 +46,7 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
     const [newPin, setNewPin] = useState("");
     const [confirmPin, setConfirmPin] = useState("");
     const [currentPin, setCurrentPin] = useState("");
+    const [isConfirmingPin, setIsConfirmingPin] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -40,55 +56,31 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
             }).catch(() => setIsBiometricsAvailable(false));
 
             // Load statuses
-            setIsBiometricsEnabled(localStorage.getItem("app-biometrics-enabled") === "true");
-            setIsLaunchLockEnabled(localStorage.getItem("app-lock-enabled") === "true");
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- resets local form state each time the dialog opens (intentional)
+            setIsBiometricsEnabled(localStorage.getItem(BIOMETRICS_ENABLED_KEY) === "true");
+            setIsLaunchLockEnabled(isAppLockEnabled());
 
             // Reset sub-states
             setIsSettingPin(false);
             setIsChangingPin(false);
+            setIsConfirmingPin(false);
             setNewPin("");
             setConfirmPin("");
             setCurrentPin("");
         }
     }, [isOpen]);
 
-    useEffect(() => {
-        if (!isOpen) return;
+    useBackToClose("app-lock", isOpen, onClose);
 
-        window.history.pushState({ dialog: 'app-lock' }, "");
-
-        const handlePopState = (event: PopStateEvent) => {
-            if (event.state?.dialog === 'app-lock') return;
-            onClose();
-        };
-
-        window.addEventListener('popstate', handlePopState);
-
-        return () => {
-            window.removeEventListener('popstate', handlePopState);
-            if (window.history.state?.dialog === 'app-lock') {
-                window.history.back();
-            }
-        };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen]);
-
-    const handleSetPin = () => {
-        if (newPin.length < 4 || newPin.length > 6) {
-            showError("PIN must be 4-6 digits long");
-            return;
-        }
-        if (!/^\d+$/.test(newPin)) {
-            showError("PIN must contain only numbers");
-            return;
-        }
-        if (newPin !== confirmPin) {
-            showError("PINs do not match");
+    const handleSetPin = async () => {
+        const validationError = validateNewPin(newPin, confirmPin);
+        if (validationError) {
+            showError(validationError);
             return;
         }
 
-        localStorage.setItem("app-lock-passcode", newPin);
-        localStorage.setItem("app-lock-enabled", "true");
+        await setAppLockPin(newPin);
+        localStorage.setItem(APP_LOCK_ENABLED_KEY, "true");
         setIsLaunchLockEnabled(true);
         setIsSettingPin(false);
         setNewPin("");
@@ -97,14 +89,13 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
     };
 
     const handleChangePin = async () => {
-        const storedPasscode = localStorage.getItem("app-lock-passcode");
         const lockRemaining = getLockRemainingMs();
         if (lockRemaining > 0) {
             showError(`Too many attempts. Try again in ${formatLockRemaining(lockRemaining)}.`);
             return;
         }
 
-        if (currentPin !== storedPasscode) {
+        if (!(await verifyAppLockPin(currentPin))) {
             const state = recordFailedAttempt();
             showError(
                 state.locked
@@ -114,37 +105,15 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
             return;
         }
         clearFailedAttempts();
-        if (newPin.length < 4 || newPin.length > 6) {
-            showError("New PIN must be 4-6 digits long");
-            return;
-        }
-        if (!/^\d+$/.test(newPin)) {
-            showError("New PIN must contain only numbers");
-            return;
-        }
-        if (newPin !== confirmPin) {
-            showError("New PINs do not match");
-            return;
-        }
-        if (newPin === currentPin) {
-            showError("New PIN must be different from current PIN");
+        const validationError = validateNewPin(newPin, confirmPin, { currentPin, label: "New PIN" });
+        if (validationError) {
+            showError(validationError);
             return;
         }
 
-        localStorage.setItem("app-lock-passcode", newPin);
-
-        // Update biometrics credentials if enabled
-        if (isBiometricsEnabled && typeof NativeBiometric.setCredentials === 'function') {
-            try {
-                await NativeBiometric.setCredentials({
-                    username: "app-pin",
-                    password: newPin,
-                    server: "open-keep"
-                });
-            } catch (e) {
-                console.error("Failed to update biometrics credentials", e);
-            }
-        }
+        // Biometric unlock without encryption doesn't use a stored PIN, so there
+        // are no credentials to update here.
+        await setAppLockPin(newPin);
 
         setIsChangingPin(false);
         setCurrentPin("");
@@ -155,8 +124,18 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
 
     const handleToggleBiometrics = async (checked: boolean) => {
         if (checked) {
-            const pin = localStorage.getItem("app-passcode") || localStorage.getItem("app-lock-passcode");
-            if (!pin) {
+            // With encryption on, biometric unlock hands the encryption PIN to the
+            // unlock flow, so it has to be stored in the platform's secure store.
+            // It is no longer kept anywhere else, so ask for it if it hasn't been
+            // entered this session.
+            let pinForCredentials: string | null = null;
+            if (isEncryptionEnabled) {
+                pinForCredentials = getSessionPin();
+                if (!pinForCredentials) {
+                    setIsConfirmingPin(true);
+                    return;
+                }
+            } else if (!hasAppLockPin()) {
                 showError("Please set a PIN first");
                 setIsSettingPin(true);
                 return;
@@ -169,13 +148,12 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
                     subtitle: "",
                     description: "",
                 });
-                localStorage.setItem("app-biometrics-enabled", "true");
+                localStorage.setItem(BIOMETRICS_ENABLED_KEY, "true");
 
-                // Store PIN in secure storage for biometric unlock on native
-                if (typeof NativeBiometric.setCredentials === 'function') {
+                if (pinForCredentials && typeof NativeBiometric.setCredentials === 'function') {
                     await NativeBiometric.setCredentials({
                         username: "app-pin",
-                        password: pin,
+                        password: pinForCredentials,
                         server: "open-keep"
                     });
                 }
@@ -185,7 +163,7 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
 
                 // Also enable launch lock if biometrics is enabled
                 if (!isLaunchLockEnabled) {
-                    localStorage.setItem("app-lock-enabled", "true");
+                    localStorage.setItem(APP_LOCK_ENABLED_KEY, "true");
                     setIsLaunchLockEnabled(true);
                 }
             } catch (error) {
@@ -194,46 +172,68 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
                 setIsBiometricsEnabled(false);
             }
         } else {
-            localStorage.removeItem("app-biometrics-enabled");
+            localStorage.removeItem(BIOMETRICS_ENABLED_KEY);
             setIsBiometricsEnabled(false);
             showSuccess("Biometrics disabled");
         }
     };
 
+    const handleConfirmPin = async () => {
+        const lockRemaining = getLockRemainingMs();
+        if (lockRemaining > 0) {
+            showError(`Too many attempts. Try again in ${formatLockRemaining(lockRemaining)}.`);
+            return;
+        }
+        if (!(await verifyEncryptionPin(currentPin))) {
+            const state = recordFailedAttempt();
+            showError(
+                state.locked
+                    ? `Too many attempts. Try again in ${formatLockRemaining(state.remainingMs)}.`
+                    : "Incorrect PIN"
+            );
+            return;
+        }
+        clearFailedAttempts();
+        setSessionPin(currentPin);
+        setCurrentPin("");
+        setIsConfirmingPin(false);
+        await handleToggleBiometrics(true);
+    };
+
     const handleToggleLaunchLock = (checked: boolean) => {
         if (checked) {
-            const hasEncryptionPin = localStorage.getItem("app-passcode");
-            const hasAppLockPin = localStorage.getItem("app-lock-passcode");
-            
-            if (!hasEncryptionPin && !hasAppLockPin) {
+            if (!isEncryptionEnabled && !hasAppLockPin()) {
                 setIsSettingPin(true);
                 return;
             }
 
-            localStorage.setItem("app-lock-enabled", "true");
+            localStorage.setItem(APP_LOCK_ENABLED_KEY, "true");
             setIsLaunchLockEnabled(true);
             showSuccess("Launch lock enabled");
         } else {
-            localStorage.removeItem("app-lock-enabled");
+            localStorage.removeItem(APP_LOCK_ENABLED_KEY);
             showSuccess("Launch lock disabled");
 
             // Also disable biometrics if launch lock is disabled
             if (isBiometricsEnabled) {
-                localStorage.removeItem("app-biometrics-enabled");
+                localStorage.removeItem(BIOMETRICS_ENABLED_KEY);
                 setIsBiometricsEnabled(false);
             }
             setIsLaunchLockEnabled(false);
         }
     };
 
-    const isEncryptionEnabled = localStorage.getItem("app-passcode") !== null;
+    const isEncryptionEnabled = readEncryptionEnabled();
+    // In the browser there is nowhere safe to keep the key, so an encrypted vault
+    // always asks for its PIN at launch; the toggle can't turn that off.
+    const isLaunchLockForced = isEncryptionEnabled && !Capacitor.isNativePlatform();
 
     const renderContent = () => {
         if (isSettingPin) {
             return (
                 <>
                     <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
-                        <Button variant="ghost" size="icon" onClick={() => setIsSettingPin(false)} className="shrink-0 mt-0 h-8 w-8">
+                        <Button variant="ghost" size="icon" onClick={() => setIsSettingPin(false)} className="touch-target shrink-0 mt-0 h-8 w-8">
                             <ArrowLeft className="h-5 w-5 text-secondary" />
                             <span className="sr-only">Back</span>
                         </Button>
@@ -282,11 +282,51 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
             );
         }
 
+        if (isConfirmingPin) {
+            return (
+                <>
+                    <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
+                        <Button variant="ghost" size="icon" onClick={() => setIsConfirmingPin(false)} className="touch-target shrink-0 mt-0 h-8 w-8">
+                            <ArrowLeft className="h-5 w-5 text-secondary" />
+                            <span className="sr-only">Back</span>
+                        </Button>
+                        <DialogTitle>Confirm Your PIN</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <p className="text-sm text-muted-foreground">
+                            Enter your encryption PIN to turn on biometric unlock. It is kept in your device's secure storage so biometrics can unlock your notes.
+                        </p>
+                        <div className="flex flex-col gap-2">
+                            <Label htmlFor="confirm-current-pin">Encryption PIN</Label>
+                            <Input
+                                id="confirm-current-pin"
+                                type="password"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                value={currentPin}
+                                onChange={(e) => setCurrentPin(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && currentPin) {
+                                        handleConfirmPin();
+                                    }
+                                }}
+                                placeholder="Enter PIN"
+                                maxLength={6}
+                            />
+                        </div>
+                        <Button onClick={handleConfirmPin} disabled={!currentPin} className="w-full mt-2">
+                            Continue
+                        </Button>
+                    </div>
+                </>
+            );
+        }
+
         if (isChangingPin) {
             return (
                 <>
                     <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
-                        <Button variant="ghost" size="icon" onClick={() => setIsChangingPin(false)} className="shrink-0 mt-0 h-8 w-8">
+                        <Button variant="ghost" size="icon" onClick={() => setIsChangingPin(false)} className="touch-target shrink-0 mt-0 h-8 w-8">
                             <ArrowLeft className="h-5 w-5 text-secondary" />
                             <span className="sr-only">Back</span>
                         </Button>
@@ -348,7 +388,7 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
         return (
             <>
                 <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
-                    <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
+                    <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">
                         <ArrowLeft className="h-5 w-5 text-secondary" />
                         <span className="sr-only">Back</span>
                     </Button>
@@ -362,12 +402,15 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
                                 <Label htmlFor="launch-lock">Require PIN on Launch</Label>
                             </div>
                             <p className="text-xs text-muted-foreground">
-                                Lock the app every time it is opened
+                                {isLaunchLockForced
+                                    ? "Always on in the browser while encryption is enabled"
+                                    : "Lock the app every time it is opened"}
                             </p>
                         </div>
                         <Switch
                             id="launch-lock"
-                            checked={isLaunchLockEnabled}
+                            checked={isLaunchLockEnabled || isLaunchLockForced}
+                            disabled={isLaunchLockForced}
                             onCheckedChange={handleToggleLaunchLock}
                         />
                     </div>

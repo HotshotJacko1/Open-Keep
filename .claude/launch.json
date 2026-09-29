@@ -4,8 +4,26 @@
     {
       "name": "dev",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["exec", "vite", "--port", "8123", "--strictPort"],
+      "runtimeArgs": [
+        "exec",
+        "vite",
+        "--port",
+        "8123",
+        "--strictPort"
+      ],
       "port": 8123
+    },
+    {
+      "name": "dev-alt",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "exec",
+        "vite",
+        "--port",
+        "8124",
+        "--strictPort"
+      ],
+      "port": 8124
     }
   ]
 }

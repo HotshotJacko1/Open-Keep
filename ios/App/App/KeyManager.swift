@@ -254,14 +254,21 @@ class KeyManager {
         
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: key,
+            kSecAttrAccount as String: key
+        ]
+        let attributes: [String: Any] = [
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         ]
-        
-        SecItemDelete(query as CFDictionary)
-        let status = SecItemAdd(query as CFDictionary, nil)
-        
+
+        // Update in place so a failed write leaves the existing item intact.
+        // Delete-then-add would destroy the wrapped master key if the add failed.
+        var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            let addQuery = query.merging(attributes) { _, new in new }
+            status = SecItemAdd(addQuery as CFDictionary, nil)
+        }
+
         if status != errSecSuccess {
             throw NSError(domain: "KeyManager", code: Int(status), userInfo: [NSLocalizedDescriptionKey: "Keychain write failed"])
         }

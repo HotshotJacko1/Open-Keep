@@ -28,7 +28,6 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 import { readCustomTags } from "@/lib/custom-tags";
 import { useIsMobile } from "@/hooks/use-mobile";
 import TopBar from "@/components/TopBar";
-import { useSession } from '@/context/session-provider';
 import { BulbIcon } from "@/components/BulbIcon";
 
 import { showSuccess, showError } from "@/utils/toast";
@@ -38,7 +37,7 @@ import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { toggleCheckboxInContent } from "@/utils/markdown";
 import { addNotesToZip } from "@/utils/note-export";
-import { rescheduleAllReminders } from "@/utils/reminder";
+import { rescheduleAllReminders, syncReminderWithBin } from "@/utils/reminder";
 import { App as CapacitorApp } from "@capacitor/app";
 import { useWidgetDeepLink } from "@/hooks/use-widget-deep-link";
 import { useMcpBridge } from "@/hooks/use-mcp-bridge";
@@ -89,6 +88,7 @@ const Index = () => {
   
     // Sync selectedTag with URL search params
     useEffect(() => {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mirrors the ?tag= URL search param into state
       setSelectedTag(searchParams.get("tag"));
     }, [searchParams]);
   
@@ -100,12 +100,14 @@ const Index = () => {
           if (!widgetAction) return;
 
           if (widgetAction.type === "new-text") {
+            // eslint-disable-next-line react-hooks/immutability -- widget-action effect runs after render, when the handler is declared; reordering would change effect order
             handleNewTextNote();
             clearAction();
             return;
           }
 
           if (widgetAction.type === "new-list") {
+            // eslint-disable-next-line react-hooks/immutability -- widget-action effect runs after render, when the handler is declared; reordering would change effect order
             handleNewListNote();
             clearAction();
             return;
@@ -115,20 +117,8 @@ const Index = () => {
             // Wait until notes have loaded at least once before giving up.
             const note = notes.find((n) => n.id === widgetAction.noteId);
             if (note && !note.isDeleted) {
+              // eslint-disable-next-line react-hooks/immutability -- widget-action effect runs after render, when the handler is declared; reordering would change effect order
               handleEditNote(note);
-              clearAction();
-            } else if (notesLoadedRef.current) {
-              clearAction();
-            }
-            return;
-          }
-
-          if (widgetAction.type === "toggle-checkbox") {
-            // Same wait-for-load rule as open-note: toggling before the note exists
-            // in state would silently no-op and the tap would be lost.
-            const note = notes.find((n) => n.id === widgetAction.noteId);
-            if (note && !note.isDeleted) {
-              handleToggleListItem(note.id, `line-${widgetAction.lineIndex}`);
               clearAction();
             } else if (notesLoadedRef.current) {
               clearAction();
@@ -157,8 +147,6 @@ const Index = () => {
       )
     );
   };
-
-  const { session, supabase } = useSession();
 
   // Cloud Sync Hooks
   const googleDrive = useGoogleDrive();
@@ -231,8 +219,8 @@ const Index = () => {
         window.dispatchEvent(new CustomEvent("open-sync-conflict", {
           detail: {
             service: activeService.name.toLowerCase().replace(" ", ""),
-            payload: (syncResult as any).cloudPayload,
-            reason: (syncResult as any).reason
+            payload: syncResult.cloudPayload,
+            reason: syncResult.reason
           }
         }));
         setIsSettingsOpen(true);
@@ -455,8 +443,8 @@ const Index = () => {
           window.dispatchEvent(new CustomEvent("open-sync-conflict", {
             detail: {
               service: activeService.name.toLowerCase().replace(" ", ""),
-              payload: (syncResult as any).cloudPayload,
-              reason: (syncResult as any).reason
+              payload: syncResult.cloudPayload,
+              reason: syncResult.reason
             }
           }));
           setIsSettingsOpen(true); // Ensure settings is open so sync dialog can show
@@ -713,6 +701,7 @@ const Index = () => {
       };
 
       void saveNote(updatedNote);
+      void syncReminderWithBin(updatedNote);
       setTimeout(() => {
         setNotes((prevNotes) =>
           prevNotes.map((n) => (n.id === id ? updatedNote : n))
@@ -736,6 +725,7 @@ const Index = () => {
                 prevNotes.map((n) => (n.id === id ? restoredNote : n))
               );
               await saveNote(restoredNote);
+              await syncReminderWithBin(restoredNote);
             }
           }
         });
@@ -757,6 +747,7 @@ const Index = () => {
     };
 
     void saveNote(updatedNote);
+    void syncReminderWithBin(updatedNote);
     setTimeout(() => {
       setNotes((prevNotes) =>
         prevNotes.map((n) => (n.id === id ? updatedNote : n))
@@ -1124,6 +1115,7 @@ const Index = () => {
 
       handleClearSelection();
       void Promise.all(updates.map(n => saveNote(n)));
+      void Promise.all(updates.map(syncReminderWithBin));
 
       setTimeout(() => {
         setNotes(newNotes);
@@ -1148,6 +1140,7 @@ const Index = () => {
                 prevNotes.map((n) => restoredMap.get(n.id) || n)
               );
               await Promise.all(restoredNotes.map(n => saveNote(n)));
+              await Promise.all(restoredNotes.map(syncReminderWithBin));
             }
           }
         });
@@ -1184,6 +1177,7 @@ const Index = () => {
 
     handleClearSelection();
     void Promise.all(updates.map(n => saveNote(n)));
+    void Promise.all(updates.map(syncReminderWithBin));
 
     setTimeout(() => {
       setNotes(newNotes);
@@ -1360,7 +1354,7 @@ const Index = () => {
       onTouchEnd={handleTouchEnd}
       style={{
         transform: `translateY(${pullChange > 0 ? pullChange : 0}px)`,
-        transition: isRefreshing ? 'transform 0.2s ease-out' : pullChange === 0 ? 'transform 0.3s ease-out' : 'none',
+        transition: isRefreshing ? 'transform 200ms cubic-bezier(0.2, 0, 0, 1)' : pullChange === 0 ? 'transform 300ms cubic-bezier(0.05, 0.7, 0.1, 1)' : 'none',
         willChange: pullChange > 0 || isRefreshing ? 'transform' : 'auto',
       }}
     >
@@ -1380,7 +1374,7 @@ const Index = () => {
 
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-6 md:px-8 md:pb-8 md:pt-8"
+        className="flex-1 overflow-y-auto px-4 pt-4 sm:px-6 sm:pt-6 md:px-8 md:pt-8 pb-[calc(7rem+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))]"
       >
         {dbUnavailable && isWebReadFailed() && (
           <div className="bg-destructive/15 border border-destructive/30 rounded-lg p-4 mb-4 text-sm text-destructive dark:text-red-400">
@@ -1743,7 +1737,7 @@ const Index = () => {
                   className="relative z-20 flex-none bg-sidebar dark:bg-sidebar flex flex-col pt-4"
                   style={{ width: '60px' }}
                 >
-                  <div className="absolute top-0 left-0 h-full bg-sidebar dark:bg-sidebar border-r border-sidebar-border transition-all duration-300 ease-in-out overflow-hidden shadow-none hover:shadow-2xl flex flex-col z-30 group w-[60px] hover:w-64 pt-4">
+                  <div className="absolute top-0 left-0 h-full bg-sidebar dark:bg-sidebar border-r border-sidebar-border transition-[width,box-shadow] duration-md3-medium2 ease-md3-standard overflow-hidden shadow-none hover:shadow-2xl flex flex-col z-30 group w-[60px] hover:w-64 pt-4">
                     <SidebarNav
                       uniqueTags={uniqueTags}
                       onEditLabels={() => setIsEditLabelsOpen(true)}

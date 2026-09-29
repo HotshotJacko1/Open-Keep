@@ -17,19 +17,27 @@ import { FULL_BUILD_PLAY_URL, FULL_BUILD_GITHUB_URL } from "@/lib/build-flavor";
 
 import { Loader2, FolderSync, ArrowLeft, AlertCircle, Check } from "lucide-react";
 import { showSuccess, showError } from "@/utils/toast";
-import { loadNotes } from "@/lib/note-storage";
+import { loadNotes, verifyEncryptionPin, type SyncConflictReason, type SyncResult } from "@/lib/note-storage";
+import { disableEncryption } from "@/lib/encryption-pin";
+import { getSessionPin, isEncryptionEnabled, setCloudKeyCache, setCloudKeyPushPending, setSessionPin } from "@/lib/pin";
+import { useBackToClose } from "@/hooks/use-back-to-close";
 
 interface SyncDialogProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+type SyncService =
+  | ReturnType<typeof useGoogleDrive>
+  | ReturnType<typeof useOneDrive>
+  | ReturnType<typeof useDropbox>;
+
 const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
   const googleDrive = useGoogleDrive();
   const oneDrive = useOneDrive();
   const dropbox = useDropbox();
 
-  const [conflictData, setConflictData] = useState<{ activeService: any, cloudPayload: string, reason?: "key_mismatch" | "first_connect" } | null>(null);
+  const [conflictData, setConflictData] = useState<{ activeService: SyncService, cloudPayload: string, reason?: SyncConflictReason } | null>(null);
   const [providedPin, setProvidedPin] = useState("");
   const [localNotesCount, setLocalNotesCount] = useState<number | null>(null);
 
@@ -53,32 +61,12 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
     window.addEventListener('open-sync-conflict', handleGlobalConflict);
     return () => window.removeEventListener('open-sync-conflict', handleGlobalConflict);
   }, [oneDrive, dropbox, googleDrive]);
-  React.useEffect(() => {
-    if (!isOpen) return;
-
-    window.history.pushState({ dialog: 'sync' }, "");
-
-    const handlePopState = (event: PopStateEvent) => {
-      if (event.state?.dialog === 'sync') return;
-      if (conflictData) {
-        setConflictData(null);
-        // keep the dialog open, push state back
-        window.history.pushState({ dialog: 'sync' }, "");
-        return;
-      }
-      onClose();
-    };
-
-    window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      if (window.history.state?.dialog === 'sync') {
-        window.history.back();
-      }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  useBackToClose("sync", isOpen, onClose, () => {
+      // Back from the conflict view returns to the main sync view.
+      if (!conflictData) return false;
+      setConflictData(null);
+      return true;
+  });
 
   // Determine which service is active
   const activeService = useMemo(() => {
@@ -103,12 +91,72 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
     if (!activeService) return;
     const result = await activeService.sync();
     if (result && result.status === "conflict" && 'cloudPayload' in result) {
-      setConflictData({ activeService, cloudPayload: (result as any).cloudPayload, reason: (result as any).reason });
+      setConflictData({ activeService, cloudPayload: result.cloudPayload, reason: result.reason });
     } else if (result && result.status === "success") {
       if (justSyncedTimeoutRef.current) clearTimeout(justSyncedTimeoutRef.current);
       setJustSynced(true);
       justSyncedTimeoutRef.current = setTimeout(() => setJustSynced(false), 1200);
     }
+  };
+
+  const applyResult = (result: SyncResult | undefined, service: SyncService) => {
+    if (result?.status === "success") {
+      setConflictData(null);
+      setProvidedPin("");
+    } else if (result?.status === "conflict") {
+      setConflictData({ activeService: service, cloudPayload: result.cloudPayload, reason: result.reason });
+    }
+  };
+
+  // This device's own encryption PIN: from this session, or typed into the panel.
+  const getOwnPin = async (): Promise<string | null> => {
+    const sessionPin = getSessionPin();
+    if (sessionPin) return sessionPin;
+    const typed = providedPin.trim();
+    if (!typed) {
+      showError("Enter this device's encryption PIN");
+      return null;
+    }
+    if (!(await verifyEncryptionPin(typed))) {
+      showError("Incorrect PIN");
+      return null;
+    }
+    setSessionPin(typed);
+    return typed;
+  };
+
+  const syncWithOwnPin = async () => {
+    if (!conflictData) return;
+    const result = await conflictData.activeService.sync(undefined, undefined, providedPin.trim());
+    applyResult(result, conflictData.activeService);
+  };
+
+  // C2-22. Cloud encryption is one setting shared by every synced device, so the
+  // only choices are to match the other device or to put the PIN back for everyone.
+  const turnEncryptionOffHere = async () => {
+    if (!conflictData) return;
+    const pin = await getOwnPin();
+    if (pin === null) return;
+    try {
+      await disableEncryption(pin);
+    } catch (e) {
+      console.error(e);
+      showError("Failed to turn off encryption. Please try again.");
+      return;
+    }
+    showSuccess("Encryption turned off on this device");
+    applyResult(await conflictData.activeService.sync(), conflictData.activeService);
+  };
+
+  const reEnableForAllDevices = async () => {
+    if (!conflictData) return;
+    const pin = await getOwnPin();
+    if (pin === null) return;
+    // Treat the empty-PIN copy as this device's previous wrap, so the next sync
+    // replaces it with one under this PIN. Other devices then get asked for it.
+    setCloudKeyCache(conflictData.cloudPayload);
+    setCloudKeyPushPending(true);
+    applyResult(await conflictData.activeService.sync(), conflictData.activeService);
   };
 
   const resolveConflict = async (resolution: "local" | "cloud" | "merge") => {
@@ -124,8 +172,8 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
     } else if (result?.status === "conflict") {
       setConflictData({
         activeService: conflictData.activeService,
-        cloudPayload: (result as any).cloudPayload,
-        reason: (result as any).reason
+        cloudPayload: result.cloudPayload,
+        reason: result.reason
       });
     }
   };
@@ -134,7 +182,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="w-full h-full max-w-full sm:max-w-[425px] sm:h-auto sm:max-h-[85vh] sm:rounded-lg !rounded-none sm:!rounded-lg overflow-y-auto bg-background text-primary-foreground border-0 sm:border pt-[max(env(safe-area-inset-top,3.5rem),3.5rem)] sm:pt-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] px-6">
         <DialogHeader className="flex flex-row items-start gap-2 space-y-0 text-left">
-          <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
+          <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">
               <ArrowLeft className="h-5 w-5 text-secondary" />
               <span className="sr-only">Back</span>
           </Button>
@@ -163,7 +211,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                       showSuccess("Initiating Google Login...");
                       const result = await googleDrive.login();
                       if (result && result.status === "conflict" && 'cloudPayload' in result) {
-                        setConflictData({ activeService: googleDrive, cloudPayload: (result as any).cloudPayload, reason: (result as any).reason });
+                        setConflictData({ activeService: googleDrive, cloudPayload: result.cloudPayload, reason: result.reason });
                       }
                     }}
                     className="w-full justify-start"
@@ -196,6 +244,75 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                   <FolderSync className="mr-2 h-4 w-4" /> Sync with Dropbox
                 </Button>
               </div>
+            ) : conflictData?.reason === "pin_required" ? (
+              <div className="flex flex-col gap-4 py-2 border rounded-md p-4 bg-muted/50">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-amber-500" />
+                  <h3 className="font-semibold text-lg text-primary-foreground">Enter your PIN to sync</h3>
+                </div>
+                <p className="text-sm text-primary-foreground/90 leading-relaxed">
+                  Your notes are encrypted, and the key stored in {activeService.name} has changed since this device last checked it. Enter this device's encryption PIN to keep syncing.
+                </p>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={providedPin}
+                  onChange={e => setProvidedPin(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && providedPin) syncWithOwnPin(); }}
+                  placeholder="Encryption PIN"
+                  className="border rounded px-2 py-1 bg-background text-sm"
+                  autoFocus
+                />
+                <div className="flex flex-col gap-3 mt-2">
+                  <Button onClick={syncWithOwnPin} disabled={isAnySyncing || !providedPin}>
+                    {isAnySyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Sync
+                  </Button>
+                  <Button variant="ghost" onClick={() => setConflictData(null)} disabled={isAnySyncing}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : conflictData?.reason === "encryption_disabled_elsewhere" ? (
+              <div className="flex flex-col gap-4 py-2 border rounded-md p-4 bg-muted/50">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-amber-500" />
+                  <h3 className="font-semibold text-lg text-primary-foreground">Encryption was turned off on another device</h3>
+                </div>
+                <p className="text-sm text-primary-foreground/90 leading-relaxed">
+                  The copy in {activeService.name} is no longer protected by a PIN. Encryption applies to all your synced devices together, so choose one setting for all of them:
+                </p>
+                <ul className="text-sm text-primary-foreground/90 list-disc pl-5 space-y-1">
+                  <li><strong>Turn off here too:</strong> this device stops using a PIN, like the other one.</li>
+                  <li><strong>Turn back on for all devices:</strong> the cloud copy is protected with this device's PIN again. Your other devices will ask for it on their next sync.</li>
+                </ul>
+                {!getSessionPin() && (
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={providedPin}
+                    onChange={e => setProvidedPin(e.target.value)}
+                    placeholder="This device's encryption PIN"
+                    className="border rounded px-2 py-1 bg-background text-sm"
+                    autoFocus
+                  />
+                )}
+                <div className="flex flex-col gap-3 mt-2">
+                  <Button variant="outline" onClick={turnEncryptionOffHere} disabled={isAnySyncing}>
+                    {isAnySyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Turn Off Encryption Here Too
+                  </Button>
+                  <Button onClick={reEnableForAllDevices} disabled={isAnySyncing}>
+                    {isAnySyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Turn Encryption Back On for All Devices
+                  </Button>
+                  <Button variant="ghost" onClick={() => setConflictData(null)} disabled={isAnySyncing}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
             ) : conflictData ? (
               <div className="flex flex-col gap-4 py-2 border rounded-md p-4 bg-muted/50">
                 <div className="flex items-center gap-2 text-destructive">
@@ -218,7 +335,9 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                   <div className="flex flex-col gap-2 mt-2 p-3 bg-amber-500/10 border border-amber-500/50 rounded-md">
                     <Label className="text-amber-500">🔐 Cloud notes are encrypted</Label>
                     <p className="text-xs text-amber-600/90 mb-1">
-                      Enter the App Lock PIN you set on your other device to decrypt and restore your notes.
+                      {isEncryptionEnabled()
+                        ? "Enter the App Lock PIN you set on your other device to decrypt and restore your notes."
+                        : "These notes are protected by a PIN set on another device. Enter that PIN to keep syncing. This turns encryption on here too, with the same PIN. To keep this device without a PIN, disconnect sync here instead."}
                     </p>
                     <input 
                       type="password" 
@@ -287,7 +406,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                     onClick={handleSync}
                     disabled={isAnySyncing}
                     className={cn(
-                      "flex-1 text-primary-foreground transition-colors duration-500 ease-in-out",
+                      "flex-1 text-primary-foreground transition-colors duration-md3-short4 ease-md3-standard",
                       justSynced && "bg-green-500 hover:bg-green-500 border-green-500 text-white"
                     )}
                   >

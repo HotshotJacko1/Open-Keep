@@ -1,20 +1,33 @@
 import { WebSocketServer, WebSocket, type RawData } from "ws";
-import { randomUUID } from "node:crypto";
-import type {
-  BridgeOp,
-  BridgeRequest,
-  InboundMessage,
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import {
+  BRIDGE_PROTOCOL_VERSION,
+  isHex32,
+  proofInput,
+  type BridgeOp,
+  type BridgeRequest,
+  type ChallengeMessage,
+  type HelloAck,
+  type HelloAckReason,
+  type InboundMessage,
 } from "./protocol.js";
 
 const REQUEST_TIMEOUT_MS = 8000;
+/** A connection that hasn't finished the handshake by now is dropped. */
+const HANDSHAKE_TIMEOUT_MS = 10000;
+
+function hmacHex(token: string, input: string): string {
+  return createHmac("sha256", token).update(input, "utf8").digest("hex");
+}
 
 /** How many consecutive ports an instance will try before giving up. */
 export const PORT_SPAN = 5;
 
 export class BridgeNotConnectedError extends Error {
-  constructor() {
+  constructor(detail?: string) {
     super(
-      'Open Keep is not connected. Open app.openkeep.net in a browser and turn on "Let AI read/edit notes" in Settings > AI Assistant Access.'
+      'Open Keep is not connected. Open app.openkeep.net in a browser and turn on "Let AI read/edit notes" in Settings > AI Assistant Access.' +
+        (detail ? ` ${detail}` : "")
     );
     this.name = "BridgeNotConnectedError";
   }
@@ -76,6 +89,11 @@ export class BridgeServer {
   private wss: WebSocketServer | null = null;
   private socket: WebSocket | null = null;
   private readonly pending = new Map<string, PendingCall>();
+  /**
+   * Set when an app tab speaking another protocol version tried to pair, so
+   * a tool call can say "update one side" instead of a bare "not connected".
+   */
+  private sawProtocolMismatch = false;
 
   private boundPort: number | null = null;
   private listenError: NodeJS.ErrnoException | null = null;
@@ -128,8 +146,34 @@ export class BridgeServer {
     return this.boundPort;
   }
 
+  /**
+   * Runs the server half of the v2 handshake (see protocol.ts): answer the
+   * client's nonce with our own nonce plus proof we hold the token, then
+   * accept the connection only if the client's proof checks out. Nothing is
+   * sent to, or accepted from, the client beyond that until it has proven
+   * the token.
+   */
   private handleConnection(ws: WebSocket): void {
-    let authed = false;
+    let phase: "hello" | "auth" | "authed" | "closed" = "hello";
+    let clientNonce = "";
+    let serverNonce = "";
+    // Only ever called after a successful bind, so the port is known.
+    const port = this.boundPort as number;
+
+    const refuse = (reason: HelloAckReason) => {
+      phase = "closed";
+      clearTimeout(handshakeTimer);
+      const ack: HelloAck = { type: "hello_ack", ok: false, reason, protocolVersion: BRIDGE_PROTOCOL_VERSION };
+      ws.send(JSON.stringify(ack));
+      ws.close();
+    };
+
+    const handshakeTimer = setTimeout(() => {
+      if (phase !== "authed" && phase !== "closed") {
+        phase = "closed";
+        ws.close();
+      }
+    }, HANDSHAKE_TIMEOUT_MS);
 
     ws.on("message", (raw: RawData) => {
       let msg: InboundMessage;
@@ -138,14 +182,48 @@ export class BridgeServer {
       } catch {
         return;
       }
+      if (!msg || typeof msg !== "object") return;
 
-      if (msg.type === "hello") {
-        authed = msg.token === this.token;
-        ws.send(JSON.stringify({ type: "hello_ack", ok: authed, reason: authed ? undefined : "bad_token" }));
-        if (!authed) {
-          ws.close();
-          return;
+      if (phase === "closed") return;
+
+      if (phase === "hello") {
+        if (msg.type !== "hello") return refuse("bad_message");
+        if (msg.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+          this.sawProtocolMismatch = true;
+          process.stderr.write(
+            `[openkeep-mcp] refused an Open Keep tab speaking bridge protocol v${
+              typeof msg.protocolVersion === "number" ? msg.protocolVersion : 1
+            }; this server speaks v${BRIDGE_PROTOCOL_VERSION}. Update whichever side is older.
+`
+          );
+          return refuse("protocol_mismatch");
         }
+        if (!isHex32(msg.clientNonce)) return refuse("bad_message");
+        clientNonce = msg.clientNonce;
+        serverNonce = randomBytes(32).toString("hex");
+        const challenge: ChallengeMessage = {
+          type: "challenge",
+          protocolVersion: BRIDGE_PROTOCOL_VERSION,
+          serverNonce,
+          serverProof: hmacHex(this.token, proofInput("server", port, clientNonce, serverNonce)),
+        };
+        phase = "auth";
+        ws.send(JSON.stringify(challenge));
+        return;
+      }
+
+      if (phase === "auth") {
+        if (msg.type !== "auth" || !isHex32(msg.clientProof)) return refuse("bad_message");
+        const expected = Buffer.from(hmacHex(this.token, proofInput("client", port, clientNonce, serverNonce)), "hex");
+        const given = Buffer.from(msg.clientProof, "hex");
+        // isHex32 already fixed both at 32 bytes, so timingSafeEqual can't throw.
+        if (!timingSafeEqual(expected, given)) return refuse("bad_proof");
+
+        phase = "authed";
+        clearTimeout(handshakeTimer);
+        this.sawProtocolMismatch = false;
+        const ack: HelloAck = { type: "hello_ack", ok: true, protocolVersion: BRIDGE_PROTOCOL_VERSION };
+        ws.send(JSON.stringify(ack));
         // Only one client counts as "connected" at a time — a fresh
         // authenticated connection (e.g. the tab was reloaded) replaces
         // whatever was there before rather than stacking up.
@@ -153,8 +231,6 @@ export class BridgeServer {
         this.socket = ws;
         return;
       }
-
-      if (!authed) return;
 
       if (msg.type === "response") {
         const pending = this.pending.get(msg.id);
@@ -170,6 +246,8 @@ export class BridgeServer {
     });
 
     ws.on("close", () => {
+      phase = "closed";
+      clearTimeout(handshakeTimer);
       if (this.socket === ws) this.socket = null;
     });
   }
@@ -182,7 +260,13 @@ export class BridgeServer {
   async call(op: BridgeOp, params: Record<string, unknown>): Promise<unknown> {
     await this.ready;
     if (this.listenError) throw new BridgePortUnavailableError(this.ports, this.listenError);
-    if (!this.isConnected()) throw new BridgeNotConnectedError();
+    if (!this.isConnected()) {
+      throw new BridgeNotConnectedError(
+        this.sawProtocolMismatch
+          ? "An Open Keep tab did try to connect, but it speaks a different bridge protocol version than this MCP server. Update the Open Keep extension/MCP server, and reload the Open Keep tab."
+          : undefined
+      );
+    }
 
     const id = randomUUID();
     const request: BridgeRequest = { type: "request", id, op, params };

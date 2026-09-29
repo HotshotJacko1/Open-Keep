@@ -1,21 +1,18 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
+# Open Keep release rules (C6-04). R8 shrinks and optimises the release build.
 #
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# The libraries bring their own keep rules (the proguard.txt in each AAR), so none
+# are repeated here:
+#   - Capacitor keeps every Plugin subclass and its @PluginMethod methods, which
+#     covers NoteStoragePlugin and the plugins listed in capacitor.plugins.json.
+#   - SQLCipher keeps net.zetetic.database.** whole, for its JNI.
+#   - Room keeps RoomDatabase subclasses, which it finds by name (AppDatabase_Impl).
+#   - Glance keeps ActionCallback implementations by name. It instantiates them from
+#     the class name stored in a widget's PendingIntent, so ToggleCheckboxAction and
+#     CollectionToggleCheckboxAction must never be renamed or moved.
+# Read a library's proguard.txt before adding a rule for it here.
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
-
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# No renaming. The source is public under the AGPL, so obfuscation hides nothing,
+# and real names keep Sentry's Android stack traces readable without uploading a
+# mapping file for every build. Shrinking and optimisation still apply.
+-dontobfuscate
+-keepattributes SourceFile,LineNumberTable

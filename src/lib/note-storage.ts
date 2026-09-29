@@ -12,18 +12,51 @@ import {
   exportCloudMasterKeyWeb,
   importCloudMasterKeyWeb,
   verifyCloudMasterKeyMatchWeb,
-  canDecryptCloudMasterKeyWeb
+  canDecryptCloudMasterKeyWeb,
+  getMasterKeyForPinWeb,
+  hasV2KeyWeb
 } from "./web-crypto";
+import { isEncryptionEnabled } from "./pin";
 import { normalizeCloudMasterKeyPayload } from "./cloud-master-key";
 import { BODY_MAX, LIST_ITEM_MAX, LIST_ITEMS_MAX, TITLE_MAX } from './note-limits';
 import { CHECKBOX_REGEX } from '../utils/markdown';
 import { normalizeNoteColor } from './note-colors';
 
+/** A legacy list-note item, from before checklists moved into markdown content. */
+interface LegacyListItem {
+  content?: string;
+  isCompleted?: boolean;
+}
+
+/**
+ * A note record as persisted (localStorage JSON or a native plugin row).
+ * Loosely typed because rows can come from older app versions or native
+ * storage that stringifies fields; parseNote normalises it into a Note.
+ */
+export interface StoredNote {
+  id: string;
+  title?: string;
+  content?: string;
+  type?: string;
+  tags?: string | string[];
+  items?: string | LegacyListItem[];
+  isPinned?: unknown;
+  isArchived?: unknown;
+  isDeleted?: unknown;
+  deletedAt?: number | string;
+  createdAt?: number | string;
+  updatedAt?: number | string;
+  images?: unknown;
+  color?: unknown;
+  reminder?: number | string;
+  recurrence?: Note["recurrence"] | null;
+}
+
 export interface NoteStoragePlugin {
-  loadNotes(): Promise<{ notes: any[] }>;
-  saveNote(options: { note: any }): Promise<void>;
+  loadNotes(): Promise<{ notes: StoredNote[] }>;
+  saveNote(options: { note: StoredNote }): Promise<void>;
   deleteNote(options: { id: string }): Promise<void>;
-  migrateFromWeb(options: { notes: any[] }): Promise<void>;
+  migrateFromWeb(options: { notes: StoredNote[] }): Promise<void>;
   initialize(options: { key: string }): Promise<void>;
   checkStatus(): Promise<{ isConfigured: boolean; isLocked?: boolean }>;
   changeEncryptionKey(options: { oldPin: string; newPin: string }): Promise<void>;
@@ -62,7 +95,7 @@ const preserveCorrupt = (key: string, raw: string): boolean => {
   }
 };
 
-const webLoadNotes = (): any[] => {
+const webLoadNotes = (): StoredNote[] => {
   const json = localStorage.getItem(WEB_NOTES_KEY);
   if (json === null || json === "") return [];        // genuinely absent
   let parsed: unknown;
@@ -76,18 +109,18 @@ const webLoadNotes = (): any[] => {
   return parsed;
 };
 
-const webSaveAllNotes = (notes: any[]): void => {
+const webSaveAllNotes = (notes: StoredNote[]): void => {
   if (webReadFailed) throw new Error("Refusing to overwrite unreadable notes storage");
   try {
     localStorage.setItem(WEB_NOTES_KEY, JSON.stringify(notes));
   } catch (e) {                                        // G12, folded in — quota / private mode / blocked
     console.error("Failed to persist web notes", e);
-    throw new Error("Browser storage is full or unavailable; notes were not saved");
+    throw new Error("Browser storage is full or unavailable; notes were not saved", { cause: e });
   }
 };
 
 // Helper to parse tags safely
-const parseNote = (n: any): Note => {
+const parseNote = (n: StoredNote): Note => {
   let parsedTags: string[] = [];
   try {
     if (typeof n.tags === 'string') {
@@ -121,7 +154,7 @@ const parseNote = (n: any): Note => {
 
       if (Array.isArray(items)) {
         // Convert legacy items to checklist markdown
-        content = items.map((item: any) => {
+        content = items.map((item: LegacyListItem) => {
           const isChecked = item.isCompleted || false;
           const text = item.content || "";
           return `- [${isChecked ? 'x' : ' '}] ${text}`;
@@ -268,7 +301,7 @@ export const saveNote = async (note: Note, options?: { skipLimits?: boolean }): 
 
   if (!isNative) {
     const all = webLoadNotes();
-    const idx = all.findIndex((n: any) => n.id === finalNote.id);
+    const idx = all.findIndex((n) => n.id === finalNote.id);
     if (idx > -1) {
       all[idx] = finalNote;
     } else {
@@ -288,7 +321,7 @@ export const saveNote = async (note: Note, options?: { skipLimits?: boolean }): 
 
 export const deleteNote = async (id: string): Promise<void> => {
   if (!isNative) {
-    const all = webLoadNotes().filter((n: any) => n.id !== id);
+    const all = webLoadNotes().filter((n) => n.id !== id);
     webSaveAllNotes(all);
     return;
   }
@@ -296,14 +329,14 @@ export const deleteNote = async (id: string): Promise<void> => {
   await NoteStorage.deleteNote({ id });
 };
 
-export const migrateWebNotes = async (notes: any[]): Promise<void> => {
+export const migrateWebNotes = async (notes: StoredNote[]): Promise<void> => {
   // Pre-convert legacy web notes to the new format before sending migration
   const migratedNotes = notes.map(n => {
     let content = n.content || "";
     if (n.type === "list" || (n.items && Array.isArray(n.items))) {
       const items = n.items;
       if (Array.isArray(items)) {
-        content = items.map((item: any) => `- [${item.isCompleted ? 'x' : ' '}] ${item.content}`).join('\n');
+        content = items.map((item: LegacyListItem) => `- [${item.isCompleted ? 'x' : ' '}] ${item.content}`).join('\n');
       }
     }
 
@@ -318,7 +351,7 @@ export const migrateWebNotes = async (notes: any[]): Promise<void> => {
   if (!isNative) {
     // On web, merge migrated notes into the web storage
     const existing = webLoadNotes();
-    const existingIds = new Set(existing.map((n: any) => n.id));
+    const existingIds = new Set(existing.map((n) => n.id));
     for (const note of migratedNotes) {
       if (!existingIds.has(note.id)) {
         existing.push(note);
@@ -368,7 +401,7 @@ export const checkDatabaseStatus = async (): Promise<{ isConfigured: boolean; is
 };
 
 export const encryptData = async (data: string): Promise<string> => {
-  if (!localStorage.getItem("app-passcode")) {
+  if (!isEncryptionEnabled()) {
     return data;
   }
 
@@ -376,8 +409,11 @@ export const encryptData = async (data: string): Promise<string> => {
     try {
       return await encryptDataWeb(data);
     } catch (e) {
-      // If no master key is available (e.g., user is not locked and unencrypted), return as-is
-      if ((e as Error).message === "No master key available") return data;
+      // Encryption is on, so handing the input back would let a caller write it out
+      // unencrypted (every cloud uploader would have uploaded it as-is). Fail instead.
+      if ((e as Error).message === "No master key available") {
+        throw new Error("Encryption is on but the vault is locked; refusing to write unencrypted data", { cause: e });
+      }
       throw e;
     }
   }
@@ -449,6 +485,35 @@ export const changeEncryptionKey = async (oldPin: string, newPin: string): Promi
   } catch (error) {
     console.error("Error changing encryption key:", error);
     throw error;
+  }
+};
+
+/**
+ * True if `pin` unwraps this device's master key. This is the only PIN check:
+ * nothing is compared against a stored PIN, because none is stored.
+ *
+ * ⚠️ A pre-V2 native install (no wrapped key yet; the PIN-derived key IS the DB
+ * key) accepts any PIN here. migrateLegacyPins' native step upgrades those, and
+ * every unlock through initialize() upgrades too.
+ */
+export const verifyEncryptionPin = async (pin: string): Promise<boolean> => {
+  const effectivePin = getEffectivePin(pin);
+  if (!isNative) {
+    // Without a wrapped key the web fallback derives a key from any PIN; nothing
+    // is encrypted in that state, so there is nothing a PIN could be "right" for.
+    if (!hasV2KeyWeb()) return false;
+    try {
+      await getMasterKeyForPinWeb(effectivePin);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  try {
+    await NoteStorage.exportMasterKey({ pin: effectivePin });
+    return true;
+  } catch {
+    return false;
   }
 };
 
@@ -537,14 +602,24 @@ export const wipeDatabaseButKeepKeys = async (): Promise<void> => {
   }
 };
 
+/**
+ * - key_mismatch: the cloud key isn't unlocked by this device's PIN.
+ * - first_connect: same key, but this device hasn't synced with this cloud before.
+ * - pin_required: encryption is on, but the PIN hasn't been entered this session
+ *   and the cloud key has changed since it was last verified.
+ * - encryption_disabled_elsewhere: this device has a PIN, and the cloud key now
+ *   opens with the empty PIN, i.e. another device turned encryption off.
+ */
+export type SyncConflictReason = "key_mismatch" | "first_connect" | "pin_required" | "encryption_disabled_elsewhere";
+
 export type SyncResult = 
     | { status: "success" }
-    | { status: "conflict", cloudPayload: string, reason?: "key_mismatch" | "first_connect" }
+    | { status: "conflict", cloudPayload: string, reason?: SyncConflictReason }
     | { status: "error", message: string };
 
 // Legacy LocalStorage helpers
 const LOCAL_STORAGE_KEY = "markdown-notes-app";
-export const getLegacyWebNotes = (): any[] => {
+export const getLegacyWebNotes = (): StoredNote[] => {
   const json = localStorage.getItem(LOCAL_STORAGE_KEY);
   if (json === null || json === "") return [];
   let parsed: unknown;

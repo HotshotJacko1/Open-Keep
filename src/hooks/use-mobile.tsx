@@ -11,6 +11,7 @@ export function useIsMobile() {
 
   React.useEffect(() => {
     if (Capacitor.isNativePlatform()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- native platforms are always mobile; set once after mount
       setIsMobile(true);
       return;
     }

@@ -33,6 +33,7 @@ android {
         }
         create("fdroid") {
             dimension = "distribution"
+            proguardFile 'proguard-rules-fdroid.pro'
         }
     }
     // Only active when CI_KEYSTORE_PATH is set (GitHub Actions release builds --
@@ -52,7 +53,9 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled false
+            // R8: see proguard-rules.pro for what is kept and why.
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (System.getenv("CI_KEYSTORE_PATH")) {
                 signingConfig signingConfigs.release

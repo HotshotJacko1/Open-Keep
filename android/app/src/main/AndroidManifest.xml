@@ -32,8 +32,10 @@
                 <data android:scheme="openkeep" android:host="new-text" />
                 <data android:scheme="openkeep" android:host="new-list" />
                 <data android:scheme="openkeep" android:host="open-note" />
-                <data android:scheme="openkeep" android:host="toggle-checkbox" />
             </intent-filter>
+            <!-- Custom schemes can't be verified as App Links, so any app can send or
+                 intercept these. OAuth relies on PKCE + a single-use state param
+                 (see dropbox-oauth.ts); no host here may change note content. -->
 
         </activity>
 
@@ -112,7 +114,6 @@
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
     <!-- Photo support -->
-    <uses-permission android:name="android.permission.CAMERA" />
     <queries>
         <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService" />

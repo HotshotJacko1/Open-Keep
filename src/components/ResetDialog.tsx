@@ -17,19 +17,20 @@ interface ResetDialogProps {
     onOpenChange: (open: boolean) => void;
     onConfirm: () => void;
     isResetting: boolean;
-    isNativeEncryption?: boolean;
+    isEncryptionEnabled?: boolean;
 }
 
-const ResetDialog: React.FC<ResetDialogProps> = ({ isOpen, onOpenChange, onConfirm, isResetting, isNativeEncryption }) => {
+const ResetDialog: React.FC<ResetDialogProps> = ({ isOpen, onOpenChange, onConfirm, isResetting, isEncryptionEnabled }) => {
     const [confirmText, setConfirmText] = useState("");
 
     useEffect(() => {
         if (!isOpen) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- clears the confirmation text when the dialog closes (intentional)
             setConfirmText("");
         }
     }, [isOpen]);
 
-    const isDestructive = isNativeEncryption;
+    const isDestructive = isEncryptionEnabled;
     const canConfirm = isDestructive ? confirmText === "DELETE" : true;
 
     return (

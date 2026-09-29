@@ -28,6 +28,24 @@ export const isAnyCloudSyncing = (): boolean => {
     return Object.values(syncStateByProvider).some(Boolean);
 };
 
+/**
+ * A provider's last-synced time, read from `storageKey` and re-read whenever any
+ * sync fires "notes-updated" (another hook instance, or a sync from elsewhere).
+ */
+export const useLastSynced = (storageKey: string) => {
+    const [lastSynced, setLastSynced] = useState<string | null>(() => localStorage.getItem(storageKey));
+
+    useEffect(() => {
+        const handleNotesUpdated = () => {
+            setLastSynced(localStorage.getItem(storageKey));
+        };
+        window.addEventListener("notes-updated", handleNotesUpdated);
+        return () => window.removeEventListener("notes-updated", handleNotesUpdated);
+    }, [storageKey]);
+
+    return [lastSynced, setLastSynced] as const;
+};
+
 /** Shared syncing flag — all use*Drive/Dropbox hooks subscribe to the same state. */
 export const useCloudSyncState = (provider: CloudSyncProvider): boolean => {
     const [isSyncing, setIsSyncing] = useState(() => syncStateByProvider[provider]);

@@ -1,7 +1,7 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 
 import { Note } from "@/types/note";
-import { PublicClientApplication, Configuration, PopupRequest, NavigationClient, NavigationOptions, LogLevel, InteractionRequiredAuthError } from "@azure/msal-browser";
+import { PublicClientApplication, Configuration, PopupRequest, NavigationClient, NavigationOptions, LogLevel, InteractionRequiredAuthError, INetworkModule, NetworkRequestOptions, NetworkResponse } from "@azure/msal-browser";
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import { encryptData, decryptData } from "@/lib/note-storage";
@@ -18,20 +18,20 @@ export const REDIRECT_URI = Capacitor.isNativePlatform()
     ? "openkeep://auth"
     : (import.meta.env.VITE_ONEDRIVE_REDIRECT_URI || window.location.origin);
 
-class NativeNetworkClient {
-    async sendGetRequestAsync(url: string, options?: any): Promise<any> {
+class NativeNetworkClient implements INetworkModule {
+    async sendGetRequestAsync<T>(url: string, options?: NetworkRequestOptions): Promise<NetworkResponse<T>> {
         const response = await CapacitorHttp.get({
             url: url,
             headers: options?.headers,
         });
         return {
-            body: typeof response.data === 'string' && response.data ? JSON.parse(response.data) : response.data,
+            body: (typeof response.data === 'string' && response.data ? JSON.parse(response.data) : response.data) as T,
             headers: response.headers || {},
             status: response.status,
         };
     }
 
-    async sendPostRequestAsync(url: string, options?: any): Promise<any> {
+    async sendPostRequestAsync<T>(url: string, options?: NetworkRequestOptions): Promise<NetworkResponse<T>> {
         const headers = { ...(options?.headers || {}) };
         delete headers["Origin"];
         delete headers["origin"];
@@ -45,10 +45,12 @@ class NativeNetworkClient {
         let body = response.data;
         try {
             if (typeof body === 'string' && body) body = JSON.parse(body);
-        } catch (e) { }
+        } catch {
+            // Not JSON -- keep the raw string body.
+        }
 
         return {
-            body: body,
+            body: body as T,
             headers: response.headers || {},
             status: response.status,
         };
@@ -67,7 +69,7 @@ const msalConfig: Configuration = {
         storeAuthStateInCookie: false, // Set this to "true" if you are having issues on IE11 or Edge
     },
     system: {
-        ...(Capacitor.isNativePlatform() ? { networkClient: new NativeNetworkClient() as any } : {}),
+        ...(Capacitor.isNativePlatform() ? { networkClient: new NativeNetworkClient() } : {}),
         loggerOptions: {
             loggerCallback: (level, message, containsPii) => {
                 if (containsPii) return;
@@ -210,7 +212,7 @@ export const getGraphAccessToken = async () => {
 
 const GRAPH_ENDPOINT = "https://graph.microsoft.com/v1.0";
 
-const callGraphApi = async (endpoint: string, method: string = "GET", body?: any, contentType: string = "application/json") => {
+const callGraphApi = async (endpoint: string, method: string = "GET", body?: unknown, contentType: string = "application/json") => {
     const accessToken = await getGraphAccessToken();
     const headers: HeadersInit = {
         Authorization: `Bearer ${accessToken}`,
@@ -223,7 +225,7 @@ const callGraphApi = async (endpoint: string, method: string = "GET", body?: any
     const options: RequestInit = {
         method,
         headers,
-        body: body ? (contentType === "application/json" ? JSON.stringify(body) : body) : undefined,
+        body: body ? (contentType === "application/json" ? JSON.stringify(body) : (body as BodyInit)) : undefined,
     };
 
     const response = await fetch(`${GRAPH_ENDPOINT}${endpoint}`, options);
@@ -310,7 +312,7 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
             try {
                 result = JSON.parse(decryptedText);
             } catch (parseError) {
-                throw new Error("Cannot parse synced data. Your vault might be locked or the master key does not match.");
+                throw new Error("Cannot parse synced data. Your vault might be locked or the master key does not match.", { cause: parseError });
             }
         }
     } catch (e) {
@@ -325,9 +327,14 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
     if (Array.isArray(result)) {
         parsedNotes = result as Note[];
     } else if (result && typeof result === 'object' && 'notes' in result) {
-        parsedNotes = result.notes || [];
-        parsedTags = result.customTags || [];
-        parsedNoteImages = result.noteImages || {};
+        const payload = result as {
+            notes?: Note[];
+            customTags?: string[];
+            noteImages?: Record<string, Array<{id: string, data: string}>>;
+        };
+        parsedNotes = payload.notes || [];
+        parsedTags = payload.customTags || [];
+        parsedNoteImages = payload.noteImages || {};
     }
 
     for (const note of parsedNotes) {
@@ -376,7 +383,8 @@ const uploadNotes = async (folderId: string, notes: Note[], customTags: string[]
     });
 
     if (!response.ok) {
-        throw new Error("Failed to upload notes to OneDrive");
+        const detail = await response.text().catch(() => "");
+        throw new Error(`Failed to upload notes to OneDrive (${response.status}): ${detail}`);
     }
 };
 
@@ -397,7 +405,8 @@ const uploadMasterKey = async (payload: string, fileId: string | null) => {
     });
 
     if (!response.ok) {
-        throw new Error("Failed to upload master key to OneDrive");
+        const detail = await response.text().catch(() => "");
+        throw new Error(`Failed to upload master key to OneDrive (${response.status}): ${detail}`);
     }
 };
 
@@ -515,6 +524,29 @@ export const syncNotesWithOneDrive = async (
     await uploadNotes(folderId, mergedNotes, mergedTags, fileId);
 
     return { notes: mergedNotes, customTags: mergedTags };
+};
+
+/**
+ * Deletes the files the app writes (notes + wrapped master key) from the app folder.
+ * Silent-token only: this runs inside a destructive reset, where a sign-in popup would
+ * be out of place, so an account that needs interaction is left alone (throws).
+ */
+export const deleteRemoteData = async (): Promise<void> => {
+    await initOneDrive();
+    const account = msalInstance.getActiveAccount();
+    if (!account) return;
+
+    const { accessToken } = await msalInstance.acquireTokenSilent({ ...loginRequest, account });
+    for (const name of [NOTES_FILE_NAME, ENCRYPTED_KEY_FILE_NAME]) {
+        const response = await fetch(`${GRAPH_ENDPOINT}/me/drive/special/approot:/${name}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!response.ok && response.status !== 404) {
+            const detail = await response.text().catch(() => "");
+            throw new Error(`Failed to delete ${name} from OneDrive (${response.status}): ${detail}`);
+        }
+    }
 };
 
 export const logoutFromOneDrive = async () => {

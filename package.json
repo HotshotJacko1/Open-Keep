@@ -11,7 +11,7 @@
     "build": "tsc -b && vite build",
     "build:dev": "tsc -b && vite build --mode development",
     "typecheck": "tsc -b",
-    "lint": "eslint .",
+    "lint": "node scripts/sync-version.cjs --check && eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -92,7 +92,7 @@
     "postcss": "^8.5.26",
     "tailwindcss": "^3.4.11",
     "typescript": "^5.5.3",
-    "typescript-eslint": "^8.0.1",
+    "typescript-eslint": "^8.70.1",
     "vite": "^8.2.1"
   }
 }

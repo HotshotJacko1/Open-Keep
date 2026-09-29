@@ -83,6 +83,7 @@ import { CustomLink, HardBreakOnEnter, LINK_OPTIONS } from "@/lib/editor-extensi
 import { LinkHighlightedTextarea } from "@/components/LinkHighlightedTextarea"
 import { TITLE_MAX, BODY_MAX, LIST_ITEM_MAX, LIST_ITEMS_MAX } from "../lib/note-limits"
 import { serializeNoteToMarkdown } from "@/utils/note-markdown-format";
+import { useBackToClose } from "@/hooks/use-back-to-close";
 
 interface NoteEditorProps {
     isOpen: boolean;
@@ -143,6 +144,7 @@ const useItemLineBreaks = (
     onMultilineText?: (id: string, fullText: string, caret: number) => void,
 ) => {
     const handlersRef = useRef({ itemId, onEnter, onMultilineText });
+    // eslint-disable-next-line react-hooks/refs -- latest-value ref: keeps stable callbacks pointed at current handlers
     handlersRef.current = { itemId, onEnter, onMultilineText };
 
     useEffect(() => {
@@ -695,41 +697,19 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         fullscreenImageSrcRef.current = fullscreenImageSrc;
     }, [fullscreenImageSrc]);
 
-    // Mobile Back Button Handling
-    useEffect(() => {
-        if (!isMobile || !isOpen) return;
-
-        // Push state when opening on mobile
-        window.history.pushState({ dialog: 'note-editor' }, "");
-
-        const handlePopState = (event: PopStateEvent) => {
-            if (fullscreenImageSrcRef.current) {
-                setFullscreenImageSrc(null);
-                window.history.pushState({ dialog: 'note-editor' }, "");
-            } else if (isLabelsOpenRef.current) {
-                setIsLabelsOpen(false);
-                window.history.pushState({ dialog: 'note-editor' }, "");
-            } else if (isReminderSheetOpenRef.current) {
-                setIsReminderSheetOpen(false);
-                window.history.pushState({ dialog: 'note-editor' }, "");
-            } else {
-                // If the user presses back, close the editor
-                handleCloseEditorRef.current();
-            }
-        };
-
-        window.addEventListener('popstate', handlePopState);
-
-        return () => {
-            window.removeEventListener('popstate', handlePopState);
-            // If we are closing normally (not via back button), we might need to clean up the history state
-            // to avoid leaving a "forward" state that does nothing.
-            // Check if our state is still top of stack.
-            if (window.history.state?.dialog === 'note-editor') {
-                window.history.back();
-            }
-        };
-    }, [isOpen, isMobile]);
+    // Mobile back button: close the innermost open panel first, then the editor.
+    useBackToClose("note-editor", isMobile && isOpen, () => handleCloseEditorRef.current(), () => {
+        if (fullscreenImageSrcRef.current) {
+            setFullscreenImageSrc(null);
+        } else if (isLabelsOpenRef.current) {
+            setIsLabelsOpen(false);
+        } else if (isReminderSheetOpenRef.current) {
+            setIsReminderSheetOpen(false);
+        } else {
+            return false;
+        }
+        return true;
+    });
 
 
     const editor = useEditor({
@@ -774,6 +754,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             isClosingRef.current = false; // Reset close lock when (re-)opening
             if (initialNote) {
                 noteIdRef.current = initialNote.id;
+                // eslint-disable-next-line react-hooks/set-state-in-effect -- loads the note into editor state when the editor opens (intentional)
                 setTitle(initialNote.title);
                 setContent(initialNote.content);
                 setTags(initialNote.tags.join(", "));
@@ -1542,6 +1523,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         }
         onClose();
     };
+    // eslint-disable-next-line react-hooks/refs -- latest-value ref: keeps stable callbacks pointed at the current close handler
     handleCloseEditorRef.current = handleCloseEditor;
 
     const checklistDisplay = groupChecklistForDisplay(checklistItems);
@@ -1753,7 +1735,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
             <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseEditor()}>
                 <DialogContent
-                    className={cn("note-editor-dialog", isNoteTinted(color) && "note-tinted", "fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:bottom-auto sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-auto sm:max-h-[90vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-lg flex flex-col p-0 gap-0 bg-note-editor-background dark:bg-note-editor-background text-black dark:text-white pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:pb-0 outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 origin-center data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-300 data-[state=open]:ease-md3-decelerate data-[state=closed]:ease-md3-accelerate")}
+                    className={cn("note-editor-dialog", isNoteTinted(color) && "note-tinted", "fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:bottom-auto sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-auto sm:max-h-[90vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-lg flex flex-col p-0 gap-0 bg-note-editor-background dark:bg-note-editor-background text-black dark:text-white pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:pb-0 outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 origin-center data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:duration-md3-medium2 data-[state=closed]:duration-md3-short4 data-[state=open]:ease-md3-decelerate data-[state=closed]:ease-md3-accelerate")}
                     style={{
                         ...(isMobile ? {
                             '--tw-enter-translate-x': '0',
@@ -1945,7 +1927,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         {reminder && (
                             <button
                                 id="reminder-chip"
-                                className="inline-flex items-center gap-1.5 mb-3 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
+                                className="press-feedback inline-flex items-center gap-1.5 mb-3 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
                                 onClick={() => setIsReminderSheetOpen(true)}
                                 disabled={isDeleted}
                             >
@@ -1966,6 +1948,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                         items={checklistDisplay.unchecked.flatMap(row => row.kind === 'item' ? [row.item.id] : [])}
                                         strategy={verticalListSortingStrategy}
                                     >
+                                        {/* eslint-disable-next-line react-hooks/refs -- leading stray lines are kept in a ref alongside checklist state, which re-renders on change */}
                                         {renderStrayLines(null, leadingLinesRef.current, false)}
                                         {checklistDisplay.unchecked.map((row) => row.kind === 'parent' ? (
                                             <ParentHeaderRow key={`parent-${row.item.id}`} item={row.item} />

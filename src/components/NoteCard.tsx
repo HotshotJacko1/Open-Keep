@@ -89,6 +89,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
     if (note.images && note.images.length > 0) {
       getImageSrc(note.images[0]).then(setBannerSrc).catch(() => setBannerSrc(null));
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clears the banner when the note has no images; the other branch sets it async
       setBannerSrc(null);
     }
   }, [note.images]);
@@ -98,7 +99,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
       style={getNoteTintVars(note.color) as React.CSSProperties | undefined}
       className={cn(
         isNoteTinted(note.color) && "note-tinted",
-        "note-card group block w-full max-w-full relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-card dark:bg-card text-secondary-foreground cursor-pointer border-2 border-input select-none",
+        "note-card press-feedback group block w-full max-w-full relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-card dark:bg-card text-secondary-foreground cursor-pointer border-2 border-input select-none",
         isSelected && "border-secondary-foreground shadow-lg bg-card",
         note.isDeleted && "opacity-75",
         isExiting && "animate-note-exit"
@@ -186,7 +187,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                   className="h-6 w-6 shrink-0 p-0"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onToggleListItem && onToggleListItem(note.id, item.id);
+                    onToggleListItem?.(note.id, item.id);
                   }}
                   disabled={isSelectionMode}
                 >
@@ -216,7 +217,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
               {checkedItemCount > 0 && (
                 <>
                   <button
-                    className="flex items-center gap-2 w-full py-1.5 mt-1 text-xs text-muted-foreground hover:text-secondary-foreground transition-colors duration-150"
+                    className="press-feedback flex items-center gap-2 w-full py-1.5 mt-1 text-xs text-muted-foreground hover:text-secondary-foreground transition-colors duration-150"
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowCompleted(prev => !prev);
@@ -259,6 +260,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
         {note.reminder && (
           <div className={cn(
             "mt-2 inline-flex items-center gap-1 text-xs rounded-full px-2 py-0.5",
+            // eslint-disable-next-line react-hooks/purity -- overdue styling is evaluated at render time by design
             note.reminder > Date.now()
               ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
               : "bg-muted text-muted-foreground line-through"

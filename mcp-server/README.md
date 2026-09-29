@@ -47,7 +47,13 @@ npm run pack:mcpb   # builds the distributable bundle -> build/open-keep.mcpb
 Open Keep tab and answers with canned data. It covers: the "not connected" error
 before anything is paired, a read + write + delete round trip once it is,
 bridge-side errors surfacing as MCP tool errors, all 15 tools being registered,
-and a wrong token being rejected and disconnected. 28 assertions.
+the v2 pairing handshake (a wrong client proof, an out-of-order message and a v1
+client are all refused), and -- by transpiling the app's real
+`src/lib/mcp-bridge/bridge-client.ts` -- that the app never sends a server that
+can't prove the token anything derived from it, never serves it a request, and
+stops dialling it, and that it pairs with the real server. 61 assertions. It uses
+ports 18421+ / 18531+, so an installed copy of the extension on 8420+ doesn't
+interfere.
 
 ## Releasing
 
@@ -67,7 +73,7 @@ can't be verified. `npx mcpb sign` can fix that given a code-signing certificate
 | Path | What it is |
 | --- | --- |
 | `src/protocol.ts` | Wire types shared with the app. Mirrored by hand in `src/lib/mcp-bridge/protocol.ts` — keep the two in step. |
-| `src/bridge-server.ts` | The WebSocket listener, token check, and request/response correlation. |
+| `src/bridge-server.ts` | The WebSocket listener, the challenge-response handshake (the token never goes on the wire), and request/response correlation. |
 | `src/server.ts` | Registers the 15 MCP tools; each one forwards to the bridge. |
 | `src/config.ts` | Token and port resolution. |
 | `src/index.ts` | Entry point. |

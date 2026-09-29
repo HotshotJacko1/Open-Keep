@@ -306,7 +306,7 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
         const { body: text } = await driveRequest("GET", `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
             headers: { Authorization: `Bearer ${token}` },
         });
-        let result: any;
+        let result: unknown;
         try {
             result = JSON.parse(text);
         } catch {
@@ -324,7 +324,7 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
                 try {
                     result = JSON.parse(decryptedText);
                 } catch (parseError) {
-                    throw new Error("Cannot parse synced data. Your vault might be locked or the master key does not match.");
+                    throw new Error("Cannot parse synced data. Your vault might be locked or the master key does not match.", { cause: parseError });
                 }
             }
         } catch (e) {
@@ -344,7 +344,7 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
                         try {
                             result = JSON.parse(decryptedText);
                         } catch (parseError) {
-                            throw new Error("Cannot parse synced data. Your vault might be locked or the master key does not match.");
+                            throw new Error("Cannot parse synced data. Your vault might be locked or the master key does not match.", { cause: parseError });
                         }
                     } else {
                         throw e;
@@ -365,9 +365,14 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
         if (Array.isArray(result)) {
             parsedNotes = result as unknown as Note[];
         } else if (result && typeof result === 'object' && 'notes' in result) {
-            parsedNotes = result.notes || [];
-            parsedTags = result.customTags || [];
-            parsedNoteImages = result.noteImages || {};
+            const payload = result as {
+                notes?: Note[];
+                customTags?: string[];
+                noteImages?: Record<string, Array<{id: string, data: string}>>;
+            };
+            parsedNotes = payload.notes || [];
+            parsedTags = payload.customTags || [];
+            parsedNoteImages = payload.noteImages || {};
         }
 
         for (const note of parsedNotes) {
@@ -377,8 +382,8 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
         }
 
         return { notes: parsedNotes, customTags: parsedTags };
-    } catch (error: any) {
-        if (error.message && error.message.includes("Cannot parse synced data")) {
+    } catch (error: unknown) {
+        if ((error as Error).message && (error as Error).message.includes("Cannot parse synced data")) {
             // Suppress error log for locked vault
         } else {
             console.error("Error downloading notes:", formatDriveError(error));
@@ -525,8 +530,8 @@ export const syncNotesWithDrive = async (
                 const remoteData = await downloadNotes(fileId);
                 remoteNotes = remoteData.notes;
                 remoteCustomTags = remoteData.customTags || [];
-            } catch (e: any) {
-                if (e.message && e.message.includes("Cannot parse synced data")) {
+            } catch (e: unknown) {
+                if ((e as Error).message && (e as Error).message.includes("Cannot parse synced data")) {
                     // Expected when vault is locked, no noisy error
                 } else {
                     console.error("Could not download/parse remote notes, aborting sync to prevent data loss", e);

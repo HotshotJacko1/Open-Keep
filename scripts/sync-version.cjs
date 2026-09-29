@@ -33,6 +33,20 @@ const marketingVersionRegex = /MARKETING_VERSION\s*=\s*[^;]+;/g;
 
 if (!marketingVersionRegex.test(pbxprojContent)) {
   console.warn('MARKETING_VERSION not found in project.pbxproj.');
+} else if (process.argv.includes('--check')) {
+  // --check: report drift without writing, so lint/CI can fail a commit whose
+  // iOS version lags build.gradle (prebuild only fixes it at build time).
+  const stale = [...pbxprojContent.matchAll(/MARKETING_VERSION\s*=\s*([^;]+);/g)]
+    .map((m) => m[1].trim())
+    .filter((v) => v !== versionName);
+  if (stale.length > 0) {
+    console.error(
+      `iOS MARKETING_VERSION (${[...new Set(stale)].join(', ')}) does not match Android versionName ${versionName}. ` +
+        'Run `node scripts/sync-version.cjs` and commit project.pbxproj.'
+    );
+    process.exit(1);
+  }
+  console.log(`iOS MARKETING_VERSION matches Android versionName ${versionName}`);
 } else {
   pbxprojContent = pbxprojContent.replace(marketingVersionRegex, `MARKETING_VERSION = ${versionName};`);
   fs.writeFileSync(pbxprojPath, pbxprojContent, 'utf8');

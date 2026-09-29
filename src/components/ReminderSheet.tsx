@@ -31,6 +31,7 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resets local form state each time the dialog opens (intentional)
       setRepeatType(currentRecurrence);
       if (currentRecurrence?.type === 'custom') {
         setCustomInterval(currentRecurrence.interval || 1);
@@ -86,8 +87,10 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
       {/* Backdrop */}
       <div
         className={cn(
-          "fixed inset-0 z-[100] bg-black/40 transition-opacity duration-300 reminder-sheet-backdrop",
-          isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+          "fixed inset-0 z-[100] bg-black/[0.32] transition-opacity reminder-sheet-backdrop",
+          isOpen
+            ? "opacity-100 pointer-events-auto duration-md3-medium2 ease-md3-decelerate"
+            : "opacity-0 pointer-events-none duration-md3-short4 ease-md3-accelerate"
         )}
         onClick={onClose}
         aria-hidden="true"
@@ -100,9 +103,15 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
         aria-label="Set reminder"
         className={cn(
           "fixed bottom-0 left-0 right-0 z-[110] bg-background dark:bg-[#202124] rounded-t-2xl shadow-2xl",
-          "transition-all duration-300 ease-out",
+          // Slides only (no fade), per M3 bottom sheets. Visibility is transitioned
+          // too so the sheet flips hidden only after sliding out: that keeps its
+          // shadow from peeking above the screen edge and its buttons out of the
+          // tab order while closed.
+          "transition-[transform,visibility]",
           "pb-[env(safe-area-inset-bottom)]",
-          isOpen ? "translate-y-0 opacity-100 pointer-events-auto" : "translate-y-full opacity-0 pointer-events-none"
+          isOpen
+            ? "visible translate-y-0 pointer-events-auto duration-md3-medium2 ease-md3-decelerate"
+            : "invisible translate-y-full pointer-events-none duration-md3-short4 ease-md3-accelerate"
         )}
       >
         {/* Handle */}
@@ -119,7 +128,7 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
             </span>
             <button 
               onClick={onClose} 
-              className="h-8 w-8 flex items-center justify-center hover:bg-muted dark:hover:bg-white/5 rounded-full transition-colors"
+              className="touch-target press-feedback h-8 w-8 flex items-center justify-center hover:bg-muted dark:hover:bg-white/5 rounded-full transition-colors"
             >
               <X className="h-4 w-4 text-muted-foreground" />
             </button>
@@ -131,7 +140,7 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
               <li key={option.label}>
                 <button
                   id={`reminder-option-${option.label.toLowerCase().replace(/\s+/g, "-")}`}
-                  className="w-full flex items-center gap-4 py-3.5 px-1 hover:bg-muted/50 dark:hover:bg-white/5 rounded-lg transition-colors text-left"
+                  className="press-feedback w-full flex items-center gap-4 py-3.5 px-1 hover:bg-muted/50 dark:hover:bg-white/5 rounded-lg transition-colors text-left"
                   onClick={() => handleOptionClick(option)}
                 >
                   {option.ts === null ? (
@@ -179,7 +188,7 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
 
                 {/* Custom Repeat Fields */}
                 {repeatType?.type === 'custom' && (
-                  <div className="ml-9 flex items-center gap-2 py-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div className="ml-9 flex items-center gap-2 py-2 animate-in fade-in slide-in-from-top-1 duration-md3-short4 ease-md3-standard-decelerate">
                     <span className="text-xs text-muted-foreground">Repeat every</span>
                     <input
                       type="number"
@@ -190,7 +199,7 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
                     />
                     <select
                       value={customUnit}
-                      onChange={(e) => setCustomUnit(e.target.value as any)}
+                      onChange={(e) => setCustomUnit(e.target.value as NonNullable<Note['recurrence']>['unit'])}
                       className="bg-transparent text-xs text-muted-foreground focus:outline-none cursor-pointer"
                     >
                       <option value="day">day{customInterval !== 1 ? 's' : ''}</option>
@@ -208,7 +217,7 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
               <li>
                 <button
                   id="reminder-remove"
-                  className="w-full flex items-center gap-4 py-3.5 px-1 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors text-left"
+                  className="press-feedback w-full flex items-center gap-4 py-3.5 px-1 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors text-left"
                   onClick={handleRemove}
                 >
                   <X className="h-5 w-5 text-red-500 shrink-0" />

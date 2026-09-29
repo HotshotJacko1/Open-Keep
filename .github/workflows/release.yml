@@ -14,7 +14,7 @@ name: Release APKs
 # check downloads OpenKeep-<version>-fdroid.apk from the release, rebuilds the
 # same commit itself, and only publishes if the two match byte-for-byte.
 # So the fdroid build below must stay identical to the recipe in fdroiddata
-# (metadata/com.jackbarkerapps.openkeep.yml): same Node version, built first
+# (metadata/com.jackbarkerapps.openkeep.yml): same Node version (.nvmrc), built first
 # from a clean checkout, VITE_APP_FLAVOR=fdroid for both the web build and
 # `cap sync`. Change one, change the other.
 
@@ -40,13 +40,16 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22.23.2"
+          node-version-file: ".nvmrc"
 
       - name: Enable Corepack (uses the pnpm version pinned in package.json)
         run: corepack enable
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
 
       - name: Decode signing keystore
         run: echo "${{ secrets.PLAY_KEYSTORE_BASE64 }}" | base64 -d > android/app/release-signing.jks

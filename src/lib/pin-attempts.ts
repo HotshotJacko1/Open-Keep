@@ -1,13 +1,14 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 //
-// Failed-PIN throttling, shared by LockScreen, AppLockDialog and ChangePinDialog.
+// Failed-PIN throttling, shared by LockScreen, AppLockDialog, ChangePinDialog
+// and DisableEncryptionDialog.
 //
 // Scope, deliberately: this defends against someone thumbing PINs into a device
 // they picked up. It does NOT defend against an offline attack on the vault --
 // `encrypted_master_key_v2` and `kdf_salt` are readable in localStorage, so an
 // attacker with that blob brute-forces outside the UI entirely. Raising the KDF
-// iteration count is the fix for that, not this file. On web, unlock is still a
-// plaintext string comparison, so this is worth little until that changes.
+// iteration count is the fix for that (C1-06), not this file. Every PIN check is
+// now by decryption or against a salted verifier (see pin.ts), never a stored PIN.
 //
 // Policy: MAX_ATTEMPTS failures => LOCKOUT_MS wait, then the counter resets and
 // the cycle repeats. It never escalates to a permanent lock, and it never gates

@@ -9,11 +9,23 @@ import {
     verifyCloudMasterKeyMatch,
     canDecryptCloudMasterKey,
     wipeDatabaseButKeepKeys,
+    verifyEncryptionPin,
     SyncResult,
 } from "@/lib/note-storage";
-import { resolveCloudKeyImport, getCloudKeyConflictIfNeeded } from "@/lib/cloud-sync-resolver";
+import { resolveCloudKeyImport } from "@/lib/cloud-sync-resolver";
+import {
+    getCloudKeyCache,
+    getCloudKeyPushFromPin,
+    getSessionPin,
+    isCloudKeyPushPending,
+    isEncryptionEnabled,
+    setCloudKeyCache,
+    setCloudKeyPushPending,
+    setSessionPin,
+} from "@/lib/pin";
 import { setCloudSyncState, CloudSyncProvider } from "@/lib/cloud-sync-state";
 import { showSuccess, showError } from "@/utils/toast";
+import { withImagesInPlaintext } from "@/lib/image-storage";
 import type { Note } from "@/types/note";
 
 export type ForceResolution = "local" | "cloud" | "merge";
@@ -73,6 +85,20 @@ const isDecryptError = (message: string): boolean =>
     message.includes("Decryption failed") ||
     message.includes("Cannot parse synced data");
 
+const pinRequired = (cloudPayload: string): SyncResult =>
+    ({ status: "conflict", cloudPayload, reason: "pin_required" });
+
+/**
+ * Whether `cloudPayload` is the wrap this device had in the cloud before its
+ * pending re-wrap: either the cached payload, or (no cache yet) one that opens
+ * under the PIN it was wrapped with before the change.
+ */
+const isOurPreviousWrap = async (cloudPayload: string, cache: string | null): Promise<boolean> => {
+    if (cache) return cloudPayload === cache;
+    const fromPin = getCloudKeyPushFromPin();
+    return fromPin !== null && await canDecryptCloudMasterKey(cloudPayload, fromPin);
+};
+
 export const runCloudSync = async (
     adapter: CloudSyncAdapter,
     { forceResolution, cloudPayload, providedPin, silent = false }: CloudSyncRequest = {}
@@ -82,56 +108,94 @@ export const runCloudSync = async (
     try {
         await adapter.prepare?.(silent);
 
-        const pin = localStorage.getItem("app-passcode");
-        if (!pin && localStorage.getItem("app-lock-enabled") === "true") {
-            throw new Error("No PIN found. Please set up a PIN in App Lock settings first.");
+        const encryptionOn = isEncryptionEnabled();
+        // null: encryption is on but its PIN hasn't been entered this session.
+        // The PIN isn't stored anywhere, so without it the cloud key can't be
+        // wrapped or checked, only recognised via the cache (see pin.ts).
+        let pin: string | null = encryptionOn ? getSessionPin() : "";
+
+        // Answer to a pin_required prompt: this device's own PIN, not another's.
+        if (pin === null && providedPin && !forceResolution) {
+            if (!(await verifyEncryptionPin(providedPin))) {
+                showError("Incorrect PIN");
+                return pinRequired(cloudPayload ?? "");
+            }
+            pin = providedPin;
+            setSessionPin(pin);
         }
 
         // Read local notes and custom tags BEFORE any database wipe or key import
         const localNotes = await loadNotes();
         const localCustomTags = readCustomTags();
 
-        const cloudKeyConflict = await getCloudKeyConflictIfNeeded(pin, forceResolution, adapter.checkMasterKey);
-        if (cloudKeyConflict) return cloudKeyConflict;
-
-        const keyImport = await resolveCloudKeyImport(forceResolution, cloudPayload, pin, providedPin);
-        if (keyImport.ok === false) {
-            if (cloudPayload) {
-                return { status: "conflict", cloudPayload, reason: "key_mismatch" };
-            }
-            return { status: "error", message: keyImport.reason };
-        }
-        const effectivePin = keyImport.effectivePin ?? pin ?? "";
-
         let masterKeyPayload: string | undefined;
+        // The cloud key payload that will be known to match this device once the sync lands.
+        let verifiedPayload: string | null = null;
 
-        if (forceResolution === "local" || !forceResolution) {
-            masterKeyPayload = await exportMasterKey(effectivePin);
-        }
-
-        if (!forceResolution) {
+        if (forceResolution) {
+            if (pin === null) return pinRequired(cloudPayload ?? "");
+            const keyImport = await resolveCloudKeyImport(forceResolution, cloudPayload, pin, providedPin);
+            if (keyImport.ok === false) {
+                if (cloudPayload) {
+                    return { status: "conflict", cloudPayload, reason: "key_mismatch" };
+                }
+                return { status: "error", message: keyImport.reason };
+            }
+            if (forceResolution === "local") {
+                masterKeyPayload = await exportMasterKey(keyImport.effectivePin);
+            } else {
+                verifiedPayload = cloudPayload ?? null;
+            }
+        } else {
             const cloudKey = await adapter.checkMasterKey();
-            if (cloudKey.exists && cloudKey.payload) {
+            const cache = getCloudKeyCache();
+            const pushPending = isCloudKeyPushPending();
+
+            if (!cloudKey.exists || !cloudKey.payload) {
+                // Nothing in the cloud yet: upload ours.
+                if (pin !== null) masterKeyPayload = await exportMasterKey(pin);
+                else if (cache && !pushPending) masterKeyPayload = cache;
+                else return pinRequired("");
+            } else if (cloudKey.payload === cache && !pushPending) {
+                // Unchanged since it was last proven to match: nothing to check or upload.
+                verifiedPayload = cache;
+            } else if (pushPending && await isOurPreviousWrap(cloudKey.payload, cache)) {
+                // This device re-wrapped its key (enable / disable / change PIN) and the
+                // cloud copy is still the old wrap of it: replace it with the new one.
+                if (pin === null) return pinRequired(cloudKey.payload);
+                masterKeyPayload = await exportMasterKey(pin);
+            } else {
+                if (pin === null) return pinRequired(cloudKey.payload);
+
                 const isFirstConnect = !localStorage.getItem(adapter.lastSyncedKey);
-                const canDecrypt = await canDecryptCloudMasterKey(cloudKey.payload, effectivePin);
-                const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, effectivePin);
+                const canDecrypt = await canDecryptCloudMasterKey(cloudKey.payload, pin);
+                if (!canDecrypt) {
+                    // A key this device's PIN can't open. If the empty PIN opens it,
+                    // another device turned encryption off: that's a choice to offer
+                    // (C2-22), not a PIN to ask for, since there is no PIN to enter.
+                    if (encryptionOn && await canDecryptCloudMasterKey(cloudKey.payload, "")) {
+                        return { status: "conflict", cloudPayload: cloudKey.payload, reason: "encryption_disabled_elsewhere" };
+                    }
+                    return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
+                }
+                const isMatch = await verifyCloudMasterKeyMatch(cloudKey.payload, pin);
 
                 if (localNotes.length === 0) {
-                    if (canDecrypt) {
-                        // Local is empty and we can decrypt the cloud key — auto-restore from cloud
+                    // Local is empty and we can decrypt the cloud key — auto-restore from cloud
+                    await withImagesInPlaintext(async () => {
                         await wipeDatabaseButKeepKeys();
-                        await importMasterKey(cloudKey.payload, effectivePin);
-                        masterKeyPayload = undefined;
-                    } else {
-                        // We cannot decrypt the cloud key. Need the correct PIN.
-                        return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
-                    }
+                        await importMasterKey(cloudKey.payload, pin);
+                    });
+                    verifiedPayload = cloudKey.payload;
                 } else if (!isMatch) {
                     // Keys differ and we have local notes — conflict resolution required
-                    return { status: "conflict", cloudPayload: cloudKey.payload, reason: canDecrypt ? "first_connect" : "key_mismatch" };
+                    return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
                 } else if (isFirstConnect) {
                     // Keys match but this is first connect — ask user which data to keep
                     return { status: "conflict", cloudPayload: cloudKey.payload, reason: "first_connect" };
+                } else {
+                    // Same key under the same PIN: no need to re-upload it.
+                    verifiedPayload = cloudKey.payload;
                 }
             }
         }
@@ -165,6 +229,8 @@ export const runCloudSync = async (
         );
         console.log(`${logTag} Write-back complete: ${savedCount} saved, ${skippedCount} skipped (local was newer)`);
         localStorage.setItem("custom-tags", JSON.stringify(mergedTags));
+        setCloudKeyCache(masterKeyPayload ?? verifiedPayload ?? getCloudKeyCache());
+        setCloudKeyPushPending(false);
 
         const now = new Date().toLocaleString();
         localStorage.setItem(adapter.lastSyncedKey, now);
@@ -213,5 +279,31 @@ export const runCloudSync = async (
         return { status: "error", message };
     } finally {
         setCloudSyncState(adapter.provider, false);
+    }
+};
+
+// Module-level, not per hook instance: several components mount each provider's
+// hook, and only one of them should sync when the OAuth-success event fires.
+const oauthSuccessInFlight = new Set<CloudSyncProvider>();
+
+/**
+ * Handles a provider's "<provider>-oauth-success" event: runs `syncAfterAuth`
+ * once across all hook instances, and hands a conflict to the global resolver.
+ */
+export const runOAuthSuccessSync = async (
+    provider: CloudSyncProvider,
+    syncAfterAuth: () => Promise<SyncResult>
+): Promise<void> => {
+    if (oauthSuccessInFlight.has(provider)) return;
+    oauthSuccessInFlight.add(provider);
+    try {
+        const syncResult = await syncAfterAuth();
+        if (syncResult.status === "conflict") {
+            window.dispatchEvent(new CustomEvent("open-sync-conflict", {
+                detail: { service: provider, payload: syncResult.cloudPayload, reason: syncResult.reason },
+            }));
+        }
+    } finally {
+        oauthSuccessInFlight.delete(provider);
     }
 };

@@ -60,7 +60,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
     if (selectedCount === 0) return null;
 
     return (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-gray-700 px-2 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] flex items-center justify-between animate-in slide-in-from-top duration-200">
+        <div className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-gray-700 px-2 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] flex items-center justify-between animate-in slide-in-from-top duration-md3-short4 ease-md3-decelerate">
             <div className="flex items-center gap-4">
                 <Button variant="ghost" size="icon" onClick={onClearSelection}>
                     <X className="h-5 w-5 text-primary-foreground" />
@@ -178,10 +178,10 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                     </Button>
 
                     {isOverflowOpen && (
-                        <div className="absolute right-0 top-full mt-1 w-44 rounded-md border border-gray-700 bg-background shadow-lg z-50 py-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                        <div className="absolute right-0 top-full mt-1 w-44 rounded-md border border-gray-700 bg-background shadow-lg z-50 py-1 animate-in fade-in slide-in-from-top-1 duration-md3-short3 ease-md3-standard-decelerate">
                             {!hideArchive && (
                                 <button
-                                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black dark:text-white hover:bg-muted"
+                                    className="press-feedback flex w-full items-center gap-2 px-3 py-2 text-sm text-black dark:text-white hover:bg-muted"
                                     onClick={() => { onArchive(); setIsOverflowOpen(false); }}
                                 >
                                     <Archive className="h-4 w-4" /> Archive
@@ -189,21 +189,21 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                             )}
                             {showUnarchive && (
                                 <button
-                                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black dark:text-white-black hover:bg-muted"
+                                    className="press-feedback flex w-full items-center gap-2 px-3 py-2 text-sm text-black dark:text-white-black hover:bg-muted"
                                     onClick={() => { onUnarchive?.(); setIsOverflowOpen(false); }}
                                 >
                                     <Archive className="h-4 w-4" /> Unarchive
                                 </button>
                             )}
                             <button
-                                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black dark:text-white hover:bg-muted"
+                                className="press-feedback flex w-full items-center gap-2 px-3 py-2 text-sm text-black dark:text-white hover:bg-muted"
                                 onClick={() => { onExport(); setIsOverflowOpen(false); }}
                             >
                                 <Upload className="h-4 w-4" /> Export
                             </button>
                             {onFileInfo && selectedCount === 1 && (
                                 <button
-                                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black dark:text-white hover:bg-muted"
+                                    className="press-feedback flex w-full items-center gap-2 px-3 py-2 text-sm text-black dark:text-white hover:bg-muted"
                                     onClick={() => { onFileInfo(); setIsOverflowOpen(false); }}
                                 >
                                     <Info className="h-4 w-4" /> File Info

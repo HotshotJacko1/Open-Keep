@@ -1,7 +1,7 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import JSZip from "jszip";
-import { Filesystem, Directory } from "@capacitor/filesystem";
 import { Note } from "@/types/note";
+import { readImageBase64 } from "@/lib/image-storage";
 import { serializeNoteToMarkdown } from "@/utils/note-markdown-format";
 
 /**
@@ -22,7 +22,7 @@ export const addNotesToZip = async (zip: JSZip, notes: Note[]): Promise<void> =>
       if (imgFolder) {
         for (const imgPath of note.images) {
           try {
-            const { data } = await Filesystem.readFile({ path: imgPath, directory: Directory.Data });
+            const data = await readImageBase64(imgPath);
             imgFolder.file(imgPath.split('/').pop() || 'image.jpg', data, { base64: true });
           } catch (e) {
             console.warn("Failed to export image", imgPath);

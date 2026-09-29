@@ -47,7 +47,7 @@ const NoteColorPicker: React.FC<NoteColorPickerProps> = ({ value, onChange, disa
                                 } as React.CSSProperties)
                         }
                         className={cn(
-                            "relative h-8 w-8 shrink-0 rounded-full border-2 transition-transform",
+                            "touch-target press-feedback h-8 w-8 shrink-0 rounded-full border-2 transition-transform",
                             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                             "disabled:opacity-50 disabled:cursor-not-allowed",
                             !disabled && "hover:scale-110",

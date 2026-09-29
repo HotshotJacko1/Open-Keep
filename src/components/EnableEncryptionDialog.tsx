@@ -12,8 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { showSuccess, showError } from "@/utils/toast";
 import { ArrowLeft, Lock } from "lucide-react";
-import { changeEncryptionKey } from "@/lib/note-storage";
-import { NativeBiometric } from "@capgo/capacitor-native-biometric";
+import { enableEncryption } from "@/lib/encryption-pin";
+import { validateNewPin } from "@/lib/pin";
+import { useBackToClose } from "@/hooks/use-back-to-close";
 
 interface EnableEncryptionDialogProps {
     isOpen: boolean;
@@ -28,6 +29,7 @@ const EnableEncryptionDialog: React.FC<EnableEncryptionDialogProps> = ({ isOpen,
 
     useEffect(() => {
         if (isOpen) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- resets local form state each time the dialog opens (intentional)
             setNewPin("");
             setConfirmPin("");
             setIsLoading(false);
@@ -35,65 +37,19 @@ const EnableEncryptionDialog: React.FC<EnableEncryptionDialogProps> = ({ isOpen,
         }
     }, [isOpen]);
 
-    useEffect(() => {
-        if (!isOpen) return;
-
-        window.history.pushState({ dialog: 'enable-encryption' }, "");
-
-        const handlePopState = (event: PopStateEvent) => {
-            if (event.state?.dialog === 'enable-encryption') return;
-            onClose();
-        };
-
-        window.addEventListener('popstate', handlePopState);
-
-        return () => {
-            window.removeEventListener('popstate', handlePopState);
-            if (window.history.state?.dialog === 'enable-encryption') {
-                window.history.back();
-            }
-        };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen]);
+    useBackToClose("enable-encryption", isOpen, onClose);
 
     const handleEnable = async () => {
-        if (newPin.length < 4 || newPin.length > 6) {
-            showError("PIN must be 4-6 digits long");
-            return;
-        }
-        if (!/^\d+$/.test(newPin)) {
-            showError("PIN must contain only numbers");
-            return;
-        }
-        if (newPin !== confirmPin) {
-            showError("PINs do not match");
+        const validationError = validateNewPin(newPin, confirmPin);
+        if (validationError) {
+            showError(validationError);
             return;
         }
 
         setIsLoading(true);
         try {
             // Re-key from the transparent empty PIN to the new PIN
-            await changeEncryptionKey("", newPin);
-
-            // Update local storage passcode
-            localStorage.setItem("app-passcode", newPin);
-            localStorage.removeItem("app-lock-passcode");
-
-            // Update biometrics credentials if enabled
-            if (localStorage.getItem("app-biometrics-enabled") === "true") {
-                try {
-                    if (typeof NativeBiometric.setCredentials === 'function') {
-                        await NativeBiometric.setCredentials({
-                            username: "app-pin",
-                            password: newPin,
-                            server: "open-keep"
-                        });
-                    }
-                } catch (e) {
-                    console.error("Failed to update biometrics credentials on encryption enable", e);
-                }
-            }
-            
+            await enableEncryption(newPin);
             showSuccess("Encryption enabled successfully");
             setIsSuccessView(true);
         } catch (error) {
@@ -112,7 +68,7 @@ const EnableEncryptionDialog: React.FC<EnableEncryptionDialogProps> = ({ isOpen,
             >
                 <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
                     {!isSuccessView && (
-                        <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
+                        <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">
                             <ArrowLeft className="h-5 w-5 text-secondary" />
                             <span className="sr-only">Back</span>
                         </Button>

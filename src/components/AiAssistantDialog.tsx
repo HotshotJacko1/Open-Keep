@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Bot, Undo2, Circle, Copy, Check, Eye, EyeOff, RefreshCw, ArrowLeft, ExternalLink } from "lucide-react";
 import { McpBridgeState } from "@/hooks/use-mcp-bridge";
+import { useBackToClose } from "@/hooks/use-back-to-close";
 
 interface AiAssistantDialogProps {
   isOpen: boolean;
@@ -30,7 +31,17 @@ const STATUS_COPY: Record<McpBridgeState["connectionState"], { label: string; cl
   connected: { label: "Connected", className: "text-green-600 dark:text-green-400" },
   connecting: { label: "Connecting…", className: "text-muted-foreground" },
   disconnected: { label: "Not connected", className: "text-muted-foreground" },
-  rejected: { label: "Token rejected", className: "text-destructive" },
+  rejected: { label: "Pairing failed", className: "text-destructive" },
+};
+
+// Shown under the status while it is "rejected". A failed handshake is never
+// retried automatically (a squatter on the port would love that), so this
+// says what to fix and the Retry button re-dials once the user has fixed it.
+const REJECT_COPY: Record<NonNullable<McpBridgeState["rejectReason"]>, string> = {
+  untrusted:
+    "A program on this computer couldn't prove it has this pairing token, so Open Keep stopped talking to it and sent it nothing. Re-paste the token into your AI tool, restart the tool, then retry.",
+  incompatible:
+    "The Open Keep MCP server in your AI tool is a different version from this app. Update the Open Keep extension/server, then retry.",
 };
 
 function timeAgo(ts: number): string {
@@ -43,33 +54,11 @@ function timeAgo(ts: number): string {
 }
 
 const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, aiBridge }) => {
-  const { connectionState, connectedCount, readEnabled, writeEnabled, setReadEnabled, setWriteEnabled, token, regenerateToken, activity, undoActivity, disconnectAccess } = aiBridge;
+  const { connectionState, rejectReason, retryConnection, connectedCount, readEnabled, writeEnabled, setReadEnabled, setWriteEnabled, token, regenerateToken, activity, undoActivity, disconnectAccess } = aiBridge;
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Android's back gesture/button pops history rather than firing Escape, so
-  // push an entry while open and close on the pop -- same pattern as every
-  // other dialog in the app (see ChangelogDialog, EditLabels, etc.).
-  useEffect(() => {
-    if (!isOpen) return;
-
-    window.history.pushState({ dialog: "ai-assistant" }, "");
-
-    const handlePopState = (event: PopStateEvent) => {
-      if (event.state?.dialog === "ai-assistant") return;
-      onClose();
-    };
-
-    window.addEventListener("popstate", handlePopState);
-
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-      if (window.history.state?.dialog === "ai-assistant") {
-        window.history.back();
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  useBackToClose("ai-assistant", isOpen, onClose);
 
   const status = STATUS_COPY[connectionState];
   // Several AI tools can be paired at once, each running its own copy of the
@@ -98,7 +87,7 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
         <DialogHeader className="flex flex-row items-start gap-2 space-y-0 text-left">
-          <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
+          <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">
             <ArrowLeft className="h-5 w-5 text-secondary" />
             <span className="sr-only">Back</span>
           </Button>
@@ -118,7 +107,15 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
           <div className="flex items-center gap-2 text-sm">
             <Circle className={`h-2.5 w-2.5 fill-current ${status.className}`} />
             <span className={status.className}>{statusLabel}</span>
+            {connectionState === "rejected" && (
+              <Button variant="outline" size="sm" className="ml-auto h-7 text-text-primary dark:text-text-primary" onClick={retryConnection}>
+                Retry
+              </Button>
+            )}
           </div>
+          {connectionState === "rejected" && rejectReason && (
+            <p className="-mt-3 text-xs text-muted-foreground">{REJECT_COPY[rejectReason]}</p>
+          )}
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="ai-pairing-token" className="text-text-primary dark:text-text-primary">Your pairing token</Label>

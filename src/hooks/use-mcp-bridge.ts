@@ -26,8 +26,9 @@ import { Note } from "@/types/note";
 import { looksLikeHtml, plainTextToHtml } from "@/utils/note-markdown-format";
 import { showSuccess } from "@/utils/toast";
 import { safeRandomUUID } from "@/lib/utils";
-import { McpBridgeClient, ConnectionState } from "@/lib/mcp-bridge/bridge-client";
-import { BridgeOp, BridgeRequest, BridgeResponse, NoteFull, NoteSummary, TagInfo } from "@/lib/mcp-bridge/protocol";
+import { syncReminderWithBin } from "@/utils/reminder";
+import { McpBridgeClient, ConnectionState, RejectReason } from "@/lib/mcp-bridge/bridge-client";
+import { BridgeErrorCode, BridgeOp, BridgeRequest, BridgeResponse, NoteFull, NoteSummary, TagInfo } from "@/lib/mcp-bridge/protocol";
 
 // Base of the port range. Each MCP client runs its own copy of the server
 // and takes the first free port from here, so the app connects across the
@@ -78,6 +79,10 @@ export interface McpBridgeHandlers {
 
 export interface McpBridgeState {
   connectionState: ConnectionState;
+  /** Why the bridge gave up, while connectionState is "rejected". */
+  rejectReason: RejectReason | null;
+  /** Re-dials every port, including ones that failed the handshake. */
+  retryConnection: () => void;
   /** How many MCP server instances are currently paired. */
   connectedCount: number;
   readEnabled: boolean;
@@ -142,6 +147,9 @@ function agentEditRefusal(note: Note | undefined) {
 export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDeleteTag }: McpBridgeHandlers): McpBridgeState {
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
   const [connectedCount, setConnectedCount] = useState(0);
+  const [rejectReason, setRejectReason] = useState<RejectReason | null>(null);
+  // Bumped by retryConnection() so the connect effect re-runs with the same token.
+  const [retryNonce, setRetryNonce] = useState(0);
   const [readEnabled, setReadEnabledState] = useState(() => localStorage.getItem(STORAGE_KEYS.readEnabled) === "true");
   const [writeEnabled, setWriteEnabledState] = useState(() => localStorage.getItem(STORAGE_KEYS.writeEnabled) === "true");
   const [token, setTokenState] = useState(() => localStorage.getItem(STORAGE_KEYS.token) || "");
@@ -154,6 +162,7 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
     if (token) return;
     const fresh = generateToken();
     localStorage.setItem(STORAGE_KEYS.token, fresh);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time token mint, see comment above
     setTokenState(fresh);
   }, [token]);
 
@@ -324,7 +333,11 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
           updatedAt: Math.max(Date.now(), note.updatedAt + 1),
         };
         await saveNote(updated);
-        recordActivity(`Claude deleted "${note.title}"`, async () => { await saveNote(before); });
+        await syncReminderWithBin(updated);
+        recordActivity(`Claude deleted "${note.title}"`, async () => {
+          await saveNote(before);
+          await syncReminderWithBin(before);
+        });
         return { id: note.id, deleted: true };
       }
 
@@ -374,10 +387,12 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
 
   // --- Wiring the client --------------------------------------------------
   const clientRef = useRef<McpBridgeClient | null>(null);
+  // eslint-disable-next-line react-hooks/refs -- lazy one-time construction; the client is never replaced
   if (!clientRef.current) {
-    clientRef.current = new McpBridgeClient((state, count) => {
+    clientRef.current = new McpBridgeClient((state, count, reason) => {
       setConnectionState(state);
       setConnectedCount(count);
+      setRejectReason(reason);
     });
   }
 
@@ -404,12 +419,13 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
     try {
       const data = await runOp(request.op, request.params);
       return { type: "response", id: request.id, ok: true, data };
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const e = err as { code?: BridgeErrorCode; message?: string } | null;
       return {
         type: "response",
         id: request.id,
         ok: false,
-        error: { code: err?.code || "INTERNAL", message: err?.message || "Something went wrong." },
+        error: { code: e?.code || "INTERNAL", message: e?.message || "Something went wrong." },
       };
     }
   }, [runOp]);
@@ -424,8 +440,13 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
     } else {
       clientRef.current!.disconnect();
     }
-    // Reconnect whenever the token changes too, so pasting a new one takes effect immediately.
-  }, [readEnabled, writeEnabled, token, handleRequest]);
+    // Reconnect whenever the token changes too, so pasting a new one takes
+    // effect immediately. A port that failed the handshake is never redialled
+    // on its own (see McpBridgeClient.refused), so retryNonce is the user's
+    // way to try again after re-pairing their AI tool.
+  }, [readEnabled, writeEnabled, token, handleRequest, retryNonce]);
+
+  const retryConnection = useCallback(() => setRetryNonce((n) => n + 1), []);
 
   const setReadEnabled = useCallback((enabled: boolean) => {
     localStorage.setItem(STORAGE_KEYS.readEnabled, String(enabled));
@@ -456,5 +477,5 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
     showSuccess("AI access disconnected");
   }, []);
 
-  return { connectionState, connectedCount, readEnabled, writeEnabled, setReadEnabled, setWriteEnabled, token, regenerateToken, activity, undoActivity, disconnectAccess };
+  return { connectionState, rejectReason, retryConnection, connectedCount, readEnabled, writeEnabled, setReadEnabled, setWriteEnabled, token, regenerateToken, activity, undoActivity, disconnectAccess };
 }

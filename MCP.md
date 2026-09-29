@@ -24,6 +24,13 @@ The connection is local to your machine (`127.0.0.1`), and it only works while:
 - you have switched access on in Settings, **and**
 - both sides hold the same pairing token.
 
+The token itself is never sent over that connection. Instead the two sides
+prove to each other that they hold it (an HMAC-SHA256 challenge-response over
+fresh random nonces, tied to the port in use), and the Open Keep server has to
+prove it *first*: until it does, the tab sends it nothing derived from the token
+and won't answer a single request. So another program that happens to be
+listening on one of the ports learns nothing, and gets nothing.
+
 Close the tab and the AI simply gets "Open Keep is not connected". Nothing
 happens behind your back.
 
@@ -152,6 +159,12 @@ creating, editing and deleting by a second, separate one.
   their structure can't get mangled.
 - **Revocable.** *Disconnect AI access* in Settings turns both switches off and
   retires the pairing token, so anything paired with it stops working.
+- **Only the real server gets in.** The pairing token never crosses the local
+  connection, and the MCP server must prove it holds the token before Open Keep
+  reveals anything or answers any request. If whatever is listening can't prove
+  it, Open Keep drops that connection, stops trying that port, and shows
+  *Pairing failed* rather than quietly retrying. (Note the read/write switches
+  control what a *paired* server may do; this check decides who gets paired.)
 
 ## Troubleshooting
 
@@ -159,9 +172,19 @@ creating, editing and deleting by a second, separate one.
 it running. Open Claude Desktop (or whichever client) and check the extension is
 enabled. Also make sure at least one of the two switches is on.
 
-**Status says "Token rejected".** The token in your AI tool doesn't match the one
-in Open Keep. Copy it again from Settings → AI Assistant Access. If you clicked
-*Generate a new token*, the old one stopped working and needs re-pasting.
+**Status says "Pairing failed".** Something on one of the bridge ports couldn't
+prove it holds the token in Open Keep. Usually that just means the token in your
+AI tool doesn't match: copy it again from Settings → AI Assistant Access, paste
+it into the tool, restart the tool, then press **Retry**. If you clicked
+*Generate a new token*, the old one stopped working and needs re-pasting. Open
+Keep does not retry a failed port on its own — press Retry (or change the token
+or a switch) once you've fixed it. If it keeps failing and you're sure the token
+matches, something other than the Open Keep server may be using the port.
+
+If the message says the server is a **different version**, the Open Keep
+extension/MCP server and the app speak different versions of the bridge
+protocol (the handshake changed in protocol v2). Update the extension, reload
+Open Keep, and retry.
 
 **The AI says Open Keep isn't connected.** Your Open Keep tab is probably closed.
 Open it and try again — the tab is what actually answers.
@@ -181,5 +204,6 @@ Open Keep follows.
 cd mcp-server
 npm install
 npm run pack:mcpb    # writes build/open-keep.mcpb
-npm test             # 28 assertions covering the server end to end
+npm test             # 61 assertions: the server end to end, plus the app's
+                     # bridge client against fake servers that can't prove the token
 ```

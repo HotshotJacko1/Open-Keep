@@ -8,7 +8,6 @@ export type WidgetAction =
   | { type: "new-text" }
   | { type: "new-list" }
   | { type: "open-note"; noteId: string }
-  | { type: "toggle-checkbox"; noteId: string; lineIndex: number }
   | null;
 
 type ActionListener = (action: WidgetAction) => void;
@@ -44,13 +43,9 @@ export function parseWidgetDeepLink(url: string): WidgetAction {
     if (actionType === "open-note" && rest[0]) {
       return { type: "open-note", noteId: rest[0] };
     }
-    if (actionType === "toggle-checkbox" && rest.length >= 2 && /^\d+$/.test(rest[1])) {
-      return {
-        type: "toggle-checkbox",
-        noteId: rest[0],
-        lineIndex: parseInt(rest[1], 10),
-      };
-    }
+    // Deliberately no URL action that changes a note. Any installed app can open an
+    // openkeep:// URL, so checkbox toggles stay inside the widgets (Glance
+    // ActionCallback / AppIntent) and never go through this parser.
   } catch {
     // Not a valid URL — ignore
   }
@@ -138,6 +133,7 @@ export function useWidgetDeepLink() {
     const pending = readPendingWidgetAction();
     if (pending) {
       handledRef.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- consumes a pending widget action once after mount
       setAction(pending);
     }
 

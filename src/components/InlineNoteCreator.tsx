@@ -161,6 +161,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
   // Reset default tag when changing or expanding
   useEffect(() => {
     if (defaultTag) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- re-applies defaultTag when it changes (intentional)
       setSelectedTags([defaultTag]);
     } else {
       setSelectedTags([]);
@@ -186,6 +187,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
     if (images.length > 0) {
       loadUrls();
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clears image URLs when images are removed; the other branch sets them async
       setImageUrls({});
     }
     return () => {
@@ -204,7 +206,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
 
   const handleSaveAndClose = useCallback(async () => {
     if (hasContent()) {
-      let contentString = "";
+      let contentString: string;
       if (isListMode) {
         const nonEmptyItems = items.filter((i) => i.content.trim().length > 0);
         contentString = nonEmptyItems
@@ -467,7 +469,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
         ref={containerRef}
         onClick={() => handleExpand(false)}
         className={cn(
-          "w-full max-w-[600px] mx-auto mb-6 cursor-text",
+          "press-feedback w-full max-w-[600px] mx-auto mb-6 cursor-text",
           "bg-card text-card-foreground border border-input shadow-md rounded-lg",
           "px-4 py-2.5 flex items-center justify-between gap-3 transition-shadow hover:shadow-lg"
         )}

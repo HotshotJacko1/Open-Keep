@@ -16,6 +16,17 @@ import { supabase } from "./integrations/supabase/client";
 import FeedbackDialog from "./components/FeedbackDialog";
 import { useSession } from "./context/session-provider";
 import { ensureWidgetDeepLinkCapture } from "./hooks/use-widget-deep-link";
+import {
+  getSessionPin,
+  isAppLockEnabled,
+  isEncryptionEnabled,
+  migrateLegacyPins,
+  setAppLockPin,
+  setEncryptionEnabled,
+  setSessionPin,
+} from "./lib/pin";
+import { upgradeLegacyNativeKey } from "./lib/encryption-pin";
+import { syncImageEncryption } from "./lib/image-storage";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +52,13 @@ const App = () => {
     window.addEventListener("open-keep-db-unverified", handleUnverified);
     return () => window.removeEventListener("open-keep-db-unverified", handleUnverified);
   }, []);
+
+  // Once the key is loaded, bring stored images in line with the encryption flag.
+  // A no-op unless the flag changed or older plain images predate C1-16.
+  useEffect(() => {
+    if (appState !== 'ready') return;
+    syncImageEncryption().catch((e) => console.error("Image encryption sweep failed", e));
+  }, [appState]);
 
   useEffect(() => {
     const checkEntitlements = async () => {
@@ -87,9 +105,10 @@ const App = () => {
   useEffect(() => {
     const init = async () => {
       try {
-        // First check if a passcode is set in localStorage
-        const hasPasscode = !!localStorage.getItem("app-passcode");
-        const isLockEnabled = localStorage.getItem("app-lock-enabled") === "true";
+        // Converts the cleartext PIN keys from <= 5.0.5 before anything reads PIN state.
+        const { legacyEncryptionPin } = await migrateLegacyPins();
+        const encryptionOn = isEncryptionEnabled();
+        const isLockEnabled = isAppLockEnabled();
 
         if (isNative) {
           const status = await checkDatabaseStatus();
@@ -101,23 +120,37 @@ const App = () => {
             return;
           }
 
-          // Force locked if either native says so, or app-lock toggle is enabled
+          if (legacyEncryptionPin && !status.isLocked) {
+            try {
+              await upgradeLegacyNativeKey(legacyEncryptionPin);
+            } catch (e) {
+              // Not fatal: the next PIN unlock through initialize() upgrades it too.
+              console.error("Legacy key upgrade failed", e);
+            }
+          }
+
+          // Force locked if either native says so, or app-lock toggle is enabled.
+          // An encrypted native DB may still auto-unlock: its key is held in the
+          // Keystore/Keychain, so App Lock alone decides whether to ask.
           if (status.isLocked || isLockEnabled) {
             setAppState('locked');
           } else {
             setAppState('ready');
           }
         } else {
-          // Web flow
-          if (hasPasscode) {
-            if (isLockEnabled) {
-              setAppState('locked');
-            } else {
-              const pin = localStorage.getItem("app-passcode");
-              if (pin) {
-                await initializeDatabase(pin);
-              }
+          // Web flow. The browser has nowhere safe to keep the key, so an
+          // encrypted web vault always needs its PIN at launch. The one exception
+          // is the launch that migrates a stored PIN, which already has it.
+          if (encryptionOn) {
+            const pin = getSessionPin();
+            let unlocked = false;
+            if (!isLockEnabled && pin) {
+              unlocked = await initializeDatabase(pin).then(() => true, () => false);
+            }
+            if (unlocked) {
               setAppState('ready');
+            } else {
+              setAppState('locked');
             }
           } else {
             // Unencrypted web flow
@@ -140,14 +173,29 @@ const App = () => {
 
 
 
+  // Verification by decryption: initializeDatabase throws if the PIN doesn't
+  // unwrap the key (web) or open the DB (native).
   const handleUnlock = async (pin?: string) => {
     if (!pin) return false;
     try {
       await initializeDatabase(pin);
+      setSessionPin(pin);
       setAppState('ready');
       return true;
     } catch (e) {
       console.error("Unlock failed", e);
+    }
+    // An enable/disable interrupted at the wrong moment leaves the flag on over a
+    // key wrapped under the empty PIN (see encryption-pin.ts). If the key opens
+    // with no PIN, it wasn't protected anyway: repair the flag and let them in,
+    // keeping App Lock on with the PIN they just typed.
+    try {
+      await initializeDatabase("");
+      setEncryptionEnabled(false);
+      if (isAppLockEnabled()) await setAppLockPin(pin);
+      setAppState('ready');
+      return true;
+    } catch {
       return false;
     }
   };
@@ -242,23 +290,8 @@ const App = () => {
       {(appState === 'locked') && (
         <LockScreen
           onUnlock={async (pin) => {
-            const hasPasscode = !!localStorage.getItem("app-passcode");
-            if (hasPasscode) {
-              if (isNative) {
-                const success = await handleUnlock(pin);
-                if (success) setAppState('ready');
-                return success;
-              } else {
-                // Web flow with encryption: initialize database with pin
-                try {
-                  await initializeDatabase(pin);
-                  setAppState('ready');
-                  return true;
-                } catch (e) {
-                  console.error("Unlock failed on web", e);
-                  return false;
-                }
-              }
+            if (isEncryptionEnabled()) {
+              return handleUnlock(pin);
             } else {
               // Encryption disabled (transparent/empty PIN database):
               // Ensure the DB is initialized before unlocking the UI
@@ -273,7 +306,7 @@ const App = () => {
               }
             }
           }}
-          isNativeEncryption={isNative && !!localStorage.getItem("app-passcode")}
+          isEncryptionEnabled={isEncryptionEnabled()}
           onReset={handleReset}
         />
       )}

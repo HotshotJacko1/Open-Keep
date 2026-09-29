@@ -10,32 +10,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Sparkles, ArrowLeft } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { useBackToClose } from "@/hooks/use-back-to-close";
 
 const ChangelogDialog: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [changelogContent, setChangelogContent] = useState<string>('Loading...');
 
-  useEffect(() => {
-    if (!isOpen) return;
-
-    window.history.pushState({ dialog: 'changelog' }, "");
-
-    const handlePopState = (event: PopStateEvent) => {
-      // If we popped back to something else, close this
-      if (event.state?.dialog === 'changelog') return;
-      setIsOpen(false);
-    };
-
-    window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      if (window.history.state?.dialog === 'changelog') {
-        window.history.back();
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  useBackToClose("changelog", isOpen, () => setIsOpen(false));
 
   useEffect(() => {
     if (isOpen) {
@@ -68,7 +49,7 @@ const ChangelogDialog: React.FC = () => {
       >
         <div className="flex flex-col h-full">
           <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left px-6 pt-[max(env(safe-area-inset-top),1.5rem)] pb-4 border-b">
-            <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="shrink-0 mt-0 h-8 w-8">
+            <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="touch-target shrink-0 mt-0 h-8 w-8">
               <ArrowLeft className="h-5 w-5 text-secondary" />
               <span className="sr-only">Back</span>
             </Button>

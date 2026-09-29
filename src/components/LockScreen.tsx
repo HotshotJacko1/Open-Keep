@@ -14,20 +14,19 @@ import {
     formatLockRemaining,
 } from "@/lib/pin-attempts";
 import { clearAllData } from "@/lib/note-storage";
-import { deleteRemoteData } from "@/lib/google-drive";
+import { clearAllPinState, verifyAppLockPin, BIOMETRICS_ENABLED_KEY } from "@/lib/pin";
+import { deleteAllRemoteData } from "@/lib/cloud-reset";
 import ResetDialog from "./ResetDialog";
 
 interface LockScreenProps {
     onUnlock: (pin?: string) => void | Promise<boolean>;
-    isNativeEncryption?: boolean;
+    /** The PIN unwraps the encryption key (checked by decryption). Otherwise it's an App Lock PIN. */
+    isEncryptionEnabled?: boolean;
     onReset?: () => void;
 }
 
-const LOCAL_STORAGE_PASSCODE_KEY = "app-passcode";
-
-const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, onReset }) => {
+const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isEncryptionEnabled, onReset }) => {
     const [passcode, setPasscode] = useState("");
-    const [savedPasscode, setSavedPasscode] = useState<string | null>(null);
     const [isBiometricsAvailable, setIsBiometricsAvailable] = useState(false);
     const [isBiometricsEnabled, setIsBiometricsEnabled] = useState(false);
     const [errorPing, setErrorPing] = useState(false); // To shake/animate error
@@ -38,16 +37,13 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        // Load saved passcode (encryption passcode or app lock passcode)
-        const stored = localStorage.getItem("app-passcode") || localStorage.getItem("app-lock-passcode");
-        setSavedPasscode(stored);
-
         // Check biometrics
         NativeBiometric.isAvailable()
             .then((result) => setIsBiometricsAvailable(result.isAvailable))
             .catch(() => setIsBiometricsAvailable(false));
 
-        const biometricsEnabled = localStorage.getItem("app-biometrics-enabled") === "true";
+        const biometricsEnabled = localStorage.getItem(BIOMETRICS_ENABLED_KEY) === "true";
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the persisted setting from localStorage after mount
         setIsBiometricsEnabled(biometricsEnabled);
 
         // Auto-trigger biometric if enabled. Only one of these branches ever
@@ -59,6 +55,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
         if (biometricsEnabled) {
             // Small delay to ensure UI is ready and not conflicting with app resume
             startupTimer = setTimeout(() => {
+                // eslint-disable-next-line react-hooks/immutability -- only called from a timer after mount, when the handler is declared; reordering would change effect order
                 handleBiometricUnlock();
             }, 300);
         } else {
@@ -74,7 +71,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
         }
 
         return () => clearTimeout(startupTimer);
-    }, [isNativeEncryption]);
+    }, [isEncryptionEnabled]);
 
     // Tick the lockout countdown so the UI re-enables itself without a reload.
     useEffect(() => {
@@ -92,7 +89,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
                 description: "",
             });
 
-            if (!isNativeEncryption) {
+            if (!isEncryptionEnabled) {
                 try {
                     const success = await onUnlock();
                     if (success === false) {
@@ -166,7 +163,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
         };
 
         try {
-            if (isNativeEncryption) {
+            if (isEncryptionEnabled) {
                 const success = await onUnlock(passcode);
                 if (success) {
                     clearFailedAttempts();
@@ -174,8 +171,8 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
                     onWrongPin("Incorrect PIN");
                 }
             } else {
-                // Web flow or unencrypted flow check
-                if (passcode === savedPasscode) {
+                // App Lock only: the notes aren't encrypted, the PIN just gates the UI.
+                if (await verifyAppLockPin(passcode)) {
                     clearFailedAttempts();
                     await onUnlock(passcode);
                 } else {
@@ -194,23 +191,18 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
     const confirmReset = async () => {
         setIsResetting(true);
         try {
-            if (isNativeEncryption) {
+            // With encryption on, a forgotten PIN means the notes can't be opened
+            // again on any platform, so the reset has to delete them.
+            if (isEncryptionEnabled) {
                 // 1. Delete local DB
                 await clearAllData();
 
                 // 2. Delete cloud data (attempt)
-                try {
-                    await deleteRemoteData();
-                } catch (e) {
-                    console.error("Failed to delete remote data or not authenticated", e);
-                }
+                await deleteAllRemoteData();
             }
 
             // 3. Clear local storage flags
-            localStorage.removeItem("app-passcode");
-            localStorage.removeItem("app-lock-passcode");
-            localStorage.removeItem("app-lock-enabled");
-            localStorage.removeItem("app-biometrics-enabled");
+            clearAllPinState();
             localStorage.removeItem("custom-tags"); // While we're at it
             
             // 4. Clear sync state
@@ -219,6 +211,8 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
             localStorage.removeItem("google-token-expiry");
             localStorage.removeItem("google-user-email");
             localStorage.removeItem("dropbox-access-token");
+            localStorage.removeItem("dropbox-refresh-token");
+            localStorage.removeItem("dropbox-token-expires-at");
             localStorage.removeItem("dropbox-last-synced");
             localStorage.removeItem("onedrive-user-email");
             localStorage.removeItem("onedrive-last-synced");
@@ -237,7 +231,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
 
     return (
         <div className="fixed inset-0 z-[40] bg-background flex flex-col items-center justify-center p-4">
-            <div className="flex flex-col items-center gap-6 max-w-sm w-full animate-in fade-in zoom-in duration-300">
+            <div className="flex flex-col items-center gap-6 max-w-sm w-full animate-in fade-in zoom-in duration-md3-medium2 ease-md3-decelerate">
                 <div className="bg-primary/10 p-4 rounded-full mb-4">
                     <img src="/favicon.svg" alt="App Icon" className="w-12 h-12" />
                 </div>
@@ -279,7 +273,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
                     </Button>
                 </form>
 
-                {isBiometricsAvailable && isBiometricsEnabled && !isNativeEncryption && (
+                {isBiometricsAvailable && isBiometricsEnabled && !isEncryptionEnabled && (
                     <Button
                         variant="ghost"
                         size="lg"
@@ -301,7 +295,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isNativeEncryption, o
                 onOpenChange={setIsResetDialogOpen}
                 onConfirm={confirmReset}
                 isResetting={isResetting}
-                isNativeEncryption={isNativeEncryption}
+                isEncryptionEnabled={isEncryptionEnabled}
             />
         </div>
     );

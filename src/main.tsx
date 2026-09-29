@@ -57,6 +57,10 @@ Sentry.init(
   SentryReact.init
 );
 
+// iOS WebKit only applies :active on touch when a touchstart listener exists
+// somewhere on the page. The .press-feedback tint (globals.css) relies on it.
+document.addEventListener("touchstart", () => {}, { passive: true });
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || "889284625804-5prnhudcoalopvn0ad0au449lo1bn8f8.apps.googleusercontent.com"}>

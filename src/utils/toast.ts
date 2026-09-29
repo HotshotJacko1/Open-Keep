@@ -1,11 +1,11 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
-import { toast } from "sonner";
+import { toast, type ExternalToast } from "sonner";
 
-export const showSuccess = (message: string, options?: any) => {
+export const showSuccess = (message: string, options?: ExternalToast) => {
   toast.success(message, options);
 };
 
-export const showError = (message: string, options?: any) => {
+export const showError = (message: string, options?: ExternalToast) => {
   toast.error(message, options);
 };
 

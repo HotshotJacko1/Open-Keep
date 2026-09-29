@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Tag, Trash2, Pencil, Check, Plus, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect } from "react";
+import { useBackToClose } from "@/hooks/use-back-to-close";
 
 interface EditLabelsProps {
     isOpen: boolean;
@@ -28,26 +29,7 @@ const EditLabels: React.FC<EditLabelsProps> = ({
     const [editingTag, setEditingTag] = useState<string | null>(null);
     const [editValue, setEditValue] = useState("");
 
-    useEffect(() => {
-        if (!isOpen) return;
-
-        window.history.pushState({ dialog: 'edit-labels' }, "");
-
-        const handlePopState = (event: PopStateEvent) => {
-            if (event.state?.dialog === 'edit-labels') return;
-            onClose();
-        };
-
-        window.addEventListener('popstate', handlePopState);
-
-        return () => {
-            window.removeEventListener('popstate', handlePopState);
-            if (window.history.state?.dialog === 'edit-labels') {
-                window.history.back();
-            }
-        };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen]);
+    useBackToClose("edit-labels", isOpen, onClose);
 
     const handleCreate = () => {
         if (newLabel.trim()) {
@@ -73,7 +55,7 @@ const EditLabels: React.FC<EditLabelsProps> = ({
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="max-w-full w-full h-full sm:max-w-full m-0 !rounded-none border-none px-4 pt-[max(env(safe-area-inset-top,1rem),1rem)] pb-[max(env(safe-area-inset-bottom,1rem),1rem)] flex flex-col text-black dark:text-white">
                 <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left shrink-0">
-                    <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
+                    <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">
                         <ArrowLeft className="h-5 w-5 text-secondary" />
                         <span className="sr-only">Back</span>
                     </Button>
@@ -127,7 +109,7 @@ const EditLabels: React.FC<EditLabelsProps> = ({
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                                        className="touch-target h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
                                         onClick={() => onDeleteTag(tag)}
                                     >
                                         <Tag className="h-4 w-4 group-hover:hidden transition-all" />
@@ -165,7 +147,7 @@ const EditLabels: React.FC<EditLabelsProps> = ({
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="h-8 w-8 text-primary"
+                                            className="touch-target h-8 w-8 text-primary"
                                             onClick={submitEdit}
                                         >
                                             <Check className="h-4 w-4" />
@@ -174,7 +156,7 @@ const EditLabels: React.FC<EditLabelsProps> = ({
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="h-8 w-8 text-muted-foreground"
+                                            className="touch-target h-8 w-8 text-muted-foreground"
                                             onClick={() => startEditing(tag)}
                                         >
                                             <Pencil className="h-4 w-4" />

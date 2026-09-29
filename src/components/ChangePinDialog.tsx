@@ -12,11 +12,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { showSuccess, showError } from "@/utils/toast";
 import { ArrowLeft } from "lucide-react";
-import { changeEncryptionKey, clearAllData } from "@/lib/note-storage";
-import { deleteRemoteData } from "@/lib/google-drive";
-import { NativeBiometric } from "@capgo/capacitor-native-biometric";
-import { Capacitor } from "@capacitor/core";
+import { clearAllData } from "@/lib/note-storage";
+import { changeEncryptionPin, verifyEncryptionPin } from "@/lib/encryption-pin";
+import { clearAllPinState, validateNewPin } from "@/lib/pin";
+import { deleteAllRemoteData } from "@/lib/cloud-reset";
 import ResetDialog from "./ResetDialog";
+import { useBackToClose } from "@/hooks/use-back-to-close";
 
 interface ChangePinDialogProps {
     isOpen: boolean;
@@ -33,6 +34,7 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
 
     useEffect(() => {
         if (isOpen) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- resets local form state each time the dialog opens (intentional)
             setCurrentPin("");
             setNewPin("");
             setConfirmPin("");
@@ -40,90 +42,42 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
         }
     }, [isOpen]);
 
-    useEffect(() => {
-        if (!isOpen) return;
-
-        window.history.pushState({ dialog: 'change-pin' }, "");
-
-        const handlePopState = (event: PopStateEvent) => {
-            if (event.state?.dialog === 'change-pin') return;
-            onClose();
-        };
-
-        window.addEventListener('popstate', handlePopState);
-
-        return () => {
-            window.removeEventListener('popstate', handlePopState);
-            if (window.history.state?.dialog === 'change-pin') {
-                window.history.back();
-            }
-        };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen]);
+    useBackToClose("change-pin", isOpen, onClose);
 
     const handleChangePin = async () => {
-        // 1. Validate inputs
         if (!currentPin) {
             showError("Please enter your current PIN");
             return;
         }
 
-        // Check against stored passcode
         const lockRemaining = getLockRemainingMs();
         if (lockRemaining > 0) {
             showError(`Too many attempts. Try again in ${formatLockRemaining(lockRemaining)}.`);
             return;
         }
 
-        const storedPasscode = localStorage.getItem("app-passcode");
-        if (currentPin !== storedPasscode) {
-            const state = recordFailedAttempt();
-            showError(
-                state.locked
-                    ? `Too many attempts. Try again in ${formatLockRemaining(state.remainingMs)}.`
-                    : "Current PIN is incorrect"
-            );
-            return;
-        }
-        clearFailedAttempts();
-
-        if (newPin.length < 4 || newPin.length > 6) {
-            showError("New PIN must be 4-6 digits long");
-            return;
-        }
-        if (!/^\d+$/.test(newPin)) {
-            showError("New PIN must contain only numbers");
-            return;
-        }
-        if (newPin !== confirmPin) {
-            showError("New PINs do not match");
-            return;
-        }
-        if (newPin === currentPin) {
-            showError("New PIN must be different from current PIN");
+        const validationError = validateNewPin(newPin, confirmPin, { currentPin, label: "New PIN" });
+        if (validationError) {
+            showError(validationError);
             return;
         }
 
         setIsLoading(true);
         try {
-            // 2. Change native encryption key
-            await changeEncryptionKey(currentPin, newPin);
-
-            // 3. Update local storage passcode
-            localStorage.setItem("app-passcode", newPin);
-
-            // 4. Update biometrics credentials if enabled
-            if (localStorage.getItem("app-biometrics-enabled") === "true") {
-                try {
-                    await NativeBiometric.setCredentials({
-                        username: "app-pin",
-                        password: newPin,
-                        server: "open-keep"
-                    });
-                } catch (e) {
-                    console.error("Failed to update biometrics credentials", e);
-                }
+            // Verified by unwrapping the key with it, not by comparing to a stored copy.
+            if (!(await verifyEncryptionPin(currentPin))) {
+                const state = recordFailedAttempt();
+                showError(
+                    state.locked
+                        ? `Too many attempts. Try again in ${formatLockRemaining(state.remainingMs)}.`
+                        : "Current PIN is incorrect"
+                );
+                return;
             }
+            clearFailedAttempts();
+
+            // One native re-key; there is no stored PIN left to update alongside it.
+            await changeEncryptionPin(currentPin, newPin);
 
             showSuccess("Encryption PIN changed successfully");
             onClose();
@@ -142,20 +96,12 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
     const confirmReset = async () => {
         setIsResetting(true);
         try {
-            const isNativeEncryption = Capacitor.isNativePlatform();
-            if (isNativeEncryption) {
-                await clearAllData();
-                try {
-                    await deleteRemoteData();
-                } catch (e) {
-                    console.error("Failed to delete remote data or not authenticated", e);
-                }
-            }
+            // This dialog only exists while encryption is on, so a forgotten PIN
+            // means the notes can't be opened again: delete them (web included).
+            await clearAllData();
+            await deleteAllRemoteData();
 
-            localStorage.removeItem("app-passcode");
-            localStorage.removeItem("app-lock-passcode");
-            localStorage.removeItem("app-lock-enabled");
-            localStorage.removeItem("app-biometrics-enabled");
+            clearAllPinState();
             localStorage.removeItem("custom-tags");
             
             // Clear sync state
@@ -164,6 +110,8 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
             localStorage.removeItem("google-token-expiry");
             localStorage.removeItem("google-user-email");
             localStorage.removeItem("dropbox-access-token");
+            localStorage.removeItem("dropbox-refresh-token");
+            localStorage.removeItem("dropbox-token-expires-at");
             localStorage.removeItem("dropbox-last-synced");
             localStorage.removeItem("onedrive-user-email");
             localStorage.removeItem("onedrive-last-synced");
@@ -192,7 +140,7 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
                 className="sm:max-w-[425px] bg-background text-primary-foreground"
             >
                 <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
-                    <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
+                    <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">
                         <ArrowLeft className="h-5 w-5 text-secondary" />
                         <span className="sr-only">Back</span>
                     </Button>
@@ -262,7 +210,7 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
                     onOpenChange={setIsResetDialogOpen}
                     onConfirm={confirmReset}
                     isResetting={isResetting}
-                    isNativeEncryption={Capacitor.isNativePlatform()}
+                    isEncryptionEnabled
                 />
             </DialogContent>
         </Dialog>

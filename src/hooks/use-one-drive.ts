@@ -5,24 +5,14 @@ import { InteractionRequiredAuthError } from "@azure/msal-browser";
 import { initOneDrive, loginToOneDrive, syncNotesWithOneDrive, logoutFromOneDrive, checkOneDriveMasterKey, msalInstance } from "@/lib/one-drive";
 import { setupOneDriveOAuthRedirect } from "@/lib/one-drive-oauth";
 import type { SyncResult } from "@/lib/note-storage";
-import { runCloudSync, ForceResolution } from "@/lib/cloud-sync-runner";
-import { useCloudSyncState } from "@/lib/cloud-sync-state";
+import { runCloudSync, runOAuthSuccessSync, ForceResolution } from "@/lib/cloud-sync-runner";
+import { useCloudSyncState, useLastSynced } from "@/lib/cloud-sync-state";
 import { showSuccess, showError } from "@/utils/toast";
-
-let oauthSuccessHandling = false;
 
 export const useOneDrive = () => {
     const isSyncing = useCloudSyncState("onedrive");
-    const [lastSynced, setLastSynced] = useState<string | null>(localStorage.getItem("onedrive-last-synced"));
+    const [lastSynced, setLastSynced] = useLastSynced("onedrive-last-synced");
     const [userEmail, setUserEmail] = useState<string | null>(localStorage.getItem("onedrive-user-email"));
-
-    useEffect(() => {
-        const handleNotesUpdated = () => {
-            setLastSynced(localStorage.getItem("onedrive-last-synced"));
-        };
-        window.addEventListener("notes-updated", handleNotesUpdated);
-        return () => window.removeEventListener("notes-updated", handleNotesUpdated);
-    }, []);
 
     useEffect(() => {
         const handleUserUpdated = () => {
@@ -36,24 +26,15 @@ export const useOneDrive = () => {
     useEffect(() => {
         setupOneDriveOAuthRedirect();
 
-        const handleOAuthSuccess = async (event: Event) => {
-            if (oauthSuccessHandling) return;
-            oauthSuccessHandling = true;
-            try {
+        const handleOAuthSuccess = (event: Event) =>
+            runOAuthSuccessSync("onedrive", () => {
                 const username = (event as CustomEvent<{ username: string }>).detail?.username;
                 if (username) {
                     setUserEmail(username);
                 }
-                const syncResult = await doInternalSync(undefined, undefined, undefined, true);
-                if (syncResult.status === "conflict") {
-                    window.dispatchEvent(new CustomEvent("open-sync-conflict", {
-                        detail: { service: "onedrive", payload: (syncResult as any).cloudPayload, reason: (syncResult as any).reason },
-                    }));
-                }
-            } finally {
-                oauthSuccessHandling = false;
-            }
-        };
+                // eslint-disable-next-line react-hooks/immutability -- only called asynchronously after render, when doInternalSync is declared
+                return doInternalSync(undefined, undefined, undefined, true);
+            });
 
         window.addEventListener("onedrive-oauth-success", handleOAuthSuccess);
 
@@ -107,7 +88,7 @@ export const useOneDrive = () => {
             onSynced: setLastSynced,
         }, { forceResolution, cloudPayload, providedPin, silent });
 
-    const sync = useCallback(async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false) => {
+    const sync = useCallback(async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false): Promise<SyncResult> => {
         if (!userEmail) {
             showError("Please connect to OneDrive first.");
             return { status: "error", message: "Not connected" };
@@ -123,7 +104,7 @@ export const useOneDrive = () => {
         setLastSynced(null);
         window.dispatchEvent(new Event("onedrive-user-updated"));
         showSuccess("Disconnected from OneDrive.");
-    }, []);
+    }, [setLastSynced]);
 
     // Memoised so the object's identity only changes with its contents;
     // Index.tsx lists it in effect deps.

@@ -12,8 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { showSuccess, showError } from "@/utils/toast";
 import { ArrowLeft, Unlock } from "lucide-react";
-import { changeEncryptionKey } from "@/lib/note-storage";
-import { NativeBiometric } from "@capgo/capacitor-native-biometric";
+import { disableEncryption, verifyEncryptionPin } from "@/lib/encryption-pin";
+import { getLockRemainingMs, recordFailedAttempt, clearFailedAttempts, formatLockRemaining } from "@/lib/pin-attempts";
+import { useBackToClose } from "@/hooks/use-back-to-close";
 
 interface DisableEncryptionDialogProps {
     isOpen: boolean;
@@ -27,31 +28,13 @@ const DisableEncryptionDialog: React.FC<DisableEncryptionDialogProps> = ({ isOpe
 
     useEffect(() => {
         if (isOpen) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- resets local form state each time the dialog opens (intentional)
             setCurrentPin("");
             setIsLoading(false);
         }
     }, [isOpen]);
 
-    useEffect(() => {
-        if (!isOpen) return;
-
-        window.history.pushState({ dialog: 'disable-encryption' }, "");
-
-        const handlePopState = (event: PopStateEvent) => {
-            if (event.state?.dialog === 'disable-encryption') return;
-            onClose();
-        };
-
-        window.addEventListener('popstate', handlePopState);
-
-        return () => {
-            window.removeEventListener('popstate', handlePopState);
-            if (window.history.state?.dialog === 'disable-encryption') {
-                window.history.back();
-            }
-        };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen]);
+    useBackToClose("disable-encryption", isOpen, onClose);
 
     const handleDisable = async () => {
         if (!currentPin) {
@@ -59,34 +42,30 @@ const DisableEncryptionDialog: React.FC<DisableEncryptionDialogProps> = ({ isOpe
             return;
         }
 
-        const storedPasscode = localStorage.getItem("app-passcode");
-        if (currentPin !== storedPasscode) {
-            showError("Current PIN is incorrect");
+        const lockRemaining = getLockRemainingMs();
+        if (lockRemaining > 0) {
+            showError(`Too many attempts. Try again in ${formatLockRemaining(lockRemaining)}.`);
             return;
         }
 
         setIsLoading(true);
         try {
-            // Re-key to the transparent empty PIN
-            await changeEncryptionKey(currentPin, "");
-
-            // If app lock was enabled, transfer the PIN to app-lock-passcode to keep it active
-            const isLockEnabled = localStorage.getItem("app-lock-enabled") === "true";
-            if (isLockEnabled) {
-                localStorage.setItem("app-lock-passcode", currentPin);
-            } else {
-                localStorage.removeItem("app-lock-enabled");
-                localStorage.removeItem("app-biometrics-enabled");
-                try {
-                    await NativeBiometric.deleteCredentials({ server: "open-keep" });
-                } catch (e) {
-                    // Ignore if no credentials found
-                }
+            // Verified by unwrapping the key with it, not by comparing to a stored copy.
+            if (!(await verifyEncryptionPin(currentPin))) {
+                const state = recordFailedAttempt();
+                showError(
+                    state.locked
+                        ? `Too many attempts. Try again in ${formatLockRemaining(state.remainingMs)}.`
+                        : "Current PIN is incorrect"
+                );
+                return;
             }
+            clearFailedAttempts();
 
-            // Update local storage passcode
-            localStorage.removeItem("app-passcode");
-            
+            // Re-key to the transparent empty PIN. If App Lock is on it stays on,
+            // with the same PIN, now checked against a verifier instead.
+            await disableEncryption(currentPin);
+
             showSuccess("Encryption disabled successfully");
             onSuccess();
             onClose();
@@ -105,7 +84,7 @@ const DisableEncryptionDialog: React.FC<DisableEncryptionDialogProps> = ({ isOpe
                 className="sm:max-w-[425px] bg-background text-primary-foreground"
             >
                 <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
-                    <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
+                    <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">
                         <ArrowLeft className="h-5 w-5 text-secondary" />
                         <span className="sr-only">Back</span>
                     </Button>

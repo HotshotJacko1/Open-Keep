@@ -3,28 +3,48 @@ import {
   canDecryptCloudMasterKey,
   importMasterKey,
   wipeDatabaseButKeepKeys,
-  changeEncryptionKey,
-  exportMasterKey,
   verifyCloudMasterKeyMatch,
 } from "@/lib/note-storage";
+import { APP_LOCK_ENABLED_KEY, clearAppLockPin, setEncryptionEnabled, setSessionPin } from "@/lib/pin";
 import { showError } from "@/utils/toast";
+import { withImagesInPlaintext } from "@/lib/image-storage";
 
 export type CloudKeyImportResult =
   | { ok: true; effectivePin: string }
   | { ok: false; reason: "missing_pin" | "invalid_pin" };
 
-/** Validate and apply cloud master key import for conflict resolution flows. */
+/**
+ * After importing the cloud key under `importPin`, this device's PIN *is*
+ * `importPin`. Callers only get here from an explicit conflict choice, where the
+ * dialog has said so (e.g. "this turns encryption on here too").
+ */
+const adoptImportedPin = (importPin: string) => {
+  if (!importPin) {
+    setEncryptionEnabled(false);
+    setSessionPin(null);
+    return;
+  }
+  setEncryptionEnabled(true);
+  setSessionPin(importPin);
+  localStorage.setItem(APP_LOCK_ENABLED_KEY, "true");
+  clearAppLockPin();
+};
+
+/**
+ * Validate and apply cloud master key import for conflict resolution flows.
+ * `localPin` is this device's PIN: "" when encryption is off.
+ */
 export const resolveCloudKeyImport = async (
   forceResolution: "local" | "cloud" | "merge" | undefined,
   cloudPayload: string | undefined,
-  localPin: string | null,
+  localPin: string,
   providedPin?: string
 ): Promise<CloudKeyImportResult> => {
   if (!forceResolution || !cloudPayload || forceResolution === "local") {
-    return { ok: true, effectivePin: localPin || "" };
+    return { ok: true, effectivePin: localPin };
   }
 
-  const importPin = (providedPin || localPin || "")?.trim();
+  const importPin = (providedPin || localPin).trim();
 
   // When using the local PIN, verifyCloudMasterKeyMatch is sufficient and works on all native builds.
   let canDecrypt = false;
@@ -45,52 +65,16 @@ export const resolveCloudKeyImport = async (
     return { ok: false, reason: "invalid_pin" };
   }
 
-  if (forceResolution === "cloud") {
+  // cloud: replace local with cloud. merge: existing local notes are captured
+  // in memory before this call and are merged and saved during sync write-back.
+  // Either way, the local DB is wiped and the cloud master key imported.
+  // Images stay on disk through the wipe, so they must move to the new key too.
+  await withImagesInPlaintext(async () => {
     await wipeDatabaseButKeepKeys();
     await importMasterKey(cloudPayload, importPin);
-    if (importPin !== localPin) {
-      if (!importPin) {
-        localStorage.removeItem("app-passcode");
-      } else {
-        localStorage.setItem("app-passcode", importPin);
-        localStorage.setItem("app-lock-enabled", "true");
-        localStorage.removeItem("app-lock-passcode");
-      }
-    }
-    return { ok: true, effectivePin: importPin };
-  }
-
-  // merge: wipe local DB and import the cloud master key.
-  // Existing local notes are captured in memory before this call and will be
-  // merged and saved during sync write-back.
-  await wipeDatabaseButKeepKeys();
-  await importMasterKey(cloudPayload, importPin);
-  if (!importPin) {
-    localStorage.removeItem("app-passcode");
-  } else {
-    localStorage.setItem("app-passcode", importPin);
-    localStorage.setItem("app-lock-enabled", "true");
-    localStorage.removeItem("app-lock-passcode");
+  });
+  if (forceResolution === "merge" || importPin !== localPin) {
+    adoptImportedPin(importPin);
   }
   return { ok: true, effectivePin: importPin };
-};
-
-/** Prompt for PIN when cloud data exists but cannot be decrypted with local credentials. */
-export const getCloudKeyConflictIfNeeded = async (
-  localPin: string | null,
-  forceResolution: "local" | "cloud" | "merge" | undefined,
-  checkCloudKey: () => Promise<{ exists: boolean; payload: string | null }>
-): Promise<{ status: "conflict"; cloudPayload: string; reason: "key_mismatch" } | null> => {
-  if (forceResolution) return null;
-
-  const cloudKey = await checkCloudKey();
-  if (cloudKey.exists && cloudKey.payload) {
-    const effectivePin = localPin || "";
-    const canDecrypt = await canDecryptCloudMasterKey(cloudKey.payload, effectivePin);
-    if (!canDecrypt) {
-      return { status: "conflict", cloudPayload: cloudKey.payload, reason: "key_mismatch" };
-    }
-  }
-
-  return null;
 };

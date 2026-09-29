@@ -17,12 +17,49 @@ export const REDIRECT_URI = Capacitor.isNativePlatform()
     ? "openkeep://auth"
     : window.location.origin;
 
+const ACCESS_TOKEN_KEY = "dropbox-access-token";
+const REFRESH_TOKEN_KEY = "dropbox-refresh-token";
+const EXPIRES_AT_KEY = "dropbox-token-expires-at";
+const OAUTH_STATE_KEY = "dropbox_oauth_state";
+
 export const initDropbox = (accessToken?: string) => {
     if (accessToken) {
-        dbx = new Dropbox({ accessToken });
-    } else if (!dbx) {
-        // Initialize without token if needed, but mostly we need token
+        // With a refresh token the SDK renews the short-lived access token itself
+        // before each request. Connections made before refresh tokens were kept
+        // have neither value, so they fall back to the bare access token.
+        const expiresAt = Number(localStorage.getItem(EXPIRES_AT_KEY));
+        const auth = new DropboxAuth({
+            clientId: CLIENT_ID,
+            accessToken,
+            refreshToken: localStorage.getItem(REFRESH_TOKEN_KEY) ?? undefined,
+            accessTokenExpiresAt: expiresAt ? new Date(expiresAt) : undefined,
+        });
+        dbx = new Dropbox({ auth });
     }
+};
+
+/** Forget every Dropbox credential stored on this device. */
+export const clearDropboxTokens = () => {
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(EXPIRES_AT_KEY);
+    dbx = null;
+};
+
+const createOAuthState = (): string => {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+};
+
+/**
+ * True only for the redirect of a login this device started. The stored state is
+ * single-use, so a replayed or unsolicited openkeep://auth?code=... is rejected.
+ */
+export const consumeOAuthState = (returnedState: string | null): boolean => {
+    const expected = localStorage.getItem(OAUTH_STATE_KEY);
+    if (!expected || returnedState !== expected) return false;
+    localStorage.removeItem(OAUTH_STATE_KEY);
+    return true;
 };
 
 // PKCE Auth Flow Helpers
@@ -31,11 +68,14 @@ export const getAuthenticationUrl = async () => {
 
     console.log("Dropbox Redirect URI:", REDIRECT_URI);
 
+    const state = createOAuthState();
+    localStorage.setItem(OAUTH_STATE_KEY, state);
+
     const authUrl = await dbxAuth.getAuthenticationUrl(
         REDIRECT_URI, // redirect URI
-        undefined, // state
+        state, // state — checked by consumeOAuthState on the way back
         'code', // response_type
-        'offline', // tokenAccessType (offline for refresh tokens if needed, but implicit/code flow usually gives us what we need for session)
+        'offline', // tokenAccessType — returns a refresh token alongside the short-lived access token
         ['account_info.read', 'files.metadata.read', 'files.metadata.write', 'files.content.read', 'files.content.write'], // scope
         undefined, // includeGrantedScopes
         true // usePKCE
@@ -55,9 +95,11 @@ export const getAuthenticationUrl = async () => {
 
 interface DropboxAccessTokenResponse {
     access_token: string;
-    // Add other properties if needed, e.g., expires_in, refresh_token, token_type
+    refresh_token?: string;
+    expires_in?: number;
 }
 
+/** Exchange the redirect's code for tokens, persist them, and return the access token. */
 export const handleAuthRedirect = async (code: string) => {
     const dbxAuth = new DropboxAuth({ clientId: CLIENT_ID });
 
@@ -73,28 +115,52 @@ export const handleAuthRedirect = async (code: string) => {
     // This will read the code_verifier from the auth object and exchange code
     console.log("Dropbox Redirect URI (Token Exchange):", REDIRECT_URI);
     const response = await dbxAuth.getAccessTokenFromCode(REDIRECT_URI, code);
-    const accessToken = (response.result as DropboxAccessTokenResponse).access_token;
+    const { access_token: accessToken, refresh_token: refreshToken, expires_in: expiresIn } =
+        response.result as DropboxAccessTokenResponse;
 
-    // Refresh token might also be available: response.result.refresh_token
-    // For now, let's just use the access token for the session.
+    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    if (refreshToken) {
+        localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    } else {
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
+    }
+    if (expiresIn) {
+        localStorage.setItem(EXPIRES_AT_KEY, String(Date.now() + expiresIn * 1000));
+    } else {
+        localStorage.removeItem(EXPIRES_AT_KEY);
+    }
+
     return accessToken;
 };
 
 
 // --- API Helpers ---
 
+// The Dropbox SDK's typings omit the `fileBlob` it attaches to download
+// results in the browser.
+type DropboxDownloadResult = { fileBlob: Blob };
+
+// The SDK throws a DropboxResponseError whose `error` is the whole parsed response body:
+// `{ error_summary: "path/not_found/..", error: { '.tag': 'path', path: { '.tag': 'not_found' } } }`.
+// Match on the summary, which is stable across endpoints: download/get_metadata report
+// "path/not_found/...", delete reports "path_lookup/not_found/...".
+const isDropboxNotFound = (error: unknown): boolean => {
+    const summary = (error as { error?: { error_summary?: string } } | null | undefined)?.error?.error_summary ?? "";
+    return /^(path|path_lookup)\/not_found/.test(summary);
+};
+
 export const checkDropboxMasterKey = async (): Promise<{ exists: boolean, payload: string | null }> => {
     if (!dbx) return { exists: false, payload: null };
     
     try {
         const response = await dbx.filesDownload({ path: ENCRYPTED_KEY_FILE_NAME });
-        const blob = (response.result as any).fileBlob;
+        const blob = (response.result as unknown as DropboxDownloadResult).fileBlob;
         const text = await blob.text();
         const parsed = JSON.parse(text);
         const payload = typeof parsed === "string" ? parsed : JSON.stringify(parsed);
         return { exists: true, payload: normalizeCloudMasterKeyPayload(payload) };
-    } catch (error: any) {
-         if (error?.error?.path?.['.tag'] === 'not_found') {
+    } catch (error: unknown) {
+         if (isDropboxNotFound(error)) {
             return { exists: false, payload: null };
         }
         throw error;
@@ -106,10 +172,10 @@ const downloadNotes = async (): Promise<{ notes: Note[], customTags: string[] }>
 
     try {
         const response = await dbx.filesDownload({ path: FILE_PATH });
-        const blob = (response.result as any).fileBlob;
+        const blob = (response.result as unknown as DropboxDownloadResult).fileBlob;
         const text = await blob.text();
 
-        let result: any;
+        let result: unknown;
         try {
             if (text.startsWith('"') && text.endsWith('"')) {
                 const parsedString = JSON.parse(text);
@@ -117,7 +183,7 @@ const downloadNotes = async (): Promise<{ notes: Note[], customTags: string[] }>
                 try {
                     result = JSON.parse(decryptedText);
                 } catch (parseError) {
-                    throw new Error("Cannot parse synced data. Your vault might be locked or the master key does not match.");
+                    throw new Error("Cannot parse synced data. Your vault might be locked or the master key does not match.", { cause: parseError });
                 }
             } else {
                 result = JSON.parse(text);
@@ -134,9 +200,14 @@ const downloadNotes = async (): Promise<{ notes: Note[], customTags: string[] }>
         if (Array.isArray(result)) {
             parsedNotes = result as Note[];
         } else if (result && typeof result === 'object' && 'notes' in result) {
-            parsedNotes = result.notes || [];
-            parsedTags = result.customTags || [];
-            parsedNoteImages = result.noteImages || {};
+            const payload = result as {
+                notes?: Note[];
+                customTags?: string[];
+                noteImages?: Record<string, Array<{id: string, data: string}>>;
+            };
+            parsedNotes = payload.notes || [];
+            parsedTags = payload.customTags || [];
+            parsedNoteImages = payload.noteImages || {};
         }
 
         for (const note of parsedNotes) {
@@ -146,8 +217,8 @@ const downloadNotes = async (): Promise<{ notes: Note[], customTags: string[] }>
         }
 
         return { notes: parsedNotes, customTags: parsedTags };
-    } catch (error: any) {
-        if (error?.error?.path?.['.tag'] === 'not_found') {
+    } catch (error: unknown) {
+        if (isDropboxNotFound(error)) {
             return { notes: [], customTags: [] };
         }
         console.error("Error downloading notes from Dropbox:", error);
@@ -195,6 +266,27 @@ const uploadMasterKey = async (payload: string) => {
     });
 };
 
+/**
+ * Deletes the files the app writes (notes + wrapped master key) from the app folder.
+ * No-op when Dropbox isn't connected; a file that is already gone isn't an error.
+ */
+export const deleteRemoteData = async (): Promise<void> => {
+    if (!dbx) {
+        const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+        if (!token) return;
+        initDropbox(token);
+    }
+    if (!dbx) return;
+
+    for (const path of [FILE_PATH, ENCRYPTED_KEY_FILE_NAME]) {
+        try {
+            await dbx.filesDeleteV2({ path });
+        } catch (error: unknown) {
+            if (!isDropboxNotFound(error)) throw error;
+        }
+    }
+};
+
 export const syncNotesWithDropbox = async (
     localNotes: Note[], 
     localCustomTags: string[],
@@ -224,8 +316,8 @@ export const syncNotesWithDropbox = async (
         try {
             const remoteData = await downloadNotes();
             return { notes: remoteData.notes, customTags: remoteData.customTags };
-        } catch (e: any) {
-            if (e?.error?.path?.['.tag'] === 'not_found') {
+        } catch (e: unknown) {
+            if (isDropboxNotFound(e)) {
                 return { notes: [], customTags: [] };
             }
             throw e;

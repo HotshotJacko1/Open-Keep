@@ -1,6 +1,6 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { useGoogleLogin } from "@react-oauth/google";
+import { useGoogleLogin, type CodeResponse } from "@react-oauth/google";
 import { SocialLogin } from "@capgo/capacitor-social-login";
 import { Capacitor } from "@capacitor/core";
 import { initGoogleDrive, setAccessToken, getGoogleAccessToken, syncNotesWithDrive, checkGoogleDriveMasterKey, isGoogleDriveAuthError, isGoogleDriveScopeError, clearCachedDriveIds } from "@/lib/google-drive";
@@ -12,7 +12,7 @@ import {
     isGoogleDriveScopeBlocked,
     runGoogleDriveTokenEnsure,
 } from "@/lib/google-drive-auth-state";
-import { useCloudSyncState } from "@/lib/cloud-sync-state";
+import { useCloudSyncState, useLastSynced } from "@/lib/cloud-sync-state";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { isGoogleDriveSyncAvailable } from "@/lib/build-flavor";
@@ -310,7 +310,7 @@ const runWithFreshDriveToken = async <T>(work: () => Promise<T>, allowInteractiv
                 await refreshAccessTokenFromStorage();
             } catch (err) {
                 if (allowInteractiveRecovery) {
-                    throw new Error("Web auth required");
+                    throw new Error("Web auth required", { cause: err });
                 }
                 throw e;
             }
@@ -321,16 +321,8 @@ const runWithFreshDriveToken = async <T>(work: () => Promise<T>, allowInteractiv
 
 export const useGoogleDrive = () => {
     const isSyncing = useCloudSyncState("google-drive");
-    const [lastSynced, setLastSynced] = useState<string | null>(localStorage.getItem("last-synced-time"));
+    const [lastSynced, setLastSynced] = useLastSynced("last-synced-time");
     const [userEmail, setUserEmail] = useState<string | null>(localStorage.getItem("google-user-email"));
-
-    useEffect(() => {
-        const handleNotesUpdated = () => {
-            setLastSynced(localStorage.getItem("last-synced-time"));
-        };
-        window.addEventListener("notes-updated", handleNotesUpdated);
-        return () => window.removeEventListener("notes-updated", handleNotesUpdated);
-    }, []);
 
     useEffect(() => {
         const handleUserUpdated = () => {
@@ -341,7 +333,7 @@ export const useGoogleDrive = () => {
     }, []);
 
     const webLogin = useGoogleLogin({
-        onSuccess: async (tokenResponse: any) => {
+        onSuccess: async (tokenResponse: Pick<CodeResponse, "code">) => {
             try {
                 if (!tokenResponse.code) {
                     throw new Error("No authorization code received from Google");
@@ -370,7 +362,7 @@ export const useGoogleDrive = () => {
                 showSuccess(`Connected to Google Drive as ${userInfo.email}`);
                 const result = await doInternalSync();
                 if (result && result.status === "conflict" && 'cloudPayload' in result) {
-                    window.dispatchEvent(new CustomEvent("open-sync-conflict", { detail: { service: "google", payload: (result as any).cloudPayload, reason: (result as any).reason } }));
+                    window.dispatchEvent(new CustomEvent("open-sync-conflict", { detail: { service: "google", payload: result.cloudPayload, reason: result.reason } }));
                 }
             } catch (error) {
                 console.error("Login setup failed:", error);
@@ -475,7 +467,7 @@ export const useGoogleDrive = () => {
             onSynced: setLastSynced,
         }, { forceResolution, cloudPayload, providedPin, silent });
 
-    const sync = useCallback(async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false) => {
+    const sync = useCallback(async (forceResolution?: "local" | "cloud" | "merge", cloudPayload?: string, providedPin?: string, silent: boolean = false): Promise<SyncResult> => {
         return await doInternalSync(forceResolution, cloudPayload, providedPin, silent);
     }, []);
 
@@ -529,8 +521,10 @@ export const useGoogleDrive = () => {
     // the returned object's identity stable, which Index.tsx relies on: it
     // lists this object in effect deps (listeners were re-added every render).
     const loginRef = useRef(login);
+    // eslint-disable-next-line react-hooks/refs -- latest-value ref keeps the returned object's identity stable (see comment above)
     loginRef.current = login;
     const disconnectRef = useRef(disconnect);
+    // eslint-disable-next-line react-hooks/refs -- latest-value ref keeps the returned object's identity stable (see comment above)
     disconnectRef.current = disconnect;
     const stableLogin = useCallback(() => loginRef.current(), []);
     const stableDisconnect = useCallback(() => disconnectRef.current(), []);

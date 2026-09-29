@@ -24,13 +24,13 @@ const AddNoteOptions: React.FC<AddNoteOptionsProps> = ({
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button
-          className="fixed bottom-8 right-8 z-50 rounded-full shadow-lg 
+          className="fixed bottom-[calc(2rem+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))] right-8 z-50 rounded-full shadow-lg 
                      bg-[hsl(218_4%_39%)] text-white hover:bg-[hsl(218_4%_30%)] 
                      dark:bg-[hsl(240_2%_89%)] dark:text-gray-900 dark:hover:bg-[hsl(240_2%_80%)]
-                     transition-all duration-200 h-16 w-16 md:h-12 md:w-12"
+                     transition-[background-color,box-shadow] duration-md3-short4 h-16 w-16 md:h-12 md:w-12"
           size="icon"
         >
-          <Plus className={`h-8 w-8 md:h-6 md:w-6 transition-transform duration-300 ${open ? "rotate-45" : "rotate-0"}`} />
+          <Plus className={`h-8 w-8 md:h-6 md:w-6 transition-transform duration-md3-medium2 ease-md3-standard ${open ? "rotate-45" : "rotate-0"}`} />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="bg-transparent border-none shadow-none flex flex-col items-end gap-2 p-0">

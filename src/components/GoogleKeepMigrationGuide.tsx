@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { useBackToClose } from "@/hooks/use-back-to-close";
 
 interface GoogleKeepMigrationGuideProps {
   isOpen: boolean;
@@ -15,27 +16,7 @@ interface GoogleKeepMigrationGuideProps {
 }
 
 const GoogleKeepMigrationGuide: React.FC<GoogleKeepMigrationGuideProps> = ({ isOpen, onClose }) => {
-  React.useEffect(() => {
-    if (!isOpen) return;
-
-    window.history.pushState({ dialog: 'migration-guide' }, "");
-
-    const handlePopState = (event: PopStateEvent) => {
-      // If we popped back to something else, close this
-      if (event.state?.dialog === 'migration-guide') return;
-      onClose();
-    };
-
-    window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      if (window.history.state?.dialog === 'migration-guide') {
-        window.history.back();
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  useBackToClose("migration-guide", isOpen, onClose);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -44,7 +25,7 @@ const GoogleKeepMigrationGuide: React.FC<GoogleKeepMigrationGuideProps> = ({ isO
         className="w-full h-full max-w-full sm:max-w-[500px] sm:h-auto sm:max-h-[85vh] sm:rounded-lg !rounded-none sm:!rounded-lg overflow-y-auto bg-background text-primary-foreground border-0 sm:border pt-[max(env(safe-area-inset-top),1.5rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)] px-6"
       >
         <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left mb-4">
-          <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
+          <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">
             <ArrowLeft className="h-5 w-5 text-secondary" />
             <span className="sr-only">Back</span>
           </Button>

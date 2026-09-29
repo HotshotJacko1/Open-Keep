@@ -181,6 +181,50 @@
     }
   }
 
+  @layer components {
+    /* M3 pressed state layer: a 10% tint of the element's own content colour
+       while it's being pressed, so taps visibly register on touch screens
+       (hover styles never fire there). Lives in the components layer so a
+       `fixed`/`absolute` utility on the same element still wins over the
+       `position: relative` here. */
+    .press-feedback {
+      position: relative;
+    }
+
+    .press-feedback::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background-color: currentColor;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 150ms cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    .press-feedback:active::after {
+      opacity: 0.1;
+      transition-duration: 50ms;
+    }
+
+    /* M3 minimum 48x48px touch target for controls that are visually
+       smaller: an invisible hit area centred on the element, so the layout
+       and look don't change. */
+    .touch-target {
+      position: relative;
+    }
+
+    .touch-target::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: max(100%, 48px);
+      height: max(100%, 48px);
+      transform: translate(-50%, -50%);
+    }
+  }
+
   /* Tiptap dark mode link color */
   .dark .ProseMirror a {
     color: white;

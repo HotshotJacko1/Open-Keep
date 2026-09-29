@@ -210,6 +210,23 @@ export async function cancelReminderNotification(noteId: string): Promise<void> 
   }
 }
 
+/** Bring a note's scheduled reminder in line with whether it's in the Bin:
+ *  cancelled while binned, re-armed when restored. A binned note keeps its
+ *  `reminder` field, so restoring it brings the reminder back too -- unless
+ *  it's a one-off whose time passed while it was in the Bin. */
+export async function syncReminderWithBin(note: Note): Promise<void> {
+  if (note.isDeleted) {
+    await cancelReminderNotification(note.id);
+    return;
+  }
+  if (!note.reminder) return;
+  const recurs = !!note.recurrence && note.recurrence.type !== 'none';
+  // Don't hand the OS a past one-off: Android's plugin fires a past `at`
+  // immediately, which would ping the user for a reminder that's long gone.
+  if (!recurs && note.reminder <= Date.now()) return;
+  await scheduleReminderNotification(note);
+}
+
 // --- Web reminder scheduling ---
 //
 // The browser has no OS-level scheduler, so web reminders are in-page timers.
@@ -471,7 +488,51 @@ export async function rescheduleAllReminders(notes: Note[]): Promise<void> {
     }
   }
 
+  await cancelOrphanedNotifications(pending);
   await Promise.all(pending.map(scheduleReminderNotification));
+}
+
+/**
+ * Cancel every OS-scheduled notification that doesn't belong to a reminder
+ * we're about to (re)schedule.
+ *
+ * Builds before 5.0.5 scheduled recurring reminders with the plugin's
+ * `repeats` + `every`, which on Android repeats at the gap between scheduling
+ * and `at` -- a reminder set two minutes ahead came back every two minutes,
+ * and swiping it away doesn't stop a repeating schedule. Rescheduling only
+ * overwrites those for notes that still have a live recurring reminder; a note
+ * that's been binned, or whose reminder has passed, left its old alarm running
+ * forever (and the plugin re-arms it on every app start and reboot). Nothing
+ * else in the app posts local notifications, so anything not in `pending` is
+ * stale.
+ */
+async function cancelOrphanedNotifications(pending: Note[]): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    const expected = new Set<number>();
+    for (const n of pending) {
+      for (let i = 0; i < MAX_SCHEDULED_OCCURRENCES; i++) {
+        expected.add(occurrenceNotificationId(n.id, i));
+      }
+    }
+    const { notifications } = await LocalNotifications.getPending();
+    const orphans = notifications.filter(n => !expected.has(n.id));
+    if (orphans.length === 0) return;
+    await LocalNotifications.cancel({ notifications: orphans.map(n => ({ id: n.id })) });
+
+    // A stale repeating one is probably sitting in the shade right now, and is
+    // the one the user couldn't get rid of -- clear it. One-shots are left
+    // alone: an orphaned one-shot is usually a reminder that just fired
+    // legitimately, and the user should still get to see it.
+    const repeating = orphans
+      .filter(n => n.schedule && (n.schedule.repeats || n.schedule.every || n.schedule.on))
+      .map(n => n.id);
+    if (repeating.length > 0) {
+      await LocalNotifications.removeDeliveredNotificationsById({ ids: repeating });
+    }
+  } catch (e) {
+    console.warn("Failed to cancel orphaned notifications:", e);
+  }
 }
 
 // How many upcoming occurrences of a recurring reminder are handed to the OS

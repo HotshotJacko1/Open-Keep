@@ -7,14 +7,41 @@
 // single one, and answers "request" messages arriving on any of them.
 //
 // A browser tab can never open its own listening socket (see the PRD's
-// Architecture section), so every connection is dialled out from here.
-import type { BridgeRequest, BridgeResponse, HelloAck, InboundMessage } from "./protocol";
+// Architecture section), so every connection is dialled out from here. That
+// means whatever happens to be listening on a port gets dialled too, so the
+// server has to PROVE it holds the pairing token before this side sends
+// anything derived from it or serves a single request (see the handshake
+// block in protocol.ts). The token itself never goes on the wire.
+import {
+  BRIDGE_PROTOCOL_VERSION,
+  isHex32,
+  proofInput,
+  type AuthMessage,
+  type BridgeRequest,
+  type BridgeResponse,
+  type HelloMessage,
+  type InboundMessage,
+} from "./protocol";
 
 export type ConnectionState = "disconnected" | "connecting" | "connected" | "rejected";
 
+/**
+ * Why a port was given up on (only meaningful while the state is "rejected"):
+ *  - "untrusted": whatever is listening couldn't prove it holds this pairing
+ *    token -- the AI tool has a different/old token, or it isn't the Open
+ *    Keep MCP server at all. Either way nothing secret was sent to it.
+ *  - "incompatible": the server speaks a different bridge protocol version
+ *    (or this browser lacks WebCrypto), so no handshake is possible.
+ */
+export type RejectReason = "untrusted" | "incompatible";
+
 export type RequestHandler = (request: BridgeRequest) => Promise<BridgeResponse>;
 
-export type StateListener = (state: ConnectionState, connectedCount: number) => void;
+export type StateListener = (
+  state: ConnectionState,
+  connectedCount: number,
+  rejectReason: RejectReason | null
+) => void;
 
 /** Must match PORT_SPAN in the MCP server package. */
 export const PORT_SPAN = 5;
@@ -23,10 +50,45 @@ export const PORT_SPAN = 5;
 const RETRY_DELAY_MS = 4000;
 /** A port nothing has ever answered on gets a lazy sweep, to stay quiet. */
 const SWEEP_DELAY_MS = 30000;
+/** A server that accepts the socket but never finishes the handshake is dropped. */
+const HANDSHAKE_TIMEOUT_MS = 10000;
+
+export interface McpBridgeClientOptions {
+  retryDelayMs?: number;
+  sweepDelayMs?: number;
+  handshakeTimeoutMs?: number;
+}
+
+/**
+ * Where a connection is in the v2 handshake (see protocol.ts):
+ *  - "challenge": hello sent, waiting for the server's nonce + proof
+ *  - "verifying": checking the server's proof; nothing may arrive meanwhile
+ *  - "ack": our proof sent, waiting for hello_ack
+ *  - "authed": handshake done; requests are served from here on only
+ */
+type Phase = "challenge" | "verifying" | "ack" | "authed";
 
 interface Peer {
   socket: WebSocket;
-  authed: boolean;
+  phase: Phase;
+  clientNonce: string;
+  handshakeTimer: ReturnType<typeof setTimeout> | null;
+}
+
+function randomHex32(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function hexToBytes(hex: string) {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+
+function bytesToHex(buf: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 export class McpBridgeClient {
@@ -35,25 +97,40 @@ export class McpBridgeClient {
   /** Ports that have completed a handshake at least once this session. */
   private known = new Set<number>();
   private handler: RequestHandler | null = null;
-  private token = "";
+  /** HMAC key for the current token. Non-extractable; the raw token is never sent. */
+  private key: Promise<CryptoKey> | null = null;
   private ports: number[] = [];
   private wanted = false;
   /**
-   * Ports whose server refused this token. Instances can legitimately hold
-   * DIFFERENT tokens -- one left running from before the token was changed,
-   * or a second AI tool configured separately -- so a refusal has to stay
-   * local to that port. Poisoning every connection because one stale
-   * instance said no is how a working bridge ends up showing "rejected".
+   * Ports given up on for this token, and why. Terminal: a refused port is
+   * never redialled until connect() runs again (a new token, a switch
+   * toggled, or an explicit retry). Redialling on a timer is exactly what a
+   * squatter on the port would want, and a stale instance won't start
+   * holding the right token by itself either.
+   *
+   * Instances can legitimately hold DIFFERENT tokens -- one left running
+   * from before the token was changed, or a second AI tool configured
+   * separately -- so a refusal stays local to that port; other ports keep
+   * working.
    */
-  private refused = new Set<number>();
+  private refused = new Map<number, RejectReason>();
   private state: ConnectionState = "disconnected";
+  private readonly retryDelayMs: number;
+  private readonly sweepDelayMs: number;
+  private readonly handshakeTimeoutMs: number;
 
-  constructor(private onStateChange: StateListener) {}
+  constructor(private onStateChange: StateListener, options: McpBridgeClientOptions = {}) {
+    this.retryDelayMs = options.retryDelayMs ?? RETRY_DELAY_MS;
+    this.sweepDelayMs = options.sweepDelayMs ?? SWEEP_DELAY_MS;
+    this.handshakeTimeoutMs = options.handshakeTimeoutMs ?? HANDSHAKE_TIMEOUT_MS;
+  }
 
   connect(token: string, basePort: number, handler: RequestHandler): void {
     this.teardown();
-    this.token = token;
     this.handler = handler;
+    this.key = this.importKey(token);
+    // Swallowed here; each handshake awaits it and fails that port if it rejected.
+    this.key.catch(() => undefined);
     this.ports = Array.from({ length: PORT_SPAN }, (_, i) => basePort + i);
     this.wanted = true;
     this.refused.clear();
@@ -63,6 +140,8 @@ export class McpBridgeClient {
 
   disconnect(): void {
     this.teardown();
+    this.refused.clear();
+    this.key = null;
     this.recompute();
   }
 
@@ -72,8 +151,35 @@ export class McpBridgeClient {
 
   getConnectedCount(): number {
     let n = 0;
-    for (const peer of this.peers.values()) if (peer.authed) n += 1;
+    for (const peer of this.peers.values()) if (peer.phase === "authed") n += 1;
     return n;
+  }
+
+  private importKey(token: string): Promise<CryptoKey> {
+    // crypto.subtle only exists in secure contexts (https / localhost).
+    if (typeof crypto === "undefined" || !crypto.subtle) {
+      return Promise.reject(new Error("WebCrypto is unavailable in this context"));
+    }
+    return crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(token),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign", "verify"]
+    );
+  }
+
+  /** Detaches a socket's handlers and closes it, so it can't fire anything later. */
+  private dropSocket(peer: Peer): void {
+    if (peer.handshakeTimer) clearTimeout(peer.handshakeTimer);
+    peer.handshakeTimer = null;
+    // Detach first, so a late close event can't clobber the next
+    // connection's state right after it opens.
+    peer.socket.onclose = null;
+    peer.socket.onerror = null;
+    peer.socket.onmessage = null;
+    peer.socket.onopen = null;
+    peer.socket.close();
   }
 
   /** Drops every socket and pending retry without emitting a state change. */
@@ -81,20 +187,12 @@ export class McpBridgeClient {
     this.wanted = false;
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.timers.clear();
-    for (const peer of this.peers.values()) {
-      // Detach first, so a late close event can't clobber the next
-      // connection's state right after it opens.
-      peer.socket.onclose = null;
-      peer.socket.onerror = null;
-      peer.socket.onmessage = null;
-      peer.socket.onopen = null;
-      peer.socket.close();
-    }
+    for (const peer of this.peers.values()) this.dropSocket(peer);
     this.peers.clear();
   }
 
   private openPort(port: number): void {
-    if (!this.wanted || this.peers.has(port)) return;
+    if (!this.wanted || this.peers.has(port) || this.refused.has(port)) return;
 
     let socket: WebSocket;
     try {
@@ -104,11 +202,24 @@ export class McpBridgeClient {
       return;
     }
 
-    const peer: Peer = { socket, authed: false };
+    const peer: Peer = { socket, phase: "challenge", clientNonce: randomHex32(), handshakeTimer: null };
     this.peers.set(port, peer);
 
     socket.onopen = () => {
-      socket.send(JSON.stringify({ type: "hello", token: this.token, appVersion: "open-keep-web" }));
+      // No secret here: just a fresh nonce the server has to prove the token over.
+      const hello: HelloMessage = {
+        type: "hello",
+        protocolVersion: BRIDGE_PROTOCOL_VERSION,
+        clientNonce: peer.clientNonce,
+        appVersion: "open-keep-web",
+      };
+      socket.send(JSON.stringify(hello));
+      // Something that accepts the socket and then stalls gets dropped and
+      // retried normally -- it has received nothing worth having.
+      peer.handshakeTimer = setTimeout(() => {
+        peer.handshakeTimer = null;
+        if (peer.phase !== "authed") socket.close();
+      }, this.handshakeTimeoutMs);
     };
 
     socket.onmessage = (event) => {
@@ -118,12 +229,15 @@ export class McpBridgeClient {
       } catch {
         return;
       }
-      void this.handleMessage(port, msg);
+      if (!msg || typeof msg !== "object") return;
+      void this.handleMessage(port, peer, msg);
     };
 
     socket.onclose = () => {
       // Most ports in the range have nothing behind them; that is the
       // normal case, not a failure worth surfacing.
+      if (peer.handshakeTimer) clearTimeout(peer.handshakeTimer);
+      peer.handshakeTimer = null;
       if (this.peers.get(port) === peer) this.peers.delete(port);
       this.recompute();
       this.scheduleRetry(port);
@@ -135,10 +249,8 @@ export class McpBridgeClient {
   }
 
   private scheduleRetry(port: number): void {
-    if (!this.wanted || this.timers.has(port)) return;
-    // A port that refused us gets the lazy cadence, so it can recover if that
-    // tool's token is fixed later without spamming refusals in between.
-    const delay = this.known.has(port) && !this.refused.has(port) ? RETRY_DELAY_MS : SWEEP_DELAY_MS;
+    if (!this.wanted || this.timers.has(port) || this.refused.has(port)) return;
+    const delay = this.known.has(port) ? this.retryDelayMs : this.sweepDelayMs;
     this.timers.set(
       port,
       setTimeout(() => {
@@ -149,59 +261,146 @@ export class McpBridgeClient {
   }
 
   /**
+   * Gives up on a port for this token: closes it without sending anything
+   * further and never redials it on a timer (see `refused`).
+   */
+  private refuse(port: number, peer: Peer, reason: RejectReason): void {
+    this.refused.set(port, reason);
+    if (this.peers.get(port) === peer) this.peers.delete(port);
+    this.dropSocket(peer);
+    this.recompute();
+  }
+
+  /** True while `peer` is still this port's live, open connection. */
+  private isCurrent(port: number, peer: Peer): boolean {
+    return this.peers.get(port) === peer && peer.socket.readyState === WebSocket.OPEN;
+  }
+
+  /**
    * State is derived from the peers rather than set at each event, so it
    * can't drift when several ports open and close independently.
    */
   private recompute(): void {
     let next: ConnectionState;
+    let rejectReason: RejectReason | null = null;
+    const count = this.getConnectedCount();
     const connecting =
       this.wanted &&
       [...this.peers.values()].some(
         (p) => p.socket.readyState === WebSocket.CONNECTING || p.socket.readyState === WebSocket.OPEN
       );
 
-    if (this.getConnectedCount() > 0) {
+    if (count > 0) {
       next = "connected";
-    } else if (this.refused.size > 0 && !connecting) {
-      // Nothing is paired and everything we reached said no -- that is worth
-      // reporting as a bad token rather than a silent "not connected".
+    } else if (this.refused.size > 0) {
+      // Nothing is paired and something we reached failed the handshake.
+      // That is terminal for that port, so keep reporting it while the
+      // other ports are still being swept rather than flickering back to
+      // "connecting".
       next = "rejected";
+      rejectReason = [...this.refused.values()].includes("incompatible") ? "incompatible" : "untrusted";
     } else if (connecting) {
       next = "connecting";
     } else {
       next = "disconnected";
     }
 
-    const count = this.getConnectedCount();
     this.state = next;
-    this.onStateChange(next, count);
+    this.onStateChange(next, count, rejectReason);
   }
 
-  private async handleMessage(port: number, msg: InboundMessage): Promise<void> {
-    const peer = this.peers.get(port);
-    if (!peer) return;
+  private async handleMessage(port: number, peer: Peer, msg: InboundMessage): Promise<void> {
+    if (!this.isCurrent(port, peer)) return;
 
-    if (msg.type === "hello_ack") {
-      const ack = msg as HelloAck;
-      if (ack.ok) {
-        peer.authed = true;
-        this.known.add(port);
-        this.refused.delete(port);
-        this.recompute();
-      } else {
-        // Only this instance said no. Drop this one socket and leave every
-        // other port alone -- another instance may well accept the token.
-        this.refused.add(port);
-        peer.socket.close();
+    switch (peer.phase) {
+      case "challenge": {
+        if (msg.type === "hello_ack" && !msg.ok) {
+          // A v2 server says protocol_mismatch; a v1 server can't read our
+          // hello and says bad_token. Neither was sent anything secret.
+          const incompatible = msg.reason === "protocol_mismatch" || msg.reason === "bad_token";
+          this.refuse(port, peer, incompatible ? "incompatible" : "untrusted");
+          return;
+        }
+        if (msg.type !== "challenge") {
+          // Anything else here -- an unearned hello_ack {ok:true}, a request
+          // -- is a server that won't prove the token. Never serve it.
+          this.refuse(port, peer, "untrusted");
+          return;
+        }
+        if (msg.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+          this.refuse(port, peer, "incompatible");
+          return;
+        }
+        if (!isHex32(msg.serverNonce) || !isHex32(msg.serverProof)) {
+          this.refuse(port, peer, "untrusted");
+          return;
+        }
+
+        peer.phase = "verifying";
+        const serverNonce = msg.serverNonce;
+        let clientProof: string;
+        try {
+          const key = await this.key!;
+          // subtle.verify does the comparison itself, without an early-exit
+          // byte compare in our code.
+          const ok = await crypto.subtle.verify(
+            "HMAC",
+            key,
+            hexToBytes(msg.serverProof),
+            new TextEncoder().encode(proofInput("server", port, peer.clientNonce, serverNonce))
+          );
+          if (!this.isCurrent(port, peer) || peer.phase !== "verifying") return;
+          if (!ok) {
+            this.refuse(port, peer, "untrusted");
+            return;
+          }
+          clientProof = bytesToHex(
+            await crypto.subtle.sign(
+              "HMAC",
+              key,
+              new TextEncoder().encode(proofInput("client", port, peer.clientNonce, serverNonce))
+            )
+          );
+        } catch {
+          if (this.peers.get(port) === peer) this.refuse(port, peer, "incompatible");
+          return;
+        }
+        if (!this.isCurrent(port, peer) || peer.phase !== "verifying") return;
+
+        const auth: AuthMessage = { type: "auth", clientProof };
+        peer.phase = "ack";
+        peer.socket.send(JSON.stringify(auth));
+        return;
       }
-      return;
-    }
 
-    if (msg.type === "request" && this.handler) {
-      const request = msg as BridgeRequest;
-      const response = await this.handler(request);
-      if (peer.socket.readyState === WebSocket.OPEN) {
-        peer.socket.send(JSON.stringify(response));
+      case "verifying":
+        // A genuine server has nothing to say while we check its proof.
+        this.refuse(port, peer, "untrusted");
+        return;
+
+      case "ack": {
+        if (msg.type === "hello_ack" && msg.ok) {
+          peer.phase = "authed";
+          if (peer.handshakeTimer) clearTimeout(peer.handshakeTimer);
+          peer.handshakeTimer = null;
+          this.known.add(port);
+          this.recompute();
+          return;
+        }
+        // It proved the token, then refused ours or sent something else.
+        this.refuse(port, peer, "untrusted");
+        return;
+      }
+
+      case "authed": {
+        // Requests are served only on a connection that finished the handshake.
+        if (msg.type === "request" && this.handler) {
+          const response = await this.handler(msg);
+          if (this.isCurrent(port, peer)) {
+            peer.socket.send(JSON.stringify(response));
+          }
+        }
+        return;
       }
     }
   }

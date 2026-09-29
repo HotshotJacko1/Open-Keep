@@ -1,4 +1,6 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
+import tailwindTypography from "@tailwindcss/typography";
 
 export default {
   darkMode: ["class"],
@@ -71,10 +73,29 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      // Material 3 motion tokens. tailwindcss-animate reads these too, so
+      // `duration-md3-*` / `ease-md3-*` work on both transitions and
+      // animate-in/animate-out. DEFAULT makes every plain `transition-*`
+      // utility use the M3 standard curve instead of Tailwind's M2-era one.
       transitionTimingFunction: {
+        DEFAULT: 'cubic-bezier(0.2, 0.0, 0, 1.0)',
+        // Emphasized: large moves (dialogs, sheets, drawers)
         'md3-decelerate': 'cubic-bezier(0.05, 0.7, 0.1, 1.0)',
         'md3-accelerate': 'cubic-bezier(0.3, 0.0, 0.8, 0.15)',
+        // Standard: small, on-screen changes (menus, tooltips, colour)
         'md3-standard': 'cubic-bezier(0.2, 0.0, 0, 1.0)',
+        'md3-standard-decelerate': 'cubic-bezier(0, 0, 0, 1)',
+        'md3-standard-accelerate': 'cubic-bezier(0.3, 0, 1, 1)',
+      },
+      transitionDuration: {
+        'md3-short1': '50ms',
+        'md3-short2': '100ms',
+        'md3-short3': '150ms',
+        'md3-short4': '200ms',
+        'md3-medium1': '250ms',
+        'md3-medium2': '300ms',
+        'md3-medium3': '350ms',
+        'md3-medium4': '400ms',
       },
       keyframes: {
         "accordion-down": {
@@ -100,5 +121,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
+  plugins: [tailwindcssAnimate, tailwindTypography],
 } satisfies Config;

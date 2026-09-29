@@ -55,6 +55,8 @@ import { ImportInput, ImportInputFile } from "@/types/import";
 import { App } from "@capacitor/app";
 import { Device } from "@capacitor/device";
 import { supabase } from "@/integrations/supabase/client";
+import { useBackToClose } from "@/hooks/use-back-to-close";
+import { ENCRYPTION_CHANGED_EVENT, isEncryptionEnabled as readEncryptionEnabled } from "@/lib/pin";
 
 // Import limits. Generous next to the note limits in lib/note-limits.ts:
 // a real Keep Takeout is thousands of small JSON files.
@@ -112,9 +114,17 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
     };
     if (isOpen) {
       fetchPin();
-      setIsEncryptionEnabled(localStorage.getItem("app-passcode") !== null);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- refreshes settings state from storage each time the dialog opens (intentional)
+      setIsEncryptionEnabled(readEncryptionEnabled());
     }
   }, [user?.id, isOpen]);
+
+  // A sync conflict choice can turn encryption on or off while Settings is open.
+  useEffect(() => {
+    const handleChange = () => setIsEncryptionEnabled(readEncryptionEnabled());
+    window.addEventListener(ENCRYPTION_CHANGED_EVENT, handleChange);
+    return () => window.removeEventListener(ENCRYPTION_CHANGED_EVENT, handleChange);
+  }, []);
 
   useEffect(() => {
     const getAppInfo = async () => {
@@ -133,27 +143,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
     getAppInfo();
   }, []);
 
-  React.useEffect(() => {
-    if (!isOpen) return;
-
-    window.history.pushState({ dialog: 'settings' }, "");
-
-    const handlePopState = (event: PopStateEvent) => {
-      // If we popped back TO settings state, stay open
-      if (event.state?.dialog === 'settings') return;
-      onClose();
-    };
-
-    window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      if (window.history.state?.dialog === 'settings') {
-        window.history.back();
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  useBackToClose("settings", isOpen, onClose);
 
   React.useEffect(() => {
     const handleGlobalConflict = () => {
@@ -259,9 +249,9 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
       } else {
         showError("No valid notes found to import.");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Import error:", error);
-      showError(`Import Error: ${error.message || 'Failed to import notes'}`);
+      showError(`Import Error: ${(error as Error).message || 'Failed to import notes'}`);
     } finally {
       setIsImporting(false);
       // Reset input
@@ -371,7 +361,7 @@ PIN code: ${pinCode || 'Not set'}`;
           className="w-full h-full max-w-full sm:max-w-[425px] sm:h-auto sm:max-h-[85vh] sm:rounded-lg !rounded-none sm:!rounded-lg overflow-y-auto bg-background text-primary-foreground border-0 sm:border pt-[max(env(safe-area-inset-top),1.5rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)] px-6"
         >
           <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
-            <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 mt-0 h-8 w-8">
+            <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">
               <ArrowLeft className="h-5 w-5 text-secondary" />
               <span className="sr-only">Back</span>
             </Button>
@@ -486,7 +476,7 @@ PIN code: ${pinCode || 'Not set'}`;
               isOpen={isEnableEncryptionDialogOpen}
               onClose={() => {
                 setIsEnableEncryptionDialogOpen(false);
-                setIsEncryptionEnabled(localStorage.getItem("app-passcode") !== null);
+                setIsEncryptionEnabled(readEncryptionEnabled());
               }}
             />
 

@@ -1,7 +1,7 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
-import { handleAuthRedirect, initDropbox } from "@/lib/dropbox";
+import { consumeOAuthState, handleAuthRedirect, initDropbox } from "@/lib/dropbox";
 import { isDropboxOAuthUrl, registerOAuthRedirectHandler } from "@/lib/oauth-redirect";
 import { showError, showSuccess } from "@/utils/toast";
 
@@ -18,11 +18,17 @@ const completeDropboxLogin = async (redirectUrl: string): Promise<void> => {
     const code = parsed.searchParams.get("code");
     if (!code) return;
 
+    // openkeep:// can't be verified as ours on Android or iOS, so any app can
+    // deliver a redirect here. Only finish a login this device actually started.
+    if (!consumeOAuthState(parsed.searchParams.get("state"))) {
+        console.warn("Ignoring Dropbox redirect with missing or unexpected state");
+        return;
+    }
+
     authInProgress = true;
     try {
         await Browser.close();
         const token = await handleAuthRedirect(code);
-        localStorage.setItem("dropbox-access-token", token);
         initDropbox(token);
         window.dispatchEvent(new Event("dropbox-token-updated"));
         window.dispatchEvent(new CustomEvent("dropbox-oauth-success", { detail: { token } }));
