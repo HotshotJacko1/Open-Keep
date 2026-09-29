@@ -11,6 +11,13 @@
 #     CollectionToggleCheckboxAction must never be renamed or moved.
 # Read a library's proguard.txt before adding a rule for it here.
 
+# Tink (behind androidx.security:security-crypto, used by KeyManager) is annotated
+# with JSR-305 / javax.annotation.concurrent, which are compile-time only and absent
+# from the runtime classpath. The play flavor happens to get them from Play Services;
+# the fdroid flavor, synced without social-login, does not, and R8 fails the build.
+-dontwarn javax.annotation.Nullable
+-dontwarn javax.annotation.concurrent.GuardedBy
+
 # No renaming. The source is public under the AGPL, so obfuscation hides nothing,
 # and real names keep Sentry's Android stack traces readable without uploading a
 # mapping file for every build. Shrinking and optimisation still apply.
