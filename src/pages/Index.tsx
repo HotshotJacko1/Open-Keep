@@ -1,18 +1,15 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
 import { Note } from "@/types/note";
 import { loadNotes, saveNote as localSaveNote, deleteNote as localDeleteNote, getLegacyWebNotes, migrateWebNotes, clearLegacyWebNotes, isWebReadFailed } from "@/lib/note-storage";
 import { deleteImage } from "@/lib/image-storage";
 import { Capacitor } from "@capacitor/core";
 import NoteCard from "@/components/NoteCard";
-import NoteEditor from "@/components/NoteEditor"; // Unified Editor
-import { InlineNoteCreator } from "@/components/InlineNoteCreator";
 import { useGoogleDrive, isGoogleDriveAuthBusy, isGoogleDriveScopeBlocked } from "@/hooks/use-google-drive";
 import { useOneDrive } from "@/hooks/use-one-drive";
 import { useDropbox } from "@/hooks/use-dropbox";
 import { Loader2 } from "lucide-react";
 import SidebarNav from "@/components/SidebarNav";
-import SettingsDialog from "@/components/SettingsDialog";
 import EditLabels from "@/components/EditLabels";
 import AddNoteOptions from "@/components/AddNoteOptions";
 import InitialAskToMigrate from "@/components/InitialAskToMigrate";
@@ -23,31 +20,50 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn, safeRandomUUID } from "@/lib/utils";
 import { Menu, Lightbulb, Settings } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import DesktopSidebar from "@/components/DesktopSidebar";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { readCustomTags } from "@/lib/custom-tags";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useFlipLayout } from "@/hooks/use-flip-layout";
+import { NoteContainerTransform } from "@/lib/container-transform";
 import TopBar from "@/components/TopBar";
 import { BulbIcon } from "@/components/BulbIcon";
 
 import { showSuccess, showError } from "@/utils/toast";
 import { SelectionActionBar } from "@/components/SelectionActionBar";
 import FileInfo from "@/components/FileInfo";
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
 import { toggleCheckboxInContent } from "@/utils/markdown";
-import { addNotesToZip } from "@/utils/note-export";
 import { rescheduleAllReminders, syncReminderWithBin } from "@/utils/reminder";
 import { App as CapacitorApp } from "@capacitor/app";
 import { useWidgetDeepLink } from "@/hooks/use-widget-deep-link";
 import { useMcpBridge } from "@/hooks/use-mcp-bridge";
+import { recordTagChange, recordTombstone } from "@/lib/tombstones";
 
 // How long a note sits in the Bin (isDeleted) before it's hard-removed, either
 // by the auto-cleanup sweep below or by a manual "Delete Forever". Manual
-// permanent delete is gated on this too -- hard-removing a note is a local-only
-// operation with no tombstone, so deleting it before this device has had a
-// chance to sync the soft-delete to every cloud-connected device risks a
-// still-live remote copy getting merged back in on the next sync.
+// permanent delete is gated on this too. Since C3-01 a hard delete records a
+// tombstone that stops other devices merging the note back in, but app versions
+// before that ignore tombstones, so the gate stays until few devices run them.
+// Split out of the startup bundle so the note list appears sooner. The editor
+// (TipTap/ProseMirror) and Settings load once the notes are on screen.
+const loadSettingsDialog = () => import("@/components/SettingsDialog");
+const SettingsDialog = lazy(loadSettingsDialog);
+const NoteEditor = lazy(() => import("@/components/NoteEditor"));
+const InlineNoteCreator = lazy(() =>
+  import("@/components/InlineNoteCreator").then((m) => ({ default: m.InlineNoteCreator }))
+);
+
+const downloadNotesZip = async (notesToExport: Note[]) => {
+  const [{ default: JSZip }, { saveAs }, { addNotesToZip }] = await Promise.all([
+    import("jszip"),
+    import("file-saver"),
+    import("@/utils/note-export"),
+  ]);
+  const zip = new JSZip();
+  await addNotesToZip(zip, notesToExport);
+  saveAs(await zip.generateAsync({ type: "blob" }), "notes_export.zip");
+};
+
 const BIN_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 const Index = () => {
@@ -58,6 +74,10 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [dbUnavailable, setDbUnavailable] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  // M3 container transform: a note opened from its card grows out of it and
+  // shrinks back into it on close (lib/container-transform.ts).
+  const [containerTransform] = useState(() => new NoteContainerTransform());
+  const [editorMorph, setEditorMorph] = useState(false);
   const [shouldAutoFocus, setShouldAutoFocus] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState("");
@@ -130,19 +150,20 @@ const Index = () => {
 
   const getHeaderContent = () => {
     if (selectedTag === "archive") {
-      return <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Archive</span>;
+      return <span className="text-header-foreground">Archive</span>;
     }
     if (selectedTag === "bin") {
-      return <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Bin</span>;
+      return <span className="text-header-foreground">Bin</span>;
     }
     if (selectedTag) {
-      return <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3] truncate max-w-[150px]">{selectedTag}</span>;
+      return <span className="text-header-foreground truncate max-w-[150px]">{selectedTag}</span>;
     }
     return (
       !Capacitor.isNativePlatform() && (
-        <div className="flex items-center">
+        // Hidden below lg (phones/tablets) to give the search bar the room.
+        <div className="hidden lg:flex items-center">
           <BulbIcon className="mr-2 h-6 w-6 flex-shrink-0" />
-          <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
+          <span className="text-header-foreground">Keep</span>
         </div>
       )
     );
@@ -256,11 +277,7 @@ const Index = () => {
       return;
     }
 
-    const zip = new JSZip();
-    await addNotesToZip(zip, exportableNotes);
-
-    const content = await zip.generateAsync({ type: "blob" });
-    saveAs(content, "notes_export.zip");
+    await downloadNotesZip(exportableNotes);
     // Say so rather than dropping them silently -- this path is reachable from the
     // storage-full toast, where the user is trying to rescue their data.
     showSuccess(
@@ -301,6 +318,9 @@ const Index = () => {
 
   const persistDelete = async (id: string) => {
     try {
+      // Every permanent delete comes through here. Record it first, so a sync that
+      // runs straight after can't merge a remote copy back in (C3-01).
+      recordTombstone(id);
       await localDeleteNote(id);
       triggerEditAutoSync();
     } catch (error) {
@@ -334,6 +354,7 @@ const Index = () => {
   // being armed means an edit hasn't synced yet, so just opening a note to read
   // it and closing it costs no network round-trip.
   const handleEditorClose = async () => {
+    if (editorMorph) containerTransform.beginClose();
     setIsEditorOpen(false);
     // NoteEditor calls onSave()/onDelete() and then onClose() in the same tick
     // without awaiting, so the final save may still be writing. Uploading now
@@ -348,14 +369,17 @@ const Index = () => {
     if (!attempted) triggerEditAutoSync();
   };
 
-  // Auto-sync on App Launch
+  // Auto-sync on App Launch, once the local notes are on screen: starting it
+  // earlier made it compete with the first read for the JS thread and bridge.
   useEffect(() => {
-    if (activeService && !hasInitialSynced.current) {
+    if (activeService && !isLoading && !hasInitialSynced.current) {
       console.log("Auto-sync: App Launch triggered");
       hasInitialSynced.current = true;
-      performAutoSync();
+      // SettingsDialog listens for "open-sync-conflict"; make sure its code has
+      // loaded (it's lazy) before a sync can raise one.
+      void loadSettingsDialog().then(() => performAutoSync());
     }
-  }, [activeService, performAutoSync]);
+  }, [activeService, isLoading, performAutoSync]);
 
   // Reload on App Resume, then auto-sync if a cloud service is connected.
   //
@@ -464,6 +488,49 @@ const Index = () => {
 
   // Load notes on mount + Migration Logic
   useEffect(() => {
+    const runStartupHousekeeping = async (loadedNotes: Note[]) => {
+      // Reschedule any pending reminders (isolated so one bad reminder doesn't
+      // break the cleanup below). rescheduleAllReminders rolls past-due recurring
+      // reminders forward in place, so give it copies and merge the new times
+      // into state, skipping any note the user has changed in the meantime.
+      const copies = loadedNotes.map(n => ({ ...n }));
+      try {
+        await rescheduleAllReminders(copies);
+        const rolled = new Map<string, { from: Note; to: Note }>();
+        copies.forEach((c, i) => {
+          if (c.reminder !== loadedNotes[i].reminder) rolled.set(c.id, { from: loadedNotes[i], to: c });
+        });
+        if (rolled.size > 0) {
+          setNotes(prev => prev.map(n => {
+            const r = rolled.get(n.id);
+            if (!r || n.reminder !== r.from.reminder) return n;
+            return { ...n, reminder: r.to.reminder, recurrence: r.to.recurrence };
+          }));
+        }
+      } catch (reminderError) {
+        console.error("Failed to reschedule reminders:", reminderError);
+      }
+
+      // AUTO-DELETE CLEANUP (30 days)
+      const now = Date.now();
+      const notesToPermanentlyDelete = loadedNotes.filter(n => n.isDeleted && n.deletedAt && (now - n.deletedAt > BIN_RETENTION_MS));
+      if (notesToPermanentlyDelete.length === 0) return;
+
+      console.log(`Cleaning up ${notesToPermanentlyDelete.length} old deleted notes`);
+      try {
+        await Promise.all(notesToPermanentlyDelete.map(async n => {
+          if (n.images && n.images.length > 0) {
+            await Promise.all(n.images.map(deleteImage));
+          }
+          await deleteNote(n.id);
+        }));
+        const idsToDelete = new Set(notesToPermanentlyDelete.map(n => n.id));
+        setNotes(prev => prev.filter(n => !idsToDelete.has(n.id)));
+      } catch (cleanupError) {
+        console.error("Failed to clean up old deleted notes:", cleanupError);
+      }
+    };
+
     const initNotes = async () => {
       try {
         // MIGRATION CHECK
@@ -480,31 +547,10 @@ const Index = () => {
         }
 
         const loadedNotes = await loadNotes();
-
-        // Reschedule any pending reminders (isolated so one bad reminder doesn't blank the list)
-        try {
-          await rescheduleAllReminders(loadedNotes);
-        } catch (reminderError) {
-          console.error("Failed to reschedule reminders:", reminderError);
-        }
-
-        // AUTO-DELETE CLEANUP (30 days)
-        const now = Date.now();
-        const notesToPermanentlyDelete = loadedNotes.filter(n => n.isDeleted && n.deletedAt && (now - n.deletedAt > BIN_RETENTION_MS));
-
-        if (notesToPermanentlyDelete.length > 0) {
-          console.log(`Cleaning up ${notesToPermanentlyDelete.length} old deleted notes`);
-          await Promise.all(notesToPermanentlyDelete.map(async n => {
-            if (n.images && n.images.length > 0) {
-              await Promise.all(n.images.map(deleteImage));
-            }
-            await deleteNote(n.id);
-          }));
-          const idsToDelete = new Set(notesToPermanentlyDelete.map(n => n.id));
-          setNotes(loadedNotes.filter(n => !idsToDelete.has(n.id)));
-        } else {
-          setNotes(loadedNotes);
-        }
+        setNotes(loadedNotes);
+        // Show the notes first; reminders and Bin cleanup don't affect what's
+        // on screen, and on slow phones they used to hold the list back.
+        void runStartupHousekeeping(loadedNotes);
         setDbUnavailable(false);
       } catch (error) {
         console.error("Failed to load notes:", error);
@@ -520,6 +566,8 @@ const Index = () => {
       } finally {
         notesLoadedRef.current = true;
         setIsLoading(false);
+        // After the list has painted: main.tsx starts error reporting on this.
+        requestAnimationFrame(() => setTimeout(() => window.dispatchEvent(new Event("open-keep-notes-shown"))));
       }
     };
 
@@ -595,6 +643,7 @@ const Index = () => {
   };
 
   const handleEditNote = (note: Note) => {
+    setEditorMorph(containerTransform.beginOpen(note.id));
     setEditingNote(note);
     setShouldAutoFocus(false);
     setIsEditorOpen(true);
@@ -847,6 +896,23 @@ const Index = () => {
 
   const showPinnedSections = pinnedNotes.length > 0 && selectedTag !== "archive" && selectedTag !== "bin";
 
+  // The editor dialog mounts in the same commit that opens it, so its final
+  // rect is measurable here, before the first paint.
+  useLayoutEffect(() => {
+    if (isEditorOpen && editorMorph) containerTransform.playOpen();
+  }, [isEditorOpen, editorMorph, containerTransform]);
+  useEffect(() => () => containerTransform.reset(), [containerTransform]);
+
+  // Let the remaining cards glide into place when notes are removed, added,
+  // reordered or the view mode changes (M3 motion). One per grid container.
+  const pinnedGridRef = useRef<HTMLDivElement>(null);
+  const otherGridRef = useRef<HTMLDivElement>(null);
+  const allGridRef = useRef<HTMLDivElement>(null);
+  const layoutKey = (list: Note[]) => viewMode + "|" + list.map((n) => n.id).join(",");
+  useFlipLayout(pinnedGridRef, layoutKey(pinnedNotes));
+  useFlipLayout(otherGridRef, layoutKey(otherNotes));
+  useFlipLayout(allGridRef, layoutKey(filteredNotes));
+
   const handleNewTextNote = () => {
     const newNoteSkeleton: Note = {
       id: safeRandomUUID(),
@@ -859,6 +925,8 @@ const Index = () => {
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
+    containerTransform.reset();
+    setEditorMorph(false);
     setEditingNote(newNoteSkeleton);
     setShouldAutoFocus(true);
     setIsEditorOpen(true);
@@ -886,6 +954,8 @@ const Index = () => {
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
+    containerTransform.reset();
+    setEditorMorph(false);
     setEditingNote(newNoteSkeleton);
     setShouldAutoFocus(true);
     setIsEditorOpen(true);
@@ -1191,12 +1261,7 @@ const Index = () => {
   };
 
   const handleBulkExport = async () => {
-    const zip = new JSZip();
-    const selectedNotes = notes.filter((n) => selectedNoteIds.has(n.id));
-    await addNotesToZip(zip, selectedNotes);
-
-    const content = await zip.generateAsync({ type: "blob" });
-    saveAs(content, "notes_export.zip");
+    await downloadNotesZip(notes.filter((n) => selectedNoteIds.has(n.id)));
     handleClearSelection();
     showSuccess("Exported notes");
   };
@@ -1271,6 +1336,11 @@ const Index = () => {
   const handleRenameTag = async (oldTag: string, newTag: string) => {
     if (oldTag === newTag) return;
 
+    // A rename is a delete of the old name plus a create of the new one, so sync
+    // doesn't bring the old name back from another device (C1-19).
+    recordTagChange(oldTag, true);
+    recordTagChange(newTag, false);
+
     // Update custom tags if necessary
     setCustomTags(prev => {
       const newTags = prev.map(t => t === oldTag ? newTag : t);
@@ -1306,7 +1376,8 @@ const Index = () => {
   };
 
   const handleDeleteTag = async (tagToDelete: string) => {
-    // Remove from custom tags
+    // Remove from custom tags, and record it so sync doesn't bring it back (C1-19)
+    recordTagChange(tagToDelete, true);
     setCustomTags(prev => prev.filter(t => t !== tagToDelete));
 
     const now = Date.now();
@@ -1335,6 +1406,8 @@ const Index = () => {
       return;
     }
 
+    // Recorded so re-creating a label deleted earlier (here or elsewhere) sticks (C1-19)
+    recordTagChange(tag, false);
     setCustomTags(prev => [...prev, tag]);
     showSuccess(`Label "${tag}" created`);
   };
@@ -1377,7 +1450,7 @@ const Index = () => {
         className="flex-1 overflow-y-auto px-4 pt-4 sm:px-6 sm:pt-6 md:px-8 md:pt-8 pb-[calc(7rem+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))]"
       >
         {dbUnavailable && isWebReadFailed() && (
-          <div className="bg-destructive/15 border border-destructive/30 rounded-lg p-4 mb-4 text-sm text-destructive dark:text-red-400">
+          <div className="bg-destructive/15 border border-destructive/30 rounded-lg p-4 mb-4 text-sm text-destructive">
             <p className="font-semibold mb-1">Local notes storage is unreadable</p>
             <p>Your notes could not be loaded. A backup of the corrupt data has been quarantined.</p>
             <Button
@@ -1402,7 +1475,7 @@ const Index = () => {
           </div>
         )}
         {dbUnavailable && !isWebReadFailed() && (
-          <div className="bg-destructive/15 border border-destructive/30 rounded-lg p-4 mb-4 text-sm text-destructive dark:text-red-400">
+          <div className="bg-destructive/15 border border-destructive/30 rounded-lg p-4 mb-4 text-sm text-destructive">
             <p className="font-semibold mb-1">Unable to read notes</p>
             <p>Your notes have not been deleted. Cloud sync is paused. Please restart the app. Do not use &quot;Reset&quot; or &quot;Forgot PIN&quot;.</p>
           </div>
@@ -1413,13 +1486,15 @@ const Index = () => {
           </div>
         )}
 
-        {!isMobile && selectedTag !== "bin" && selectedTag !== "archive" && !searchTerm && (
-          <InlineNoteCreator
-            onSaveNote={handleSaveNote}
-            availableTags={uniqueTags}
-            defaultTag={selectedTag && selectedTag !== "bin" && selectedTag !== "archive" ? selectedTag : undefined}
-            onCreateTag={handleCreateTag}
-          />
+        {!isMobile && !isLoading && selectedTag !== "bin" && selectedTag !== "archive" && !searchTerm && (
+          <Suspense fallback={null}>
+            <InlineNoteCreator
+              onSaveNote={handleSaveNote}
+              availableTags={uniqueTags}
+              defaultTag={selectedTag && selectedTag !== "bin" && selectedTag !== "archive" ? selectedTag : undefined}
+              onCreateTag={handleCreateTag}
+            />
+          </Suspense>
         )}
 
         {isLoading && (
@@ -1456,6 +1531,7 @@ const Index = () => {
                   PINNED
                 </h2>
                 <div
+                  ref={pinnedGridRef}
                   className={cn(
                     "w-full",
                     viewMode === "grid"
@@ -1491,6 +1567,7 @@ const Index = () => {
                   OTHERS
                 </h2>
                 <div
+                  ref={otherGridRef}
                   className={cn(
                     "w-full",
                     viewMode === "grid"
@@ -1523,6 +1600,7 @@ const Index = () => {
           </div>
         ) : (
           <div
+            ref={allGridRef}
             className={cn(
               "pt-4 w-full",
               viewMode === "grid"
@@ -1553,8 +1631,13 @@ const Index = () => {
         )}
       </div>
 
+      {/* Mounted once the notes are showing (or on demand), so the editor's and
+          Settings' code doesn't compete with the first render of the list. */}
+      {(!isLoading || isEditorOpen) && (
+      <Suspense fallback={null}>
       <NoteEditor
         isOpen={isEditorOpen}
+        morph={editorMorph}
         onClose={() => { void handleEditorClose(); }}
         onSave={handleSaveNote}
         onDelete={handleDeleteNote}
@@ -1563,7 +1646,11 @@ const Index = () => {
         autoFocus={shouldAutoFocus}
         focusTarget={(localStorage.getItem("default-typing-area") as "title" | "body") || "body"}
       />
+      </Suspense>
+      )}
 
+      {(!isLoading || isSettingsOpen) && (
+      <Suspense fallback={null}>
       <SettingsDialog
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -1589,6 +1676,8 @@ const Index = () => {
           }
         }}
       />
+      </Suspense>
+      )}
 
       <EditLabels
         isOpen={isEditLabelsOpen}
@@ -1640,8 +1729,8 @@ const Index = () => {
           <SheetContent side="left" className="w-64 p-0 bg-sidebar dark:bg-sidebar text-sidebar-foreground border-r-sidebar-border pt-[env(safe-area-inset-top)] flex flex-col" aria-describedby={undefined}>
             <SheetTitle className="sr-only">Navigation menu</SheetTitle>
             <div className="p-4 text-2xl font-bold text-sidebar-primary flex items-center shrink-0">
-              <Lightbulb className="mr-2 h-6 w-6 text-yellow-500" fill="currentColor" />
-              <span className="text-[hsl(218_4%_39%)] dark:text-[#e2e2e3]">Keep</span>
+              <Lightbulb className="mr-2 h-6 w-6 text-highlight" fill="currentColor" />
+              <span className="text-header-foreground">Keep</span>
             </div>
             <SidebarNav
               uniqueTags={uniqueTags}
@@ -1717,40 +1806,14 @@ const Index = () => {
           mainContent
         ) : (
           <div className="flex flex-1 min-w-0">
-            {!isSidebarCollapsed ? (
-              <ResizablePanelGroup direction="horizontal" className="h-full" autoSaveId="openkeep-sidebar">
-                <ResizablePanel defaultSize={15} minSize={10} maxSize={25} className="bg-sidebar dark:bg-sidebar text-sidebar-foreground border-r-sidebar-border pt-4 flex flex-col">
-                  <SidebarNav
-                    uniqueTags={uniqueTags}
-                    onEditLabels={() => setIsEditLabelsOpen(true)}
-                  />
-                </ResizablePanel>
-                <ResizableHandle withHandle />
-                <ResizablePanel defaultSize={85}>
-                  {mainContent}
-                </ResizablePanel>
-              </ResizablePanelGroup>
-            ) : (
-              <>
-                {/* Mini Sidebar */}
-                <div
-                  className="relative z-20 flex-none bg-sidebar dark:bg-sidebar flex flex-col pt-4"
-                  style={{ width: '60px' }}
-                >
-                  <div className="absolute top-0 left-0 h-full bg-sidebar dark:bg-sidebar border-r border-sidebar-border transition-[width,box-shadow] duration-md3-medium2 ease-md3-standard overflow-hidden shadow-none hover:shadow-2xl flex flex-col z-30 group w-[60px] hover:w-64 pt-4">
-                    <SidebarNav
-                      uniqueTags={uniqueTags}
-                      onEditLabels={() => setIsEditLabelsOpen(true)}
-                    />
-                  </div>
-                </div>
-
-                {/* Main Content */}
-                <div className="flex-1 min-w-0">
-                  {mainContent}
-                </div>
-              </>
-            )}
+            <DesktopSidebar
+              collapsed={isSidebarCollapsed}
+              uniqueTags={uniqueTags}
+              onEditLabels={() => setIsEditLabelsOpen(true)}
+            />
+            <div className="flex-1 min-w-0">
+              {mainContent}
+            </div>
           </div>
         )}
       </div>

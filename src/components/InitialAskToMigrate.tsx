@@ -21,15 +21,15 @@ const InitialAskToMigrate: React.FC<InitialAskToMigrateProps> = ({ isOpen, onAcc
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onDecline(); }}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="text-black dark:text-white">Welcome to Open Keep!</DialogTitle>
-          <DialogDescription className="pt-4 text-base text-black dark:text-white">
+          <DialogTitle className="text-foreground">Welcome to Open Keep!</DialogTitle>
+          <DialogDescription className="pt-4 text-base text-foreground">
             Would you like to migrate your existing notes from Google Keep?
             <br />
             <br />
             Don't worry, we won't delete them from Google Keep.
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter className="flex gap-2 sm:gap-0 pt-4 text-black dark:text-white">
+        <DialogFooter className="flex gap-2 sm:gap-0 pt-4 text-foreground">
           <Button variant="outline" onClick={onDecline}>
             Not Now
           </Button>

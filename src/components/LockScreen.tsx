@@ -16,6 +16,7 @@ import {
 import { clearAllData } from "@/lib/note-storage";
 import { clearAllPinState, verifyAppLockPin, BIOMETRICS_ENABLED_KEY } from "@/lib/pin";
 import { deleteAllRemoteData } from "@/lib/cloud-reset";
+import { clearTagChanges } from "@/lib/tombstones";
 import ResetDialog from "./ResetDialog";
 
 interface LockScreenProps {
@@ -204,7 +205,10 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isEncryptionEnabled, 
             // 3. Clear local storage flags
             clearAllPinState();
             localStorage.removeItem("custom-tags"); // While we're at it
-            
+            // The label list's change records go with it. Note tombstones stay: with
+            // encryption off the notes are kept, and so are the deletes that shaped them.
+            clearTagChanges();
+
             // 4. Clear sync state
             localStorage.removeItem("last-synced-time");
             localStorage.removeItem("google-access-token");
@@ -237,7 +241,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isEncryptionEnabled, 
                 </div>
 
                 <div className="text-center space-y-2">
-                    <h1 className="text-2xl font-bold tracking-tight text-black dark:text-white">App Locked</h1>
+                    <h1 className="text-2xl font-bold tracking-tight text-foreground">App Locked</h1>
                     <p className="text-muted-foreground">
                         {lockRemainingMs > 0
                             ? `Too many attempts. Try again in ${formatLockRemaining(lockRemainingMs)}.`
@@ -246,7 +250,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isEncryptionEnabled, 
                 </div>
 
                 <form onSubmit={handleSubmit} className={`w-full max-w-[240px] space-y-4 ${errorPing ? "animate-shake" : ""}`}>
-                    <div className="flex gap-2 justify-center text-black dark:text-white">
+                    <div className="flex gap-2 justify-center text-foreground">
                         <Input
                             ref={inputRef}
                             type="password"

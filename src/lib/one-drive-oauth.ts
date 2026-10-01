@@ -1,7 +1,6 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
-import { handleOneDriveRedirect, initOneDrive, msalInstance } from "@/lib/one-drive";
 import { isOneDriveOAuthUrl, registerOAuthRedirectHandler } from "@/lib/oauth-redirect";
 import { showError, showSuccess } from "@/utils/toast";
 
@@ -15,7 +14,11 @@ const completeOneDriveLogin = async (redirectUrl: string): Promise<void> => {
     if (!isOneDriveOAuthUrl(redirectUrl)) return;
 
     authInProgress = true;
+    // Loaded on demand: MSAL stays out of the startup bundle.
+    let oneDrive: typeof import("@/lib/one-drive") | undefined;
     try {
+        oneDrive = await import("@/lib/one-drive");
+        const { handleOneDriveRedirect, msalInstance } = oneDrive;
         await Browser.close();
         const response = await handleOneDriveRedirect(redirectUrl);
 
@@ -32,7 +35,8 @@ const completeOneDriveLogin = async (redirectUrl: string): Promise<void> => {
     } catch (error: unknown) {
         const err = error as { errorCode?: string; message?: string; errorMessage?: string };
         // Harmless when another handler already consumed this redirect.
-        if (err.errorCode === "authorization_code_missing_from_server_response") {
+        if (oneDrive && err.errorCode === "authorization_code_missing_from_server_response") {
+            const { msalInstance } = oneDrive;
             const account = msalInstance.getActiveAccount() ?? msalInstance.getAllAccounts()[0];
             if (account?.username) {
                 msalInstance.setActiveAccount(account);
@@ -54,8 +58,6 @@ const completeOneDriveLogin = async (redirectUrl: string): Promise<void> => {
 export const setupOneDriveOAuthRedirect = (): void => {
     if (!Capacitor.isNativePlatform() || handlerRegistered) return;
     handlerRegistered = true;
-
-    void initOneDrive();
 
     registerOAuthRedirectHandler({
         id: "onedrive",

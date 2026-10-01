@@ -40,133 +40,198 @@
     }
   }
 
+  /* Plain fades for the note editor while a container transform plays
+     (see lib/container-transform.ts). */
+  @keyframes md3-fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes md3-fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+
   .animate-note-exit {
     animation: noteExit 0.35s cubic-bezier(0.2, 0, 0, 1) forwards !important;
     pointer-events: none !important;
   }
 
   @layer base {
+    /* ── Colour tokens ────────────────────────────────────────────────────
+       Every colour the app uses lives here, as bare "H S L" triples so
+       Tailwind's opacity modifiers work (bg-brand/10). Components use the
+       Tailwind names in tailwind.config.ts, never raw hex/hsl values.
+       The palette is warm throughout (hue ~18-45); the only cool or neutral
+       exceptions are the status colours (success green, info blue, error red)
+       and the black scrim, whose meaning depends on staying recognisable. */
     :root {
+      /* Surfaces */
       --background: 24 83% 93%;
-      /* In use */
       --foreground: 0 0% 0%;
-
       --text-primary: 0 0% 0%;
-
-      --yellow: 44.71 100% 50%;
-
-      --note-editor-background: 18 100% 98%;
-      /* In use */
-      --note-editor-foreground: 18 13% 9%;
-
-      --sidebar-background: 18 100% 98%;
-      /* In use */
-      --sidebar-foreground: 26 94% 75%;
-      /* In use */
-
       --card: 18 100% 98%;
-      /* In use */
-      --card-foreground: 222.2 84% 4.9%;
+      --card-foreground: 20 15% 8%;
+      --popover: 18 100% 98%;
+      --popover-foreground: 20 15% 8%;
+      --note-editor-background: 18 100% 98%;
+      --note-editor-foreground: 18 13% 9%;
+      --muted: 24 45% 89%;
+      --muted-foreground: 25 10% 40%;
+      --accent: 28 55% 89%;
+      --accent-foreground: 25 20% 10%;
 
-      --popover: 0 0% 100%;
-      --popover-foreground: 222.2 84% 4.9%;
+      /* Neutral actions: primary = unselected text, secondary = unselected icon */
+      --primary: 25 6% 62%;
+      --primary-foreground: 25 8% 12%;
+      --secondary: 25 5% 45%;
+      --secondary-foreground: 25 8% 12%;
 
-      --primary: 213 6% 63%;
-      /* Unselected text color */
-      --primary-foreground: 225 6% 13%;
-      /* Selected text color */
+      /* Brand amber (switches, toast actions, focus ring on sidebar) */
+      --brand: 35 85% 38%;
+      --brand-foreground: 0 0% 100%;
+      /* Tinted container: FAB, selected segments/nav items */
+      --brand-container: 38 90% 80%;
+      --brand-container-foreground: 30 70% 14%;
+      /* Pinned / reminder-set icons and the bulb logo */
+      --highlight: 44.71 100% 50%;
+      /* App-bar title ("Keep", label and folder names) */
+      --header-foreground: 25 5% 38%;
 
-      --secondary: 0 0% 46%;
-      /* Unselected icon color */
-      --secondary-foreground: 225 6% 13%;
-      /* Selected icon color */
+      /* Lines */
+      --border: 24 40% 86%;
+      --input: 24 20% 84%;
+      --outline: 25 10% 42%;
+      /* Card and divider outlines: quieter than --outline */
+      --outline-variant: 24 20% 84%;
+      --ring: 25 20% 15%;
 
-      --muted: 210 40% 96.1%;
-      --muted-foreground: 215.4 16.3% 46.9%;
+      /* Switch track when off */
+      --switch-track: 30 40% 88%;
 
-      --accent: 210 40% 96.1%;
-      --accent-foreground: 222.2 47.4% 11.2%;
+      /* Status */
+      --destructive: 0 75% 42%;
+      --destructive-foreground: 0 0% 100%;
+      --success: 142 72% 29%;
+      --success-foreground: 0 0% 100%;
+      --warning: 32 95% 40%;
+      --warning-foreground: 0 0% 100%;
+      --warning-container: 48 96% 89%;
+      --warning-container-foreground: 23 83% 31%;
+      --info: 221 83% 53%;
 
-      --destructive: 0 84.2% 60.2%;
-      --destructive-foreground: 210 40% 98%;
+      /* Dimming layer behind dialogs/sheets, and controls drawn over photos */
+      --scrim: 0 0% 0%;
+      --on-scrim: 0 0% 100%;
 
-      --border: 214.3 31.8% 91.4%;
-      --input: 226 10% 89%;
-      --ring: 222.2 84% 4.9%;
+      /* Typeface: Google Sans Flex, bundled via @fontsource-variable (imported
+         in main.tsx), falling back to the platform's system font for scripts
+         it doesn't cover. */
+      --font-sans: "Google Sans Flex Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
 
+      /* Corner radii (M3 shape scale) */
       --radius: 0.5rem;
+      --radius-card: 0.75rem;
+      --radius-fab: 1rem;
+      --radius-drawer: 1rem;
+      --radius-dialog: 1.75rem;
+      --radius-sheet: 1.75rem;
 
+      /* Sidebar */
+      --sidebar-background: 18 100% 98%;
+      --sidebar-foreground: 26 94% 75%;
+      --sidebar-primary: 25 8% 12%;
+      --sidebar-primary-foreground: 25 8% 12%;
+      --sidebar-accent: 40 80% 88%;
+      --sidebar-accent-foreground: 30 70% 14%;
+      --sidebar-border: 24 40% 86%;
+      --sidebar-ring: 35 85% 38%;
 
-      --sidebar-primary: 225 6% 13%;
-      /* Light mode sidebar primary text */
-      --sidebar-primary-foreground: 225 6% 13%;
-      /* Light mode sidebar primary foreground */
-      --sidebar-accent: 40 80% 90%;
-      /* Light mode sidebar accent for selected item */
-      --sidebar-accent-foreground: 240 5.9% 10%;
-      /* Light mode sidebar accent text */
-      --sidebar-border: 220 13% 91%;
-      /* Light mode sidebar border */
-      --sidebar-ring: 217.2 91.2% 59.8%;
+      /* Note colour palette (ids in lib/note-colors.ts) */
+      --note-coral: #edb2a8;
+      --note-peach: #e5a277;
+      --note-sand: #fdf7bb;
+      --note-mint: #e6f5d5;
+      --note-sage: #bddcd4;
+      --note-fog: #d7e4ed;
+      --note-storm: #b5cbdb;
+      --note-dusk: #cfc0da;
+      --note-blossom: #f2e2dd;
+      --note-clay: #e8e3d5;
+      --note-chalk: #efeff1;
+      --note-coral-dark: #6c202c;
+      --note-peach-dark: #602e17;
+      --note-sand-dark: #744c0a;
+      --note-mint-dark: #314c3c;
+      --note-sage-dark: #2e605e;
+      --note-fog-dark: #386276;
+      --note-storm-dark: #2f4254;
+      --note-dusk-dark: #433059;
+      --note-blossom-dark: #643c4e;
+      --note-clay-dark: #4a443a;
+      --note-chalk-dark: #232427;
     }
 
     .dark {
+      /* Surfaces */
       --background: 26 32% 10%;
-      /* In use */
       --foreground: 0 0% 100%;
-
       --text-primary: 0 0% 100%;
+      --card: 18 13% 9%;
+      --card-foreground: 30 20% 95%;
+      --popover: 22 18% 13%;
+      --popover-foreground: 30 20% 95%;
       --note-editor-background: 23 29% 5%;
-      /* In use */
       --note-editor-foreground: 18 13% 9%;
+      --muted: 24 16% 17%;
+      --muted-foreground: 28 12% 65%;
+      --accent: 25 6% 44%;
+      --accent-foreground: 30 20% 95%;
+
+      --primary: 25 6% 33%;
+      --primary-foreground: 30 12% 92%;
+      --secondary: 25 5% 60%;
+      --secondary-foreground: 30 12% 92%;
+
+      --brand: 38 90% 65%;
+      --brand-foreground: 30 70% 14%;
+      --brand-container: 40 80% 30%;
+      --brand-container-foreground: 40 80% 92%;
+      --highlight: 44.71 100% 50%;
+      --header-foreground: 30 5% 89%;
+
+      --border: 24 16% 18%;
+      --input: 25 6% 60%;
+      --outline: 28 10% 62%;
+      --outline-variant: 25 8% 30%;
+      --ring: 30 20% 84%;
+
+      --switch-track: 25 18% 18%;
+
+      /* M3 dark error: light red with dark text, readable on dark surfaces */
+      --destructive: 6 100% 84%;
+      --destructive-foreground: 357 100% 21%;
+      --success: 142 69% 58%;
+      --success-foreground: 142 80% 10%;
+      --warning: 38 92% 50%;
+      --warning-foreground: 30 70% 10%;
+      --warning-container: 22 45% 15%;
+      --warning-container-foreground: 46 97% 65%;
+      --info: 213 94% 68%;
+
+      --scrim: 0 0% 0%;
+      --on-scrim: 0 0% 100%;
 
       --sidebar-background: 23 29% 5%;
-      /* In use */
       --sidebar-foreground: 25 46% 30%;
-      /* In use */
-
-      --card: 18 13% 9%;
-      /* In use */
-      --card-foreground: 210 40% 98%;
-
-      --popover: 222.2 84% 4.9%;
-      --popover-foreground: 210 40% 98%;
-
-      --primary: 213 6% 33%;
-      /* Unselected text color */
-      --primary-foreground: 216 12% 92%;
-      /* Selected text color */
-
-      --secondary: 240 0% 60%;
-      /* Unselected icon color */
-      --secondary-foreground: 216 12% 92%;
-      /* Selected icon color */
-
-      --muted: 217.2 32.6% 17.5%;
-      --muted-foreground: 215 20.2% 65.1%;
-
-      --accent: 0 0% 44%;
-      --accent-foreground: 210 40% 98%;
-
-      --destructive: 0 62.8% 30.6%;
-      --destructive-foreground: 210 40% 98%;
-
-      --border: 217.2 32.6% 17.5%;
-      --input: 240 0% 60%;
-      --ring: 212.7 26.8% 83.9%;
-
-
-      --sidebar-primary: 224.3 76.3% 48%;
-      /* Dark mode sidebar primary text */
+      --sidebar-primary: 30 12% 92%;
       --sidebar-primary-foreground: 0 0% 100%;
-      /* Dark mode sidebar primary foreground */
       --sidebar-accent: 40 80% 30%;
-      /* Dark mode sidebar accent for selected item (darker yellow) */
-      --sidebar-accent-foreground: 240 4.8% 95.9%;
-      /* Dark mode sidebar accent text */
-      --sidebar-border: 240 3.7% 15.9%;
-      /* Dark mode sidebar border */
-      --sidebar-ring: 217.2 91.2% 59.8%;
+      --sidebar-accent-foreground: 40 80% 92%;
+      --sidebar-border: 24 12% 16%;
+      --sidebar-ring: 38 90% 65%;
     }
   }
 
@@ -227,18 +292,18 @@
 
   /* Tiptap dark mode link color */
   .dark .ProseMirror a {
-    color: white;
+    color: hsl(var(--foreground));
   }
 
   /* Tiptap dark mode bold/strong color */
   .dark .ProseMirror strong,
   .dark .ProseMirror b {
-    color: white;
+    color: hsl(var(--foreground));
   }
 
   /* Tiptap Placeholder */
   .ProseMirror p.is-editor-empty:first-child::before {
-    @apply text-gray-400 dark:text-gray-500;
+    @apply text-muted-foreground;
     content: attr(data-placeholder);
     float: left;
     height: 0;

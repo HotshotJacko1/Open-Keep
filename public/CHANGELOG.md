@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 - N/A
 
+## [5.2.0] - 2026-10-12
+
+### Changed
+- Android app launch: notes appear 1-2.5s (40-60%) faster.
+- Implemented Material 3 Expressive interface design.
+
 ## [5.1.0] - 2026-10-05
 
 ### Added

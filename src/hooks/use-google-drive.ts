@@ -236,6 +236,9 @@ const nativeGoogleSignInAndExchange = async (logoutFirst: boolean, forcePrompt: 
     return persistTokenResponse(tokenRes);
 };
 
+// Thrown instead of opening Google's consent screen during a background sync.
+const NATIVE_SIGN_IN_REQUIRED = "Google Drive sign-in required";
+
 const nativeGoogleEnsureDriveToken = async (isExplicitLogin = false): Promise<string> => {
     return runGoogleDriveTokenEnsure(async () => {
         if (isGoogleDriveScopeBlocked()) {
@@ -270,6 +273,11 @@ const nativeGoogleEnsureDriveToken = async (isExplicitLogin = false): Promise<st
         // with no refresh token, and we're right back here next time it
         // expires.
         const needsConsent = !getStoredRefreshToken();
+        // A background sync (app launch, resume, note close) must never put a
+        // consent screen over the app. Leave it to the next sync the user starts.
+        if (needsConsent && !isExplicitLogin) {
+            throw new Error(NATIVE_SIGN_IN_REQUIRED);
+        }
         try {
             const accessToken = await nativeGoogleSignInAndExchange(false, needsConsent);
             clearGoogleDriveScopeBlock();
@@ -447,13 +455,13 @@ export const useGoogleDrive = () => {
                 }
             },
             checkMasterKey: () => runWithFreshDriveToken(() => checkGoogleDriveMasterKey(), !silent),
-            syncNotes: (localNotes, localCustomTags, options) =>
-                runWithFreshDriveToken(() => syncNotesWithDrive(localNotes, localCustomTags, options), !silent),
+            syncNotes: (local, options) =>
+                runWithFreshDriveToken(() => syncNotesWithDrive(local, options), !silent),
             classifyError: (error) => {
                 const message = (error as Error)?.message || "";
                 // Checked first: isGoogleDriveAuthError also matches scope failures.
                 if (message.includes("Google Drive permission was not granted") || isGoogleDriveScopeError(error)) return "permission";
-                if (message === "Web auth required" || isGoogleDriveAuthError(error)) return "auth";
+                if (message === "Web auth required" || message === NATIVE_SIGN_IN_REQUIRED || isGoogleDriveAuthError(error)) return "auth";
                 return null;
             },
             onAuthError: (isSilent) => {

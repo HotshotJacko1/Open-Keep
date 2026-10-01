@@ -376,7 +376,7 @@ PIN code: ${pinCode || 'Not set'}`;
                 onValueChange={(value: "light" | "dark" | "system") => {
                   if (value) setTheme(value);
                 }}
-                className="justify-start [&>*]:data-[state=on]:bg-[#707070] [&>*]:data-[state=on]:text-[#f8fafc]"
+                className="justify-start"
               >
                 <ToggleGroupItem value="light"
                   aria-label="Toggle light theme">
@@ -418,7 +418,7 @@ PIN code: ${pinCode || 'Not set'}`;
                     </Button>
                   </>
                 ) : (
-                  <Button variant="outline" onClick={() => setIsEnableEncryptionDialogOpen(true)} className="w-full justify-start text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400">
+                  <Button variant="outline" onClick={() => setIsEnableEncryptionDialogOpen(true)} className="w-full justify-start text-success hover:text-success/80">
                     <Shield className="h-4 w-4 mr-2" />
                     Enable Encryption
                   </Button>
@@ -524,7 +524,6 @@ PIN code: ${pinCode || 'Not set'}`;
                   onValueChange={(value: "title" | "body") => {
                     if (value) setDefaultTypingArea(value);
                   }}
-                  className="[&>*]:data-[state=on]:bg-[#707070] [&>*]:data-[state=on]:text-[#f8fafc]"
                 >
                   <ToggleGroupItem value="title" className="h-7 px-3 text-xs">
                     Title
@@ -592,7 +591,7 @@ PIN code: ${pinCode || 'Not set'}`;
             {pinCode && (
               <div className="flex items-center justify-between mt-4">
                 <Label className="text-sm font-medium">PIN Code</Label>
-                <span className="text-sm font-mono font-semibold tracking-widest text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded">
+                <span className="text-sm font-mono font-semibold tracking-widest text-foreground bg-muted px-2 py-1 rounded">
                   {pinCode}
                 </span>
               </div>

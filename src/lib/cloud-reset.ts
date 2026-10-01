@@ -1,7 +1,9 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import { deleteRemoteData as deleteGoogleDriveData } from "@/lib/google-drive";
 import { deleteRemoteData as deleteDropboxData } from "@/lib/dropbox";
-import { deleteRemoteData as deleteOneDriveData } from "@/lib/one-drive";
+
+// Imported on demand so the OneDrive client (MSAL) stays out of the startup bundle.
+const deleteOneDriveData = async () => (await import("@/lib/one-drive")).deleteRemoteData();
 
 /**
  * Best-effort removal of the app's files from every cloud provider this device is

@@ -9,9 +9,24 @@ interface SidebarNavProps {
   uniqueTags: string[];
   onClose?: () => void; // Optional for closing sheet on mobile
   onEditLabels?: () => void;
+  /**
+   * Shown as an M3 navigation rail (DesktopSidebar): labels fade out, and
+   * back in while the rail is hovered open (`group/sidebar`).
+   */
+  collapsed?: boolean;
 }
 
-const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabels }) => {
+// Every item has the same fixed geometry whatever the sidebar's width: a 48px
+// row whose icon sits 26px in (nav p-3 + item pl-3.5), i.e. centred in the
+// 72px rail. So when the sidebar animates between drawer and rail nothing
+// reflows -- the width just clips -- and the selected pill shrinks into a
+// circle around the icon.
+const itemClass =
+  "h-12 w-full justify-start gap-0 rounded-full pl-3.5 pr-4 text-lg text-foreground select-none whitespace-nowrap overflow-hidden transition-colors [&_svg]:size-5";
+const selectedClass =
+  "bg-sidebar-foreground dark:bg-sidebar-foreground hover:bg-sidebar-foreground/90 dark:hover:bg-sidebar-foreground/90";
+
+const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabels, collapsed = false }) => {
   const [searchParams] = useSearchParams();
   const selectedTag = searchParams.get("tag");
 
@@ -21,85 +36,74 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
     }
   };
 
-  return (
-    <nav className="flex flex-col p-2 space-y-1 h-full overflow-y-auto">
-      <Button
-        variant="ghost"
-        className={cn(
-          "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg w-full whitespace-nowrap overflow-hidden transition-all h-auto select-none",
-          !selectedTag && "bg-sidebar-foreground dark:bg-sidebar-foreground hover:bg-sidebar-foreground/90 dark:hover:bg-sidebar-foreground/90"
-        )}
-        asChild
-        onClick={handleNavigation}
-      >
-        <Link to="/" draggable={false} className="flex items-center">
-          <Lightbulb className="mr-4 h-5 w-5 flex-shrink-0" />
-          <span className="flex-1">Notes</span>
-        </Link>
-      </Button>
+  // Labels are single-line with an ellipsis (full text in the tooltip).
+  const labelClass = cn(
+    "ml-4 min-w-0 flex-1 truncate text-left transition-opacity duration-md3-short4",
+    collapsed && "opacity-0 group-hover/sidebar:opacity-100"
+  );
 
-      <div className="pt-4">
+  const navItem = (to: string, icon: React.ReactNode, label: string, selected: boolean) => (
+    <Button
+      key={to}
+      variant="ghost"
+      className={cn(itemClass, selected && selectedClass)}
+      asChild
+      onClick={handleNavigation}
+    >
+      <Link to={to} draggable={false} title={collapsed ? label : undefined} aria-label={collapsed ? label : undefined}>
+        {icon}
+        <span className={labelClass}>{label}</span>
+      </Link>
+    </Button>
+  );
+
+  return (
+    <nav
+      className={cn(
+        "flex h-full flex-col overflow-y-auto overflow-x-hidden p-3 [scrollbar-width:thin]",
+        // The rail is too narrow for a scrollbar; it returns when hovered open.
+        collapsed && "[scrollbar-width:none] group-hover/sidebar:[scrollbar-width:thin]"
+      )}
+    >
+      {navItem("/", <Lightbulb />, "Notes", !selectedTag)}
+
+      <div className="pt-4 flex flex-col gap-1">
         {uniqueTags.length === 0 && (
-          <p className="text-sm text-muted-foreground px-4 whitespace-nowrap overflow-hidden">No labels yet.</p>
+          <p className={cn("text-sm text-muted-foreground px-4 whitespace-nowrap overflow-hidden", collapsed && "opacity-0 group-hover/sidebar:opacity-100 transition-opacity")}>
+            No labels yet.
+          </p>
         )}
         {uniqueTags.map((tag) => (
           <Button
             key={tag}
             variant="ghost"
-            className={cn(
-              "text-black dark:text-white justify-start px-4 py-2 rounded-3xl text-lg w-full h-auto whitespace-normal break-words text-left transition-all select-none",
-              selectedTag === tag && "bg-sidebar-foreground dark:bg-sidebar-foreground hover:bg-sidebar-foreground/90 dark:hover:bg-sidebar-foreground/90"
-            )}
+            className={cn(itemClass, selectedTag === tag && selectedClass)}
             asChild
             onClick={handleNavigation}
           >
-            <Link to={`/?tag=${tag}`} className="flex items-center w-full" draggable={false}>
-              <Tag className="mr-4 h-5 w-5 flex-shrink-0" />
-              <span className="flex-1 min-w-0 break-words">{tag}</span>
+            <Link to={`/?tag=${encodeURIComponent(tag)}`} draggable={false} title={tag} aria-label={collapsed ? tag : undefined}>
+              <Tag />
+              <span className={labelClass}>{tag}</span>
             </Link>
           </Button>
         ))}
         {onEditLabels && (
           <Button
             variant="ghost"
-            className="justify-start px-4 py-2 rounded-full text-lg w-full mt-2 text-black dark:text-white whitespace-nowrap overflow-hidden transition-all h-auto select-none"
+            className={cn(itemClass, "mt-1")}
             onClick={onEditLabels}
+            title={collapsed ? "Edit labels" : undefined}
+            aria-label={collapsed ? "Edit labels" : undefined}
           >
-            <Pencil className="mr-4 h-5 w-5 flex-shrink-0" />
-            Edit labels
+            <Pencil />
+            <span className={labelClass}>Edit labels</span>
           </Button>
         )}
       </div>
 
-      <div className="pt-4 mt-2 mb-2">
-        <Button
-          variant="ghost"
-          className={cn(
-            "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg w-full whitespace-nowrap overflow-hidden transition-all h-auto select-none",
-            selectedTag === "archive" && "bg-sidebar-foreground dark:bg-sidebar-foreground hover:bg-sidebar-foreground/90 dark:hover:bg-sidebar-foreground/90"
-          )}
-          asChild
-          onClick={handleNavigation}
-        >
-          <Link to="/?tag=archive" draggable={false} className="flex items-center">
-            <Archive className="mr-4 h-5 w-5 flex-shrink-0" />
-            <span className="flex-1">Archive</span>
-          </Link>
-        </Button>
-        <Button
-          variant="ghost"
-          className={cn(
-            "text-black dark:text-white justify-start px-4 py-2 rounded-full text-lg w-full whitespace-nowrap overflow-hidden transition-all h-auto select-none",
-            selectedTag === "bin" && "bg-sidebar-foreground dark:bg-sidebar-foreground hover:bg-sidebar-foreground/90 dark:hover:bg-sidebar-foreground/90"
-          )}
-          asChild
-          onClick={handleNavigation}
-        >
-          <Link to="/?tag=bin" draggable={false} className="flex items-center">
-            <Trash2 className="mr-4 h-5 w-5 flex-shrink-0" />
-            <span className="flex-1">Bin</span>
-          </Link>
-        </Button>
+      <div className="pt-4 mt-2 mb-2 flex flex-col gap-1">
+        {navItem("/?tag=archive", <Archive />, "Archive", selectedTag === "archive")}
+        {navItem("/?tag=bin", <Trash2 />, "Bin", selectedTag === "bin")}
       </div>
     </nav>
   );

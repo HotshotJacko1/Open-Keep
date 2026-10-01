@@ -8,8 +8,8 @@
  *   - retuning a swatch here applies retroactively to every existing note, and
  *   - one id can carry a light AND a dark value, which a stored hex cannot.
  *
- * Values are complete CSS colours, used as-is (not wrapped in hsl()), so a
- * swatch can be retuned here by pasting a hex straight from the design.
+ * The actual colour values live in globals.css (--note-<id> and
+ * --note-<id>-dark) alongside the rest of the palette; retune a swatch there.
  */
 
 export const DEFAULT_NOTE_COLOR = "default";
@@ -17,25 +17,25 @@ export const DEFAULT_NOTE_COLOR = "default";
 export interface NoteColor {
   id: string;
   label: string;
-  /** CSS colour for light mode. Empty on the default (no tint). */
+  /** CSS colour for light mode (a var() into globals.css). Empty on the default (no tint). */
   light: string;
-  /** CSS colour for dark mode. Empty on the default (no tint). */
+  /** CSS colour for dark mode (a var() into globals.css). Empty on the default (no tint). */
   dark: string;
 }
 
 export const NOTE_COLORS: NoteColor[] = [
   { id: DEFAULT_NOTE_COLOR, label: "Default", light: "", dark: "" },
-  { id: "coral", label: "Coral", light: "#edb2a8", dark: "#6c202c" },
-  { id: "peach", label: "Peach", light: "#e5a277", dark: "#602e17" },
-  { id: "sand", label: "Sand", light: "#fdf7bb", dark: "#744c0a" },
-  { id: "mint", label: "Mint", light: "#e6f5d5", dark: "#314c3c" },
-  { id: "sage", label: "Sage", light: "#bddcd4", dark: "#2e605e" },
-  { id: "fog", label: "Fog", light: "#d7e4ed", dark: "#386276" },
-  { id: "storm", label: "Storm", light: "#b5cbdb", dark: "#2f4254" },
-  { id: "dusk", label: "Dusk", light: "#cfc0da", dark: "#433059" },
-  { id: "blossom", label: "Blossom", light: "#f2e2dd", dark: "#643c4e" },
-  { id: "clay", label: "Clay", light: "#e8e3d5", dark: "#4a443a" },
-  { id: "chalk", label: "Chalk", light: "#efeff1", dark: "#232427" },
+  { id: "coral", label: "Coral", light: "var(--note-coral)", dark: "var(--note-coral-dark)" },
+  { id: "peach", label: "Peach", light: "var(--note-peach)", dark: "var(--note-peach-dark)" },
+  { id: "sand", label: "Sand", light: "var(--note-sand)", dark: "var(--note-sand-dark)" },
+  { id: "mint", label: "Mint", light: "var(--note-mint)", dark: "var(--note-mint-dark)" },
+  { id: "sage", label: "Sage", light: "var(--note-sage)", dark: "var(--note-sage-dark)" },
+  { id: "fog", label: "Fog", light: "var(--note-fog)", dark: "var(--note-fog-dark)" },
+  { id: "storm", label: "Storm", light: "var(--note-storm)", dark: "var(--note-storm-dark)" },
+  { id: "dusk", label: "Dusk", light: "var(--note-dusk)", dark: "var(--note-dusk-dark)" },
+  { id: "blossom", label: "Blossom", light: "var(--note-blossom)", dark: "var(--note-blossom-dark)" },
+  { id: "clay", label: "Clay", light: "var(--note-clay)", dark: "var(--note-clay-dark)" },
+  { id: "chalk", label: "Chalk", light: "var(--note-chalk)", dark: "var(--note-chalk-dark)" },
 ];
 
 const COLOR_BY_ID = new Map(NOTE_COLORS.map((c) => [c.id, c]));

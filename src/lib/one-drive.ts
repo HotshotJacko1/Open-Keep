@@ -1,11 +1,11 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 
-import { Note } from "@/types/note";
 import { PublicClientApplication, Configuration, PopupRequest, NavigationClient, NavigationOptions, LogLevel, InteractionRequiredAuthError, INetworkModule, NetworkRequestOptions, NetworkResponse } from "@azure/msal-browser";
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import { encryptData, decryptData } from "@/lib/note-storage";
-import { resolveImagesToBase64, restoreImagesFromBase64 } from "@/lib/image-storage";
+import { parseSyncData, serializeSyncData } from "@/lib/sync-data";
+import { emptySyncData, isSameSyncData, mergeSyncData, takeSide, type SyncData, type SyncMergeResult, type SyncNotesOptions } from "@/lib/sync-merge";
 import { normalizeCloudMasterKeyPayload } from "@/lib/cloud-master-key";
 
 export const CLIENT_ID = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
@@ -293,7 +293,7 @@ const downloadMasterKey = async (fileId: string): Promise<string | null> => {
     return normalizeCloudMasterKeyPayload(raw);
 };
 
-const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTags: string[] }> => {
+const downloadNotes = async (fileId: string): Promise<SyncData> => {
     const accessToken = await getGraphAccessToken();
     const response = await fetch(`${GRAPH_ENDPOINT}/me/drive/items/${fileId}/content`, {
         headers: { Authorization: `Bearer ${accessToken}` }
@@ -320,41 +320,11 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
         throw e;
     }
 
-    let parsedNotes: Note[] = [];
-    let parsedTags: string[] = [];
-    let parsedNoteImages: Record<string, Array<{id: string, data: string}>> = {};
-
-    if (Array.isArray(result)) {
-        parsedNotes = result as Note[];
-    } else if (result && typeof result === 'object' && 'notes' in result) {
-        const payload = result as {
-            notes?: Note[];
-            customTags?: string[];
-            noteImages?: Record<string, Array<{id: string, data: string}>>;
-        };
-        parsedNotes = payload.notes || [];
-        parsedTags = payload.customTags || [];
-        parsedNoteImages = payload.noteImages || {};
-    }
-
-    for (const note of parsedNotes) {
-        if (parsedNoteImages[note.id] && parsedNoteImages[note.id].length > 0) {
-            note.images = await restoreImagesFromBase64(parsedNoteImages[note.id]);
-        }
-    }
-
-    return { notes: parsedNotes, customTags: parsedTags };
+    return await parseSyncData(result);
 };
 
-const uploadNotes = async (folderId: string, notes: Note[], customTags: string[], fileId: string | null) => {
-    const noteImages: Record<string, Array<{id: string, data: string}>> = {};
-    for (const note of notes) {
-        if (note.images && note.images.length > 0) {
-            noteImages[note.id] = await resolveImagesToBase64(note.images);
-        }
-    }
-
-    let fileContent = JSON.stringify({ notes, customTags, noteImages });
+const uploadNotes = async (folderId: string, data: SyncData, fileId: string | null) => {
+    let fileContent = await serializeSyncData(data);
 
     try {
         const encrypted = await encryptData(fileContent);
@@ -411,119 +381,59 @@ const uploadMasterKey = async (payload: string, fileId: string | null) => {
 };
 
 export const syncNotesWithOneDrive = async (
-    localNotes: Note[], 
-    localCustomTags: string[],
-    options?: {
-        masterKeyPayload?: string;
-        forceResolution?: "local" | "cloud";
-    }
-): Promise<{ notes: Note[], customTags: string[] }> => {
+    local: SyncData,
+    { masterKeyPayload, forceResolution, lastSyncStartedAt }: SyncNotesOptions
+): Promise<SyncMergeResult> => {
     let folderId = await findFolder();
     if (!folderId) {
         folderId = await createFolder();
     }
 
-    const { masterKeyPayload, forceResolution } = options || {};
-
     const fileId = await findNotesFile(folderId);
-    
+
     // If Keep Local, ignore remote notes entirely
     if (forceResolution === "local") {
-        if (localNotes.length === 0) {
+        if (local.notes.length === 0) {
             throw new Error("Refusing to overwrite cloud with an empty local set");
         }
         if (masterKeyPayload) {
             const keyFileId = await findKeyFile(folderId);
             await uploadMasterKey(masterKeyPayload, keyFileId);
         }
-        await uploadNotes(folderId, localNotes, localCustomTags, fileId);
-        return { notes: localNotes, customTags: localCustomTags };
+        await uploadNotes(folderId, local, fileId);
+        return takeSide(local);
     }
 
     // If Keep Cloud, download remote notes only (local was wiped before import)
     if (forceResolution === "cloud") {
-        if (fileId) {
-            const remoteData = await downloadNotes(fileId);
-            return { notes: remoteData.notes, customTags: remoteData.customTags };
-        }
-        return { notes: [], customTags: [] };
+        return takeSide(fileId ? await downloadNotes(fileId) : emptySyncData());
     }
 
-    let remoteNotes: Note[] = [];
-    let remoteCustomTags: string[] = [];
+    let remote = emptySyncData();
 
     if (fileId) {
         try {
-            const remoteData = await downloadNotes(fileId);
-            remoteNotes = remoteData.notes;
-            remoteCustomTags = remoteData.customTags || [];
+            remote = await downloadNotes(fileId);
         } catch (e) {
             console.error("Could not download/parse remote notes, aborting sync to prevent data loss", e);
             throw e;
         }
     }
 
-    // Merge Logic
-    console.log(`[OneDrive Sync] Starting merge. Local notes: ${localNotes.length}, Remote notes: ${remoteNotes.length}`);
-    const mergedNotesMap = new Map<string, Note>();
-
-    // Add all local notes initially
-    localNotes.forEach((note) => {
-        const inRemote = remoteNotes.some(r => r.id === note.id);
-        if (!inRemote) {
-            console.log(`[OneDrive Sync] Note ${note.id} (${note.title}) only exists locally. Will upload.`);
-        }
-        mergedNotesMap.set(note.id, note);
-    });
-
-    // Merge remote notes
-    remoteNotes.forEach((remoteNote) => {
-        const localNote = mergedNotesMap.get(remoteNote.id);
-        if (!localNote) {
-            // Note exists remotely but not locally (new from other device)
-            console.log(`[OneDrive Sync] Note ${remoteNote.id} (${remoteNote.title}) only exists remotely. Adding to local.`);
-            mergedNotesMap.set(remoteNote.id, remoteNote);
-        } else {
-            // Note exists on both
-            if (remoteNote.updatedAt > localNote.updatedAt) {
-                // Remote is newer
-                console.log(`[OneDrive Sync] Note ${remoteNote.id} (${remoteNote.title}) exists on both. Remote is newer (${new Date(remoteNote.updatedAt).toISOString()} > ${new Date(localNote.updatedAt).toISOString()}). Overwriting local with remote.`);
-                mergedNotesMap.set(remoteNote.id, remoteNote);
-            } else if (remoteNote.updatedAt < localNote.updatedAt) {
-                console.log(`[OneDrive Sync] Note ${remoteNote.id} (${localNote.title}) exists on both. Local is newer (${new Date(localNote.updatedAt).toISOString()} > ${new Date(remoteNote.updatedAt).toISOString()}). Keeping local.`);
-            } else {
-                console.log(`[OneDrive Sync] Note ${remoteNote.id} (${localNote.title}) exists on both with same timestamp. Keeping local.`);
-            }
-            // Else keep local (it's newer or same)
-        }
-    });
-
-    const mergedNotes = Array.from(mergedNotesMap.values());
-
-    // Merge Tags logic (Set union)
-    console.log(`[OneDrive Sync] Merging custom tags. Local tags: ${localCustomTags.length}, Remote tags: ${remoteCustomTags.length}`);
-    const mergedTags = Array.from(new Set([...localCustomTags, ...remoteCustomTags])).sort();
-    
-    localCustomTags.forEach(tag => {
-        if (!remoteCustomTags.includes(tag)) {
-            console.log(`[OneDrive Sync] Tag '${tag}' only exists locally. Will upload.`);
-        }
-    });
-    
-    remoteCustomTags.forEach(tag => {
-        if (!localCustomTags.includes(tag)) {
-            console.log(`[OneDrive Sync] Tag '${tag}' only exists remotely. Adding to local.`);
-        }
-    });
+    const merged = mergeSyncData({ local, remote, lastSyncStartedAt, now: Date.now(), logTag: "[OneDrive Sync]" });
 
     // Upload merged data
     if (masterKeyPayload) {
         const keyFileId = await findKeyFile(folderId);
         await uploadMasterKey(masterKeyPayload, keyFileId);
     }
-    await uploadNotes(folderId, mergedNotes, mergedTags, fileId);
+    if (fileId && isSameSyncData(merged, remote)) {
+        console.log("[OneDrive Sync] Cloud already up to date, skipping upload");
+    } else {
+        await uploadNotes(folderId, merged, fileId);
+    }
 
-    return { notes: mergedNotes, customTags: mergedTags };
+    return merged;
 };
 
 /**

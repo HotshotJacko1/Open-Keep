@@ -24,6 +24,8 @@ class NoteStoragePlugin : Plugin() {
 
     override fun load() {
         super.load()
+        // Runs as the activity starts, well before the web app asks for notes.
+        scope.launch { NoteRepository.prewarm(context) }
     }
 
     /**
@@ -262,7 +264,10 @@ class NoteStoragePlugin : Plugin() {
                     // The key is now proven by that first real read instead. If it fails,
                     // Index.tsx dispatches "open-keep-db-unverified" and App.tsx returns to the
                     // lock screen -- the same destination a failed verification used to reach.
-                    NoteRepository.reinitialize(context, storedKey)
+                    //
+                    // openWithKey keeps the instance load() has been warming up in the
+                    // background (same stored key), instead of closing it and starting over.
+                    NoteRepository.openWithKey(context, storedKey)
                     repository = NoteRepository(context)
                     ret.put("isLocked", false)
                 }

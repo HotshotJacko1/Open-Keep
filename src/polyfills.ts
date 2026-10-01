@@ -46,4 +46,31 @@ define(
   }
 );
 
+// Sentry OPENKEEP-S: on Android Chrome, the IME can change the editor's DOM
+// text before ProseMirror has read the mutation. If ProseMirror writes the
+// selection in that window, it passes an offset from its model that is past
+// the end of the now-shorter text node, and Selection.collapse throws
+// IndexSizeError. Within a ProseMirror editor only, clamp the offset to the
+// node's length; ProseMirror re-syncs on its next DOM flush. Elsewhere the
+// native behaviour (throwing) is unchanged.
+const clampInEditor = (name: "collapse" | "extend") => {
+  const native = Selection.prototype[name] as (node: Node | null, offset?: number) => void;
+  if (typeof native !== "function") return;
+  Selection.prototype[name] = function (this: Selection, node: Node | null, offset = 0) {
+    if (node && offset > 0) {
+      const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+      if (element?.closest(".ProseMirror")) {
+        const length = node instanceof CharacterData ? node.length : node.childNodes.length;
+        if (offset > length) offset = length;
+      }
+    }
+    return native.call(this, node, offset);
+  };
+};
+
+if (typeof Selection !== "undefined") {
+  clampInEditor("collapse");
+  clampInEditor("extend");
+}
+
 export {};

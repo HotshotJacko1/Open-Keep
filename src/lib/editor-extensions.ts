@@ -32,6 +32,6 @@ export const LINK_OPTIONS = {
   autolink: true,
   linkOnPaste: true,
   HTMLAttributes: {
-    class: "underline text-inherit hover:text-blue-500 cursor-pointer",
+    class: "underline text-inherit hover:text-info cursor-pointer",
   },
 } as const;

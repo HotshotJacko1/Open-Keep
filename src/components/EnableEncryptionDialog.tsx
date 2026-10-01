@@ -78,8 +78,8 @@ const EnableEncryptionDialog: React.FC<EnableEncryptionDialogProps> = ({ isOpen,
 
                 {isSuccessView ? (
                     <div className="grid gap-4 py-4 text-center">
-                        <div className="w-12 h-12 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-2">
-                            <Lock className="w-6 h-6 text-green-500" />
+                        <div className="w-12 h-12 bg-success/10 rounded-full flex items-center justify-center mx-auto mb-2">
+                            <Lock className="w-6 h-6 text-success" />
                         </div>
                         <p className="text-sm">
                             Your database is now encrypted. 

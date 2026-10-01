@@ -20,7 +20,7 @@ pnpm lint            # eslint .
 pnpm preview          # preview a production build
 ```
 
-There is no unit test suite for the main app. The **mcp-server** sub-package has its own tests:
+The main app's only unit tests cover the sync merge rules (`src/lib/sync-merge.test.ts`); run them with `pnpm test` (Vitest). The **mcp-server** sub-package has its own tests:
 
 ```bash
 cd mcp-server
@@ -65,6 +65,8 @@ Legacy data migration: old "list"-type notes (with an `items` array) are convert
 ### Cloud sync and multi-device key conflicts
 
 Cloud sync (Dropbox/Google Drive/OneDrive, under `src/lib/dropbox*.ts`, `src/lib/google-drive.ts`, `src/lib/one-drive*.ts`) does not store notes in plaintext in the cloud — a "cloud master key" (the local encryption key, wrapped) is synced alongside the notes so another device can decrypt them. [src/lib/cloud-sync-resolver.ts](src/lib/cloud-sync-resolver.ts) and [src/lib/cloud-sync-state.ts](src/lib/cloud-sync-state.ts) handle the conflict case where a device's local PIN doesn't match the cloud-stored key: the user is prompted for the *other* device's PIN, and the resolution can keep local data, replace with cloud data, or merge (`forceResolution: "local" | "cloud" | "merge"`).
+
+The three providers share one cloud file format ([src/lib/sync-data.ts](src/lib/sync-data.ts)) and one merge ([src/lib/sync-merge.ts](src/lib/sync-merge.ts)); each provider owns only transport and the outer encryption wrapping. A permanent delete records a **tombstone** ([src/lib/tombstones.ts](src/lib/tombstones.ts)) that syncs in the same file, so other devices drop the note rather than merging it back; tombstones are kept 180 days. Custom labels work the same way through `tagChanges` (the latest create or delete per label wins; a rename is a delete plus a create). Older app versions ignore the tombstone fields and re-upload without them, so every device keeps its own copy and restores them on its next sync. Design and rules: [docs/plans/C3-01-tombstones.md](docs/plans/C3-01-tombstones.md).
 
 ### MCP bridge (AI assistant access)
 

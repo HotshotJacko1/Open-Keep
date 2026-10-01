@@ -247,7 +247,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
             ) : conflictData?.reason === "pin_required" ? (
               <div className="flex flex-col gap-4 py-2 border rounded-md p-4 bg-muted/50">
                 <div className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-amber-500" />
+                  <AlertCircle className="h-5 w-5 text-warning" />
                   <h3 className="font-semibold text-lg text-primary-foreground">Enter your PIN to sync</h3>
                 </div>
                 <p className="text-sm text-primary-foreground/90 leading-relaxed">
@@ -277,7 +277,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
             ) : conflictData?.reason === "encryption_disabled_elsewhere" ? (
               <div className="flex flex-col gap-4 py-2 border rounded-md p-4 bg-muted/50">
                 <div className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-amber-500" />
+                  <AlertCircle className="h-5 w-5 text-warning" />
                   <h3 className="font-semibold text-lg text-primary-foreground">Encryption was turned off on another device</h3>
                 </div>
                 <p className="text-sm text-primary-foreground/90 leading-relaxed">
@@ -332,9 +332,9 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                 <p className="text-sm font-medium text-primary-foreground">How would you like to resolve this?</p>
                 
                 {conflictData.reason === "key_mismatch" && (
-                  <div className="flex flex-col gap-2 mt-2 p-3 bg-amber-500/10 border border-amber-500/50 rounded-md">
-                    <Label className="text-amber-500">🔐 Cloud notes are encrypted</Label>
-                    <p className="text-xs text-amber-600/90 mb-1">
+                  <div className="flex flex-col gap-2 mt-2 p-3 bg-warning/10 border border-warning/50 rounded-md">
+                    <Label className="text-warning">🔐 Cloud notes are encrypted</Label>
+                    <p className="text-xs text-warning/90 mb-1">
                       {isEncryptionEnabled()
                         ? "Enter the App Lock PIN you set on your other device to decrypt and restore your notes."
                         : "These notes are protected by a PIN set on another device. Enter that PIN to keep syncing. This turns encryption on here too, with the same PIN. To keep this device without a PIN, disconnect sync here instead."}
@@ -407,7 +407,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                     disabled={isAnySyncing}
                     className={cn(
                       "flex-1 text-primary-foreground transition-colors duration-md3-short4 ease-md3-standard",
-                      justSynced && "bg-green-500 hover:bg-green-500 border-green-500 text-white"
+                      justSynced && "bg-success hover:bg-success border-success text-success-foreground"
                     )}
                   >
                     {activeService.isSyncing ? (

@@ -24,3 +24,22 @@ export interface Note {
     anchorDay?: number;
   };
 }
+
+/**
+ * Record that a note was permanently deleted, synced so other devices drop
+ * their copy instead of merging it back in (C3-01). Holds no note content.
+ */
+export interface Tombstone {
+  id: string;
+  deletedAt: number; // ms since epoch, on the deleting device's clock
+}
+
+/**
+ * The latest create or delete of a custom label, synced so a deleted or renamed
+ * label doesn't come back from another device (C1-19). The newest change per name wins.
+ */
+export interface TagChange {
+  name: string;
+  deleted: boolean;
+  at: number; // ms since epoch
+}

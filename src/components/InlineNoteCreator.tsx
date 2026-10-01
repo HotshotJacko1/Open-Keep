@@ -143,7 +143,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
     editorProps: {
       attributes: {
         class:
-          "prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[40px] text-black dark:text-white",
+          "prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[40px] text-foreground",
       },
     },
     onUpdate: ({ editor }) => {
@@ -470,7 +470,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
         onClick={() => handleExpand(false)}
         className={cn(
           "press-feedback w-full max-w-[600px] mx-auto mb-6 cursor-text",
-          "bg-card text-card-foreground border border-input shadow-md rounded-lg",
+          "bg-card text-card-foreground border border-outline-variant shadow-md rounded-card",
           "px-4 py-2.5 flex items-center justify-between gap-3 transition-shadow hover:shadow-lg"
         )}
       >
@@ -511,7 +511,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
       className={cn(
         "note-creator w-full max-w-[600px] mx-auto mb-6",
         isNoteTinted(color) && "note-tinted",
-        "bg-card text-card-foreground border border-input shadow-lg rounded-lg flex flex-col transition-colors duration-150 overflow-hidden"
+        "bg-card text-card-foreground border border-outline-variant shadow-lg rounded-card flex flex-col transition-colors duration-150 overflow-hidden"
       )}
     >
       {/* Hidden File Input for Images */}
@@ -539,9 +539,11 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
               <button
                 type="button"
                 onClick={() => handleRemoveImage(img)}
-                className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 opacity-80 group-hover:opacity-100 transition-opacity"
+                className="group/remove absolute top-0 right-0 h-12 w-12 flex items-start justify-end p-1"
               >
-                <X className="h-3.5 w-3.5" />
+                <span className="bg-scrim/60 group-hover/remove:bg-scrim/80 text-on-scrim rounded-full p-1 opacity-80 group-hover:opacity-100 transition-[opacity,background-color]">
+                  <X className="h-3.5 w-3.5" />
+                </span>
                 <span className="sr-only">Remove image</span>
               </button>
             </div>
@@ -568,10 +570,10 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
               variant="ghost"
               size="icon"
               onClick={() => setIsPinned(!isPinned)}
-              className={isPinned ? "text-yellow-400" : "text-secondary"}
+              className={isPinned ? "text-highlight" : "text-secondary"}
             >
               <Pin
-                className={cn("h-5 w-5", isPinned && "fill-yellow-400")}
+                className={cn("h-5 w-5", isPinned && "fill-highlight")}
               />
               <span className="sr-only">
                 {isPinned ? "Unpin note" : "Pin note"}
@@ -590,10 +592,10 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
               variant="ghost"
               size="icon"
               onClick={() => setIsReminderOpen(true)}
-              className={reminder ? "text-yellow-400" : "text-secondary"}
+              className={reminder ? "text-highlight" : "text-secondary"}
             >
               <Bell
-                className={cn("h-5 w-5", reminder && "fill-yellow-400")}
+                className={cn("h-5 w-5", reminder && "fill-highlight")}
               />
               <span className="sr-only">Remind me</span>
             </Button>
@@ -640,7 +642,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
                 <Checkbox
                   checked={item.checked}
                   onCheckedChange={() => handleToggleItemChecked(item.id)}
-                  className="h-4 w-4 shrink-0 rounded border-gray-400"
+                  className="h-4 w-4 shrink-0 rounded border-muted-foreground"
                 />
                 <input
                   ref={(el) => {
@@ -707,9 +709,9 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
                       <Checkbox
                         checked={item.checked}
                         onCheckedChange={() =>
-                          handleToggleItemChecked(item.id)
+                        handleToggleItemChecked(item.id)
                         }
-                        className="h-4 w-4 shrink-0 rounded border-gray-400"
+                        className="h-4 w-4 shrink-0 rounded border-muted-foreground"
                       />
                       <span className="text-sm sm:text-base text-muted-foreground line-through flex-1 min-w-0 break-words">
                         {item.content || "Empty item"}
@@ -884,7 +886,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
                 variant="ghost"
                 size="icon"
                 onClick={() => setShowFormatting(!showFormatting)}
-                className={cn("text-secondary", showFormatting && "bg-accent")}
+                className={cn("text-secondary", showFormatting && "bg-brand-container text-brand-container-foreground")}
               >
                 <Type className="h-5 w-5" />
                 <span className="sr-only">Formatting</span>
@@ -905,7 +907,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
                     size="icon"
                     className={cn(
                       "text-secondary",
-                      editor.isActive("bold") && "bg-accent"
+                      editor.isActive("bold") && "bg-brand-container text-brand-container-foreground"
                     )}
                     onClick={() => editor.chain().focus().toggleBold().run()}
                   >
@@ -926,7 +928,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
                     size="icon"
                     className={cn(
                       "text-secondary",
-                      editor.isActive("italic") && "bg-accent"
+                      editor.isActive("italic") && "bg-brand-container text-brand-container-foreground"
                     )}
                     onClick={() => editor.chain().focus().toggleItalic().run()}
                   >
@@ -947,7 +949,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
                     size="icon"
                     className={cn(
                       "text-secondary",
-                      editor.isActive("underline") && "bg-accent"
+                      editor.isActive("underline") && "bg-brand-container text-brand-container-foreground"
                     )}
                     onClick={() =>
                       editor.chain().focus().toggleUnderline().run()

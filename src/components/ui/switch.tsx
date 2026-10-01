@@ -15,8 +15,8 @@ const Switch = React.forwardRef<
   <SwitchPrimitives.Root
     className={cn(
       "group peer inline-flex h-8 w-[52px] shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-200 ease-[cubic-bezier(0.2,0,0,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-[0.38]",
-      "data-[state=unchecked]:border-[hsl(25_10%_42%)] data-[state=unchecked]:bg-[hsl(30_40%_88%)] dark:data-[state=unchecked]:border-[hsl(28_10%_62%)] dark:data-[state=unchecked]:bg-[hsl(25_18%_18%)]",
-      "data-[state=checked]:border-transparent data-[state=checked]:bg-[hsl(35_85%_38%)] dark:data-[state=checked]:bg-[hsl(38_90%_65%)]",
+      "data-[state=unchecked]:border-outline data-[state=unchecked]:bg-switch-track",
+      "data-[state=checked]:border-transparent data-[state=checked]:bg-brand",
       className,
     )}
     {...props}
@@ -24,14 +24,14 @@ const Switch = React.forwardRef<
   >
     <SwitchPrimitives.Thumb
       className={cn(
-        "pointer-events-none relative block rounded-full shadow-sm transition-all duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
+        "pointer-events-none relative block rounded-full shadow-sm transition-[width,height,transform,background-color] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
         // Handle: 16px off, 24px on, 28px while pressed; centres stay at 16px / 36px of the track.
         "data-[state=unchecked]:h-4 data-[state=unchecked]:w-4 data-[state=unchecked]:translate-x-[6px] group-active:data-[state=unchecked]:h-7 group-active:data-[state=unchecked]:w-7 group-active:data-[state=unchecked]:translate-x-0",
         "data-[state=checked]:h-6 data-[state=checked]:w-6 data-[state=checked]:translate-x-[22px] group-active:data-[state=checked]:h-7 group-active:data-[state=checked]:w-7 group-active:data-[state=checked]:translate-x-5",
-        "data-[state=unchecked]:bg-[hsl(25_10%_42%)] dark:data-[state=unchecked]:bg-[hsl(28_10%_62%)] data-[state=checked]:bg-white dark:data-[state=checked]:bg-[hsl(30_70%_14%)]",
+        "data-[state=unchecked]:bg-outline data-[state=checked]:bg-brand-foreground",
         // 40px state layer around the handle: 8% on hover, 10% while pressed.
         "before:absolute before:left-1/2 before:top-1/2 before:h-10 before:w-10 before:-translate-x-1/2 before:-translate-y-1/2 before:rounded-full before:bg-current before:opacity-0 before:transition-opacity group-hover:before:opacity-[0.08] group-active:before:opacity-10",
-        "data-[state=unchecked]:text-foreground data-[state=checked]:text-[hsl(35_85%_38%)] dark:data-[state=checked]:text-[hsl(38_90%_65%)]",
+        "data-[state=unchecked]:text-foreground data-[state=checked]:text-brand",
       )}
     />
   </SwitchPrimitives.Root>

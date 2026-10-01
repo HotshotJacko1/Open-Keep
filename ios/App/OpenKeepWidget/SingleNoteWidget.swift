@@ -35,7 +35,7 @@ private func openSharedDatabase() -> OpaquePointer? {
         return nil
     }
 
-    guard let masterKey = retrieveMasterKeyFromSharedKeychain() else {
+    guard let masterKey = SharedKeyManager.shared.getMasterKey() else {
         print("[SingleNoteWidget] Failed to retrieve master key")
         return nil
     }
@@ -90,17 +90,6 @@ private func stringColumn(_ stmt: OpaquePointer?, index: Int32) -> String {
         return ""
     }
     return String(cString: cString)
-}
-
-/// Retrieves the master encryption key from the shared App Group UserDefaults.
-/// The main app stores the key there via KeyManager.storeMasterKey().
-private func retrieveMasterKeyFromSharedKeychain() -> [UInt8]? {
-    guard let sharedDefaults = UserDefaults(suiteName: appGroupIdentifier),
-          let encodedKey = sharedDefaults.string(forKey: "shared_master_key"),
-          let keyData = Data(base64Encoded: encodedKey) else {
-        return nil
-    }
-    return [UInt8](keyData)
 }
 
 /// Query the database for the list of all non-deleted notes.

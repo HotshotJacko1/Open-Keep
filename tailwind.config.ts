@@ -20,6 +20,14 @@ export default {
       },
     },
     extend: {
+      // `touch:` = the primary pointer is a finger (phones, tablets). Used where
+      // M3's 48px touch target would be wasteful with a mouse.
+      screens: {
+        touch: { raw: "(pointer: coarse)" },
+      },
+      fontFamily: {
+        sans: ["var(--font-sans)"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -57,6 +65,32 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        brand: {
+          DEFAULT: "hsl(var(--brand))",
+          foreground: "hsl(var(--brand-foreground))",
+          container: "hsl(var(--brand-container))",
+          "container-foreground": "hsl(var(--brand-container-foreground))",
+        },
+        highlight: "hsl(var(--highlight))",
+        "header-foreground": "hsl(var(--header-foreground))",
+        outline: {
+          DEFAULT: "hsl(var(--outline))",
+          variant: "hsl(var(--outline-variant))",
+        },
+        "switch-track": "hsl(var(--switch-track))",
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+          container: "hsl(var(--warning-container))",
+          "container-foreground": "hsl(var(--warning-container-foreground))",
+        },
+        info: "hsl(var(--info))",
+        scrim: "hsl(var(--scrim))",
+        "on-scrim": "hsl(var(--on-scrim))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -72,6 +106,11 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        card: "var(--radius-card)",
+        fab: "var(--radius-fab)",
+        drawer: "var(--radius-drawer)",
+        dialog: "var(--radius-dialog)",
+        sheet: "var(--radius-sheet)",
       },
       // Material 3 motion tokens. tailwindcss-animate reads these too, so
       // `duration-md3-*` / `ease-md3-*` work on both transitions and

@@ -87,7 +87,7 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
       {/* Backdrop */}
       <div
         className={cn(
-          "fixed inset-0 z-[100] bg-black/[0.32] transition-opacity reminder-sheet-backdrop",
+          "fixed inset-0 z-[100] bg-scrim/[0.32] transition-opacity reminder-sheet-backdrop",
           isOpen
             ? "opacity-100 pointer-events-auto duration-md3-medium2 ease-md3-decelerate"
             : "opacity-0 pointer-events-none duration-md3-short4 ease-md3-accelerate"
@@ -102,7 +102,7 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
         aria-modal="true"
         aria-label="Set reminder"
         className={cn(
-          "fixed bottom-0 left-0 right-0 z-[110] bg-background dark:bg-[#202124] rounded-t-2xl shadow-2xl",
+          "fixed bottom-0 left-0 right-0 z-[110] bg-popover text-popover-foreground rounded-t-sheet shadow-2xl",
           // Slides only (no fade), per M3 bottom sheets. Visibility is transitioned
           // too so the sheet flips hidden only after sliding out: that keeps its
           // shadow from peeking above the screen edge and its buttons out of the
@@ -128,7 +128,7 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
             </span>
             <button 
               onClick={onClose} 
-              className="touch-target press-feedback h-8 w-8 flex items-center justify-center hover:bg-muted dark:hover:bg-white/5 rounded-full transition-colors"
+              className="touch-target press-feedback h-8 w-8 flex items-center justify-center hover:bg-foreground/5 rounded-full transition-colors"
             >
               <X className="h-4 w-4 text-muted-foreground" />
             </button>
@@ -140,7 +140,7 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
               <li key={option.label}>
                 <button
                   id={`reminder-option-${option.label.toLowerCase().replace(/\s+/g, "-")}`}
-                  className="press-feedback w-full flex items-center gap-4 py-3.5 px-1 hover:bg-muted/50 dark:hover:bg-white/5 rounded-lg transition-colors text-left"
+                  className="press-feedback w-full flex items-center gap-4 py-3.5 px-1 hover:bg-foreground/5 rounded-lg transition-colors text-left"
                   onClick={() => handleOptionClick(option)}
                 >
                   {option.ts === null ? (
@@ -195,7 +195,7 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
                       min="1"
                       value={customInterval}
                       onChange={(e) => setCustomInterval(parseInt(e.target.value) || 1)}
-                      className="w-12 bg-muted/50 dark:bg-white/5 rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-12 bg-foreground/5 rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                     <select
                       value={customUnit}
@@ -217,11 +217,11 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
               <li>
                 <button
                   id="reminder-remove"
-                  className="press-feedback w-full flex items-center gap-4 py-3.5 px-1 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors text-left"
+                  className="press-feedback w-full flex items-center gap-4 py-3.5 px-1 hover:bg-destructive/10 rounded-lg transition-colors text-left"
                   onClick={handleRemove}
                 >
-                  <X className="h-5 w-5 text-red-500 shrink-0" />
-                  <span className="flex-1 text-sm font-medium text-red-500">
+                  <X className="h-5 w-5 text-destructive shrink-0" />
+                  <span className="flex-1 text-sm font-medium text-destructive">
                     Remove reminder
                   </span>
                 </button>

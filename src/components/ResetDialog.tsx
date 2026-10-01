@@ -37,7 +37,7 @@ const ResetDialog: React.FC<ResetDialogProps> = ({ isOpen, onOpenChange, onConfi
         <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
             <AlertDialogContent>
                 <AlertDialogHeader>
-                    <AlertDialogTitle className="text-black dark:text-white">
+                    <AlertDialogTitle className="text-foreground">
                         {isDestructive ? "Reset App & Delete All Data?" : "Reset App Lock?"}
                     </AlertDialogTitle>
                     <AlertDialogDescription className={isDestructive ? "text-destructive" : ""}>
@@ -61,7 +61,7 @@ const ResetDialog: React.FC<ResetDialogProps> = ({ isOpen, onOpenChange, onConfi
                     </div>
                 )}
                 <AlertDialogFooter>
-                    <AlertDialogCancel disabled={isResetting} className="text-black dark:text-white">Cancel</AlertDialogCancel>
+                    <AlertDialogCancel disabled={isResetting} className="text-foreground">Cancel</AlertDialogCancel>
                     <AlertDialogAction
                         className={isDestructive ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
                         onClick={(e) => {

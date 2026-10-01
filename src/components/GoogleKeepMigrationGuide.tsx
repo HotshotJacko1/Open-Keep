@@ -29,15 +29,15 @@ const GoogleKeepMigrationGuide: React.FC<GoogleKeepMigrationGuideProps> = ({ isO
             <ArrowLeft className="h-5 w-5 text-secondary" />
             <span className="sr-only">Back</span>
           </Button>
-          <DialogTitle className="text-black dark:text-white">Google Keep Migration Guide</DialogTitle>
+          <DialogTitle className="text-foreground">Google Keep Migration Guide</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 text-sm text-black dark:text-white pb-4">
+        <div className="space-y-6 text-sm text-foreground pb-4">
           <div className="space-y-2">
             <h3 className="font-semibold text-base">Step 1: Export your notes from Google Keep</h3>
             <ol className="list-decimal pl-5 space-y-1">
               <li>
-                Go to <a href="https://takeout.google.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">Google Takeout</a>.
+                Go to <a href="https://takeout.google.com/" target="_blank" rel="noopener noreferrer" className="text-info hover:underline font-medium">Google Takeout</a>.
               </li>
               <li>Click <strong>Deselect all</strong> at the top of the list so you don't export unnecessary data.</li>
               <li>Scroll down until you find <strong>Keep</strong> and check the box next to it.</li>
@@ -60,7 +60,7 @@ const GoogleKeepMigrationGuide: React.FC<GoogleKeepMigrationGuideProps> = ({ isO
           </div>
 
           <div className="bg-primary/10 border border-primary/20 p-4 rounded-md">
-            <p className="font-medium text-black dark:text-white">
+            <p className="font-medium text-foreground">
               The app will process the archive and automatically import your Google Keep notes (along with any labels they have)!
             </p>
           </div>

@@ -1,8 +1,8 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
-import { Note } from "@/types/note";
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { encryptData, decryptData } from "@/lib/note-storage";
-import { resolveImagesToBase64, restoreImagesFromBase64 } from "@/lib/image-storage";
+import { parseSyncData, serializeSyncData } from "@/lib/sync-data";
+import { emptySyncData, isSameSyncData, mergeSyncData, takeSide, type SyncData, type SyncMergeResult, type SyncNotesOptions } from "@/lib/sync-merge";
 import { normalizeCloudMasterKeyPayload } from "@/lib/cloud-master-key";
 
 const FOLDER_NAME = "Open Keep Notes";
@@ -299,7 +299,7 @@ const downloadMasterKey = async (fileId: string): Promise<string | null> => {
     }
 };
 
-const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTags: string[] }> => {
+const downloadNotes = async (fileId: string): Promise<SyncData> => {
     try {
         const token = getGoogleAccessToken();
         if (!token) throw new Error("No access token found");
@@ -358,30 +358,7 @@ const downloadNotes = async (fileId: string): Promise<{ notes: Note[], customTag
             }
         }
 
-        let parsedNotes: Note[] = [];
-        let parsedTags: string[] = [];
-        let parsedNoteImages: Record<string, Array<{id: string, data: string}>> = {};
-
-        if (Array.isArray(result)) {
-            parsedNotes = result as unknown as Note[];
-        } else if (result && typeof result === 'object' && 'notes' in result) {
-            const payload = result as {
-                notes?: Note[];
-                customTags?: string[];
-                noteImages?: Record<string, Array<{id: string, data: string}>>;
-            };
-            parsedNotes = payload.notes || [];
-            parsedTags = payload.customTags || [];
-            parsedNoteImages = payload.noteImages || {};
-        }
-
-        for (const note of parsedNotes) {
-            if (parsedNoteImages[note.id] && parsedNoteImages[note.id].length > 0) {
-                note.images = await restoreImagesFromBase64(parsedNoteImages[note.id]);
-            }
-        }
-
-        return { notes: parsedNotes, customTags: parsedTags };
+        return await parseSyncData(result);
     } catch (error: unknown) {
         if ((error as Error).message && (error as Error).message.includes("Cannot parse synced data")) {
             // Suppress error log for locked vault
@@ -446,19 +423,10 @@ const uploadFileContent = async (
 
 const uploadNotes = async (
     folderId: string,
-    notes: Note[],
-    customTags: string[],
+    data: SyncData,
     fileId: string | null
 ): Promise<void> => {
-    // Resolve images
-    const noteImages: Record<string, Array<{id: string, data: string}>> = {};
-    for (const note of notes) {
-        if (note.images && note.images.length > 0) {
-            noteImages[note.id] = await resolveImagesToBase64(note.images);
-        }
-    }
-
-    let fileContent = JSON.stringify({ notes, customTags, noteImages });
+    let fileContent = await serializeSyncData(data);
 
     try {
         const encrypted = await encryptData(fileContent);
@@ -480,18 +448,13 @@ const uploadMasterKey = async (folderId: string, payload: string, fileId: string
 };
 
 export const syncNotesWithDrive = async (
-    localNotes: Note[], 
-    localCustomTags: string[],
-    options?: {
-        masterKeyPayload?: string;
-        forceResolution?: "local" | "cloud";
-    }
-): Promise<{ notes: Note[], customTags: string[] }> => {
+    local: SyncData,
+    { masterKeyPayload, forceResolution, lastSyncStartedAt }: SyncNotesOptions
+): Promise<SyncMergeResult> => {
     if (!isInitialized) await initGoogleDrive();
 
     return withStaleCacheRetry(async () => {
         const folderId = await resolveFolderId();
-        const { masterKeyPayload, forceResolution } = options || {};
 
         // The two file lookups are independent — run them concurrently.
         const [keyFileId, fileId] = await Promise.all([
@@ -506,30 +469,23 @@ export const syncNotesWithDrive = async (
 
         // If Keep Local, ignore remote notes entirely
         if (forceResolution === "local") {
-            if (localNotes.length === 0) {
+            if (local.notes.length === 0) {
                 throw new Error("Refusing to overwrite cloud with an empty local set");
             }
-            await uploadNotes(folderId, localNotes, localCustomTags, fileId);
-            return { notes: localNotes, customTags: localCustomTags };
+            await uploadNotes(folderId, local, fileId);
+            return takeSide(local);
         }
 
         // If Keep Cloud, download remote notes only (local was wiped before import)
         if (forceResolution === "cloud") {
-            if (fileId) {
-                const remoteData = await downloadNotes(fileId);
-                return { notes: remoteData.notes, customTags: remoteData.customTags };
-            }
-            return { notes: [], customTags: [] };
+            return takeSide(fileId ? await downloadNotes(fileId) : emptySyncData());
         }
 
-        let remoteNotes: Note[] = [];
-        let remoteCustomTags: string[] = [];
+        let remote = emptySyncData();
 
         if (fileId) {
             try {
-                const remoteData = await downloadNotes(fileId);
-                remoteNotes = remoteData.notes;
-                remoteCustomTags = remoteData.customTags || [];
+                remote = await downloadNotes(fileId);
             } catch (e: unknown) {
                 if ((e as Error).message && (e as Error).message.includes("Cannot parse synced data")) {
                     // Expected when vault is locked, no noisy error
@@ -540,63 +496,16 @@ export const syncNotesWithDrive = async (
             }
         }
 
-        // Merge Logic
-        console.log(`[Google Drive Sync] Starting merge. Local notes: ${localNotes.length}, Remote notes: ${remoteNotes.length}`);
-        const mergedNotesMap = new Map<string, Note>();
+        const merged = mergeSyncData({ local, remote, lastSyncStartedAt, now: Date.now(), logTag: "[Google Drive Sync]" });
 
-        // Add all local notes initially
-        localNotes.forEach((note) => {
-            const inRemote = remoteNotes.some(r => r.id === note.id);
-            if (!inRemote) {
-                console.log(`[Google Drive Sync] Note ${note.id} (${note.title}) only exists locally. Will upload.`);
-            }
-            mergedNotesMap.set(note.id, note);
-        });
+        // Upload merged data, unless the cloud already holds exactly this
+        if (fileId && isSameSyncData(merged, remote)) {
+            console.log("[Google Drive Sync] Cloud already up to date, skipping upload");
+        } else {
+            await uploadNotes(folderId, merged, fileId);
+        }
 
-        // Merge remote notes
-        remoteNotes.forEach((remoteNote) => {
-            const localNote = mergedNotesMap.get(remoteNote.id);
-            if (!localNote) {
-                // Note exists remotely but not locally (new from other device)
-                console.log(`[Google Drive Sync] Note ${remoteNote.id} (${remoteNote.title}) only exists remotely. Adding to local.`);
-                mergedNotesMap.set(remoteNote.id, remoteNote);
-            } else {
-                // Note exists on both
-                if (remoteNote.updatedAt > localNote.updatedAt) {
-                    // Remote is newer
-                    console.log(`[Google Drive Sync] Note ${remoteNote.id} (${remoteNote.title}) exists on both. Remote is newer (${new Date(remoteNote.updatedAt).toISOString()} > ${new Date(localNote.updatedAt).toISOString()}). Overwriting local with remote.`);
-                    mergedNotesMap.set(remoteNote.id, remoteNote);
-                } else if (remoteNote.updatedAt < localNote.updatedAt) {
-                    console.log(`[Google Drive Sync] Note ${remoteNote.id} (${localNote.title}) exists on both. Local is newer (${new Date(localNote.updatedAt).toISOString()} > ${new Date(remoteNote.updatedAt).toISOString()}). Keeping local.`);
-                } else {
-                    console.log(`[Google Drive Sync] Note ${remoteNote.id} (${localNote.title}) exists on both with same timestamp. Keeping local.`);
-                }
-                // Else keep local (it's newer or same)
-            }
-        });
-
-        const mergedNotes = Array.from(mergedNotesMap.values());
-
-        // Merge Tags logic (Set union)
-        console.log(`[Google Drive Sync] Merging custom tags. Local tags: ${localCustomTags.length}, Remote tags: ${remoteCustomTags.length}`);
-        const mergedTags = Array.from(new Set([...localCustomTags, ...remoteCustomTags])).sort();
-        
-        localCustomTags.forEach(tag => {
-            if (!remoteCustomTags.includes(tag)) {
-                console.log(`[Google Drive Sync] Tag '${tag}' only exists locally. Will upload.`);
-            }
-        });
-        
-        remoteCustomTags.forEach(tag => {
-            if (!localCustomTags.includes(tag)) {
-                console.log(`[Google Drive Sync] Tag '${tag}' only exists remotely. Adding to local.`);
-            }
-        });
-
-        // Upload merged data
-        await uploadNotes(folderId, mergedNotes, mergedTags, fileId);
-
-        return { notes: mergedNotes, customTags: mergedTags };
+        return merged;
     });
 };
 

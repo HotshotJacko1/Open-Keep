@@ -107,8 +107,8 @@ const NoteLabels: React.FC<NoteLabelsProps> = ({
                                     "h-5 w-5 shrink-0 rounded-[3px] border-2 border-secondary flex items-center justify-center transition-colors",
                                     (isChecked || isIndeterminate) && "bg-sidebar-foreground border-sidebar-foreground"
                                 )}>
-                                    {isChecked && <Check className="h-3.5 w-3.5 text-black dark:text-white" strokeWidth={3} />}
-                                    {isIndeterminate && <div className="h-0.5 w-2.5 bg-black dark:bg-white rounded-full" />}
+                                    {isChecked && <Check className="h-3.5 w-3.5 text-foreground" strokeWidth={3} />}
+                                    {isIndeterminate && <div className="h-0.5 w-2.5 bg-foreground rounded-full" />}
                                 </div>
                             </div>
                         );

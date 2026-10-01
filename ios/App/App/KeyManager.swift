@@ -11,15 +11,30 @@ class KeyManager {
     private let SALT_SIZE = 16
     private let ITERATIONS: UInt32 = 10000
     private let KEY_LENGTH = 32 // 256 bits
-    private let APP_GROUP = "group.com.jackbarkerapps.openkeep"
-    private let SHARED_DEFAULTS_KEY = "shared_master_key"
-    
+    private static let APP_GROUP = "group.com.jackbarkerapps.openkeep"
+    /// Where builds up to 5.1.0 mirrored the raw master key for the widget: an App Group
+    /// plist with no data protection that was included in device backups (C6-ESC).
+    /// Only ever deleted now; see `purgeLegacySharedKey()`.
+    private static let LEGACY_SHARED_DEFAULTS_KEY = "shared_master_key"
+
     // UserDefaults used for salt, like Android's standardPrefs
     private let defaults = UserDefaults.standard
-    // Shared UserDefaults (App Group) so the widget extension can read the key
-    private lazy var sharedDefaults: UserDefaults? = UserDefaults(suiteName: APP_GROUP)
-    
+
     init() {}
+
+    /// Keychain access group shared with the widget extension, e.g.
+    /// `TEAMID.com.jackbarkerapps.openkeep`. Read from the `KeychainAccessGroup` Info.plist key,
+    /// which both targets define as `$(AppIdentifierPrefix)com.jackbarkerapps.openkeep` to match
+    /// their `keychain-access-groups` entitlement. Nil (use the default group, which is that same
+    /// entitlement's first entry) if the prefix didn't expand, e.g. an unsigned simulator build.
+    /// The widget's `SharedKeyManager` resolves it the same way.
+    static let keychainAccessGroup: String? = {
+        guard let group = Bundle.main.object(forInfoDictionaryKey: "KeychainAccessGroup") as? String,
+              !group.hasPrefix("."), !group.contains("$(") else {
+            return nil
+        }
+        return group
+    }()
     
     func getOrGenerateSalt() -> [UInt8] {
         if let saltString = defaults.string(forKey: SALT_KEY),
@@ -193,29 +208,57 @@ class KeyManager {
         try keychainSet(key: ENCRYPTED_MASTER_KEY_V2, value: encryptedLocal)
     }
     
+    /// Stores the unlocked master key for this session. The widget extension reads the same
+    /// Keychain item through the shared access group (`SharedKeyManager`), so it must stay
+    /// readable while the device is locked (widgets refresh in the background), hence
+    /// AfterFirstUnlock. `ThisDeviceOnly` keeps it out of backups. `clear()` deletes it on lock.
     func storeMasterKey(key: [UInt8]) throws {
-            let encodedKey = Data(key).base64EncodedString()
-            try keychainSet(key: KEY_ALIAS, value: encodedKey)
-            // Also store in shared UserDefaults for widget extension access
-            sharedDefaults?.set(encodedKey, forKey: SHARED_DEFAULTS_KEY)
+        let encodedKey = Data(key).base64EncodedString()
+        try keychainSet(key: KEY_ALIAS, value: encodedKey, accessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly)
+        KeyManager.removeLegacySharedKey()
+    }
+
+    func getMasterKey() -> [UInt8]? {
+        guard let encodedKey = keychainGet(key: KEY_ALIAS),
+              let keyData = Data(base64Encoded: encodedKey) else {
+            return nil
         }
-        
-        func getMasterKey() -> [UInt8]? {
-            guard let encodedKey = keychainGet(key: KEY_ALIAS),
-                  let keyData = Data(base64Encoded: encodedKey) else {
-                return nil
-            }
-            return [UInt8](keyData)
+        return [UInt8](keyData)
+    }
+
+    /// One-time migration for C6-ESC, run at every launch (a no-op once done). Deletes the
+    /// cleartext key copy older builds kept in App Group UserDefaults, and re-saves the session
+    /// key into the shared access group with the widget-readable, non-backed-up protection class.
+    /// Items written by older builds carry `WhenUnlockedThisDeviceOnly` and possibly no explicit
+    /// group, so they are looked up and deleted without a group filter.
+    static func purgeLegacySharedKey() {
+        let manager = KeyManager()
+        let legacyQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: manager.KEY_ALIAS,
+            kSecReturnAttributes as String: kCFBooleanTrue!,
+            kSecReturnData as String: kCFBooleanTrue!,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        if SecItemCopyMatching(legacyQuery as CFDictionary, &result) == errSecSuccess,
+           let item = result as? [String: Any],
+           (item[kSecAttrAccessible as String] as? String) != (kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String),
+           let data = item[kSecValueData as String] as? Data,
+           let encodedKey = String(data: data, encoding: .utf8),
+           let keyData = Data(base64Encoded: encodedKey) {
+            manager.keychainDelete(key: manager.KEY_ALIAS)
+            try? manager.storeMasterKey(key: [UInt8](keyData))
         }
-        
-        /// Read the master key from shared App Group UserDefaults (for widget extension).
-        func getMasterKeyFromSharedDefaults() -> [UInt8]? {
-            guard let encodedKey = sharedDefaults?.string(forKey: SHARED_DEFAULTS_KEY),
-                  let keyData = Data(base64Encoded: encodedKey) else {
-                return nil
-            }
-            return [UInt8](keyData)
-        }
+        removeLegacySharedKey()
+    }
+
+    private static func removeLegacySharedKey() {
+        guard let shared = UserDefaults(suiteName: APP_GROUP),
+              shared.object(forKey: LEGACY_SHARED_DEFAULTS_KEY) != nil else { return }
+        shared.removeObject(forKey: LEGACY_SHARED_DEFAULTS_KEY)
+        shared.synchronize()
+    }
     
     func encrypt(plaintext: String, key: [UInt8]? = nil) throws -> String {
         let activeKey = key ?? getMasterKey()
@@ -235,9 +278,9 @@ class KeyManager {
     }
     
     func clear() {
-            keychainDelete(key: KEY_ALIAS)
-            sharedDefaults?.removeObject(forKey: SHARED_DEFAULTS_KEY)
-        }
+        keychainDelete(key: KEY_ALIAS)
+        KeyManager.removeLegacySharedKey()
+    }
     
     func clearAll() {
         clear()
@@ -249,16 +292,26 @@ class KeyManager {
     
     // MARK: - Keychain Helpers
     
-    private func keychainSet(key: String, value: String) throws {
-        guard let data = value.data(using: .utf8) else { return }
-        
-        let query: [String: Any] = [
+    /// Base query for one item. Every item lives in the access group shared with the widget,
+    /// set explicitly rather than relying on the entitlement's default-group ordering.
+    private func keychainQuery(key: String) -> [String: Any] {
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key
         ]
+        if let group = KeyManager.keychainAccessGroup {
+            query[kSecAttrAccessGroup as String] = group
+        }
+        return query
+    }
+
+    private func keychainSet(key: String, value: String, accessible: CFString = kSecAttrAccessibleWhenUnlockedThisDeviceOnly) throws {
+        guard let data = value.data(using: .utf8) else { return }
+
+        let query = keychainQuery(key: key)
         let attributes: [String: Any] = [
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            kSecAttrAccessible as String: accessible
         ]
 
         // Update in place so a failed write leaves the existing item intact.
@@ -274,28 +327,33 @@ class KeyManager {
         }
     }
     
+    /// Reads from the shared group first. Falls back to any group so an item written before
+    /// the group was set explicitly (C6-ESC) is still found; losing the wrapped master key
+    /// would lock the user out of their notes.
     private func keychainGet(key: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: key,
-            kSecReturnData as String: kCFBooleanTrue!,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        
+        var query = keychainQuery(key: key)
+        query[kSecReturnData as String] = kCFBooleanTrue!
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
         var dataTypeRef: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
-        
+        var status = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
+        if status == errSecItemNotFound, query[kSecAttrAccessGroup as String] != nil {
+            query.removeValue(forKey: kSecAttrAccessGroup as String)
+            status = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
+        }
+
         if status == errSecSuccess, let data = dataTypeRef as? Data {
             return String(data: data, encoding: .utf8)
         }
         return nil
     }
-    
+
+    /// Deletes the item from every group this app can see, not just the shared one, so a reset
+    /// can't leave an old copy behind for `keychainGet`'s fallback to find.
     private func keychainDelete(key: String) {
-        let query: [String: Any] = [
+        SecItemDelete([
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key
-        ]
-        SecItemDelete(query as CFDictionary)
+        ] as CFDictionary)
     }
 }

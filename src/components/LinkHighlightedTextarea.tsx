@@ -91,7 +91,7 @@ export const LinkHighlightedTextarea = React.forwardRef<HTMLTextAreaElement, Lin
                     aria-hidden="true"
                 >
                     {!value && placeholder ? (
-                        <span className="text-gray-400">{placeholder}</span>
+                        <span className="text-muted-foreground">{placeholder}</span>
                     ) : (
                         renderTextWithLinks(value)
                     )}
@@ -106,7 +106,7 @@ export const LinkHighlightedTextarea = React.forwardRef<HTMLTextAreaElement, Lin
                         adjustHeight();
                     }}
                     placeholder=""
-                    className={`${className ?? ''} caret-black dark:caret-white relative z-10 w-full`}
+                    className={`${className ?? ''} caret-foreground relative z-10 w-full`}
                     {...props}
                     style={{
                         color: 'transparent',

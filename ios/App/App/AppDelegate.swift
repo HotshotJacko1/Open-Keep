@@ -20,7 +20,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Move the widget's copy of the master key out of backed-up UserDefaults (C6-ESC).
+        KeyManager.purgeLegacySharedKey()
         return true
     }
 

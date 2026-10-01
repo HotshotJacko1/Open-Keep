@@ -22,7 +22,7 @@ const WelcomeMessage: React.FC<WelcomeMessageProps> = ({ isOpen, onClose }) => {
       <DialogContent className="sm:max-w-[425px] max-h-[85dvh] overflow-y-auto px-6 pt-[max(env(safe-area-inset-top),1.5rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)]">
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
-            <AlertCircle className="h-5 w-5 text-blue-500" />
+            <AlertCircle className="h-5 w-5 text-info" />
             <DialogTitle className="text-text-primary dark:text-text-primary text-xl">
               Local Storage Only
             </DialogTitle>
@@ -36,7 +36,7 @@ const WelcomeMessage: React.FC<WelcomeMessageProps> = ({ isOpen, onClose }) => {
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="pt-4">
-          <Button className="w-full text-white dark:text-text-primary" onClick={onClose}>
+          <Button className="w-full" onClick={onClose}>
             Got it
           </Button>
         </DialogFooter>

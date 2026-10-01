@@ -4,6 +4,7 @@ import { readCustomTags } from "@/lib/custom-tags";
 import {
     loadNotes,
     saveNote,
+    deleteNote,
     exportMasterKey,
     importMasterKey,
     verifyCloudMasterKeyMatch,
@@ -25,8 +26,9 @@ import {
 } from "@/lib/pin";
 import { setCloudSyncState, CloudSyncProvider } from "@/lib/cloud-sync-state";
 import { showSuccess, showError } from "@/utils/toast";
-import { withImagesInPlaintext } from "@/lib/image-storage";
-import type { Note } from "@/types/note";
+import { deleteImage, withImagesInPlaintext } from "@/lib/image-storage";
+import { pruneTagChanges, pruneTombstones, readTagChanges, readTombstones, writeTagChanges, writeTombstones } from "@/lib/tombstones";
+import { isSameNote, type SyncData, type SyncMergeResult, type SyncNotesOptions } from "@/lib/sync-merge";
 
 export type ForceResolution = "local" | "cloud" | "merge";
 
@@ -56,11 +58,7 @@ export interface CloudSyncAdapter {
     /** Runs before anything else (init, token acquisition). Throw an auth error to abort. */
     prepare?: (silent: boolean) => Promise<void>;
     checkMasterKey: () => Promise<{ exists: boolean; payload: string | null }>;
-    syncNotes: (
-        localNotes: Note[],
-        localCustomTags: string[],
-        options: { masterKeyPayload?: string; forceResolution?: "local" | "cloud" }
-    ) => Promise<{ notes: Note[]; customTags: string[] }>;
+    syncNotes: (local: SyncData, options: SyncNotesOptions) => Promise<SyncMergeResult>;
 
     /**
      * Sorts a thrown error into the failure kinds every provider must handle:
@@ -84,6 +82,21 @@ const isDecryptError = (message: string): boolean =>
     message.includes("BAD_DECRYPT") ||
     message.includes("Decryption failed") ||
     message.includes("Cannot parse synced data");
+
+/**
+ * When this device's last successful sync with a provider *started*, in ms (C3-01 §4.4).
+ * The start, not the end: a note created while a sync is in flight must not look
+ * "unchanged since the last sync" next time. Only trusted while the provider's
+ * last-synced display key exists, so every reset/disconnect path that clears that
+ * key (LockScreen, ChangePinDialog, each hook's disconnect) invalidates this too.
+ */
+const syncStartedKey = (provider: CloudSyncProvider): string => `${provider}-last-sync-started-ms`;
+
+const readLastSyncStartedAt = (adapter: CloudSyncAdapter): number | null => {
+    if (!localStorage.getItem(adapter.lastSyncedKey)) return null;
+    const value = Number(localStorage.getItem(syncStartedKey(adapter.provider)));
+    return Number.isFinite(value) && value > 0 ? value : null;
+};
 
 const pinRequired = (cloudPayload: string): SyncResult =>
     ({ status: "conflict", cloudPayload, reason: "pin_required" });
@@ -123,6 +136,10 @@ export const runCloudSync = async (
             pin = providedPin;
             setSessionPin(pin);
         }
+
+        // Taken before reading local notes; see syncStartedKey.
+        const syncStartedAt = Date.now();
+        const lastSyncStartedAt = readLastSyncStartedAt(adapter);
 
         // Read local notes and custom tags BEFORE any database wipe or key import
         const localNotes = await loadNotes();
@@ -202,10 +219,22 @@ export const runCloudSync = async (
 
         console.log(`${logTag} Loaded ${localNotes.length} local notes for sync`);
         const providerForceResolution = forceResolution === "merge" ? undefined : forceResolution;
-        const { notes: mergedNotes, customTags: mergedTags } = await adapter.syncNotes(localNotes, localCustomTags, {
-            masterKeyPayload,
-            forceResolution: providerForceResolution,
-        });
+        const localTombstones = pruneTombstones(readTombstones(), syncStartedAt);
+        const {
+            notes: mergedNotes,
+            customTags: mergedTags,
+            tombstones: mergedTombstones,
+            tagChanges: mergedTagChanges,
+            removeIds,
+        } = await adapter.syncNotes(
+            {
+                notes: localNotes,
+                customTags: localCustomTags,
+                tombstones: localTombstones,
+                tagChanges: pruneTagChanges(readTagChanges(), syncStartedAt),
+            },
+            { masterKeyPayload, forceResolution: providerForceResolution, lastSyncStartedAt }
+        );
 
         // Re-read local DB state now that sync is complete. Local notes may have changed
         // while the sync was in-flight (e.g. user deleted a note during a long sync).
@@ -215,6 +244,7 @@ export const runCloudSync = async (
         const currentLocalMap = new Map(currentLocalNotes.map((n) => [n.id, n]));
         let savedCount = 0;
         let skippedCount = 0;
+        let unchangedCount = 0;
         await Promise.all(
             mergedNotes.map(async (note) => {
                 const current = currentLocalMap.get(note.id);
@@ -223,17 +253,46 @@ export const runCloudSync = async (
                     skippedCount++;
                     return;
                 }
+                // Most syncs change nothing; rewriting every note cost a DB write and a
+                // native bridge call each.
+                if (current && isSameNote(current, note)) {
+                    unchangedCount++;
+                    return;
+                }
                 await saveNote(note, { skipLimits: true });
                 savedCount++;
             })
         );
-        console.log(`${logTag} Write-back complete: ${savedCount} saved, ${skippedCount} skipped (local was newer)`);
+        console.log(`${logTag} Write-back complete: ${savedCount} saved, ${unchangedCount} unchanged, ${skippedCount} skipped (local was newer)`);
+
+        // Notes another device permanently deleted (C3-01). Same guard as above: a note
+        // edited here after the delete (including during this sync) is kept, and the next
+        // sync keeps it everywhere, since a note edited after its tombstone wins.
+        const deletedAtById = new Map(mergedTombstones.map((t) => [t.id, t.deletedAt]));
+        let removedCount = 0;
+        for (const id of removeIds) {
+            const current = currentLocalMap.get(id);
+            if (!current) continue;
+            if (current.updatedAt > (deletedAtById.get(id) ?? Infinity)) {
+                console.log(`${logTag} Removal skipped for note ${id}: edited after it was deleted`);
+                continue;
+            }
+            if (current.images && current.images.length > 0) {
+                await Promise.all(current.images.map(deleteImage));
+            }
+            await deleteNote(id);
+            removedCount++;
+        }
+        if (removedCount > 0) console.log(`${logTag} Removed ${removedCount} notes deleted on another device`);
+        writeTombstones(mergedTombstones);
         localStorage.setItem("custom-tags", JSON.stringify(mergedTags));
+        writeTagChanges(mergedTagChanges);
         setCloudKeyCache(masterKeyPayload ?? verifiedPayload ?? getCloudKeyCache());
         setCloudKeyPushPending(false);
 
         const now = new Date().toLocaleString();
         localStorage.setItem(adapter.lastSyncedKey, now);
+        localStorage.setItem(syncStartedKey(adapter.provider), String(syncStartedAt));
         adapter.onSynced(now);
         window.dispatchEvent(new Event("notes-updated"));
         if (!silent) {

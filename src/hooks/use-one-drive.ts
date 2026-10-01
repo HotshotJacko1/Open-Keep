@@ -1,13 +1,16 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { InteractionRequiredAuthError } from "@azure/msal-browser";
-import { initOneDrive, loginToOneDrive, syncNotesWithOneDrive, logoutFromOneDrive, checkOneDriveMasterKey, msalInstance } from "@/lib/one-drive";
+import { Capacitor } from "@capacitor/core";
 import { setupOneDriveOAuthRedirect } from "@/lib/one-drive-oauth";
 import type { SyncResult } from "@/lib/note-storage";
 import { runCloudSync, runOAuthSuccessSync, ForceResolution } from "@/lib/cloud-sync-runner";
 import { useCloudSyncState, useLastSynced } from "@/lib/cloud-sync-state";
 import { showSuccess, showError } from "@/utils/toast";
+
+// The OneDrive client (MSAL) is a large part of the bundle and most people never
+// connect OneDrive, so it's loaded only when OneDrive is actually used.
+const loadOneDrive = () => import("@/lib/one-drive");
 
 export const useOneDrive = () => {
     const isSyncing = useCloudSyncState("onedrive");
@@ -39,6 +42,10 @@ export const useOneDrive = () => {
         window.addEventListener("onedrive-oauth-success", handleOAuthSuccess);
 
         const checkExistingAccount = async () => {
+            // Native: nothing to restore unless OneDrive was connected. (Web always
+            // loads it: MSAL has to process a sign-in redirect in the page URL.)
+            if (Capacitor.isNativePlatform() && !localStorage.getItem("onedrive-user-email")) return;
+            const { initOneDrive, msalInstance } = await loadOneDrive();
             await initOneDrive();
             const account = msalInstance.getActiveAccount();
             if (account?.username) {
@@ -56,6 +63,7 @@ export const useOneDrive = () => {
 
     const login = useCallback(async () => {
         try {
+            const { loginToOneDrive } = await loadOneDrive();
             await loginToOneDrive();
             // In a redirect flow, this will navigate away and reload the application natively
         } catch (error) {
@@ -72,12 +80,13 @@ export const useOneDrive = () => {
             successMessage: "Notes synced with OneDrive!",
             failureMessage: "OneDrive sync failed. Please reconnect.",
             permissionMessage: "OneDrive denied Open Keep access to its folder. Disconnect OneDrive in Settings, then reconnect and allow access.",
-            prepare: initOneDrive,
-            checkMasterKey: checkOneDriveMasterKey,
-            syncNotes: syncNotesWithOneDrive,
+            prepare: async () => (await loadOneDrive()).initOneDrive(),
+            checkMasterKey: async () => (await loadOneDrive()).checkOneDriveMasterKey(),
+            syncNotes: async (local, options) => (await loadOneDrive()).syncNotesWithOneDrive(local, options),
             classifyError: (error) => {
                 // MSAL couldn't get a token silently and the interactive fallback failed too.
-                if (error instanceof InteractionRequiredAuthError) return "auth";
+                // (Matched by name: importing the class would pull MSAL into the main bundle.)
+                if ((error as Error)?.name === "InteractionRequiredAuthError") return "auth";
                 const message = (error as Error)?.message || "";
                 if (message.startsWith("No active account")) return "auth";
                 // one-drive.ts embeds the Graph status as "Graph API error 401: …" or "… (401): …".
@@ -97,7 +106,7 @@ export const useOneDrive = () => {
     }, [userEmail]);
 
     const disconnect = useCallback(async () => {
-        await logoutFromOneDrive();
+        await (await loadOneDrive()).logoutFromOneDrive();
         setUserEmail(null);
         localStorage.removeItem("onedrive-user-email");
         localStorage.removeItem("onedrive-last-synced");

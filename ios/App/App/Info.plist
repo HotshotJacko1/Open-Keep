@@ -72,6 +72,8 @@
 			<string>com.jackbarkerapps.openkeep</string>
 		</dict>
 	</array>
+	<key>KeychainAccessGroup</key>
+	<string>$(AppIdentifierPrefix)com.jackbarkerapps.openkeep</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 </dict>

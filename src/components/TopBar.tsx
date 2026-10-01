@@ -95,17 +95,17 @@ const TopBar: React.FC<TopBarProps> = ({
                 <Input
                     type="text"
                     placeholder="Search"
-                    className="w-full p-2 rounded-lg shadow focus:ring-2 focus:ring-primary bg-card dark:bg-card text-card-foreground border-input pr-10"
+                    className="w-full h-12 p-2 rounded-lg shadow focus:ring-2 focus:ring-primary bg-card dark:bg-card text-card-foreground border-input pr-24"
                     value={searchTerm}
                     onChange={(e) => onSearchChange(e.target.value)}
                 />
-                <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-text-primary"
+                                className="h-12 w-12 text-muted-foreground hover:text-text-primary"
                             >
                                 <ArrowUpDown className="h-4 w-4" />
                             </Button>
@@ -130,7 +130,7 @@ const TopBar: React.FC<TopBarProps> = ({
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-text-primary"
+                        className="h-12 w-12 text-muted-foreground hover:text-text-primary"
                         onClick={() => onViewModeChange(viewMode === "grid" ? "list" : "grid")}
                     >
                         {viewMode === "grid" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
@@ -146,8 +146,8 @@ const TopBar: React.FC<TopBarProps> = ({
                     disabled={activeService.isSyncing}
                     className={cn(
                         "flex-shrink-0 justify-center text-muted-foreground transition-colors duration-md3-short4 ease-md3-standard min-w-[150px]",
-                        isTokenExpired(activeService) && "bg-orange-500 hover:bg-orange-600 text-white",
-                        justSynced && "bg-green-500 hover:bg-green-500 text-white"
+                        isTokenExpired(activeService) && "bg-warning hover:bg-warning/90 text-warning-foreground",
+                        justSynced && "bg-success hover:bg-success text-success-foreground"
                     )}
                 >
                     {activeService.isSyncing ? (

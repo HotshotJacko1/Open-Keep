@@ -28,7 +28,7 @@ interface AiAssistantDialogProps {
 }
 
 const STATUS_COPY: Record<McpBridgeState["connectionState"], { label: string; className: string }> = {
-  connected: { label: "Connected", className: "text-green-600 dark:text-green-400" },
+  connected: { label: "Connected", className: "text-success" },
   connecting: { label: "Connecting…", className: "text-muted-foreground" },
   disconnected: { label: "Not connected", className: "text-muted-foreground" },
   rejected: { label: "Pairing failed", className: "text-destructive" },

@@ -47,7 +47,4 @@ struct AppGroupHelper {
             sharedDefaults?.set(relative, forKey: dbPathKey)
         }
     }
-
-    /// Shared Keychain service name — used so both targets can read/write the master key.
-    static let keychainService = "com.jackbarkerapps.openkeep.shared"
 }

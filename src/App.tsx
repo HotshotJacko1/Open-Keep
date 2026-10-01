@@ -328,7 +328,8 @@ const App = () => {
         onClose={handleFeedbackClose}
         onSubmit={handleFeedbackSubmit}
       />
-      <Analytics />
+      {/* Vercel analytics is web-only; on native its script 404s on every launch. */}
+      {!isNative && <Analytics />}
     </QueryClientProvider>
   );
 };

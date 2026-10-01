@@ -53,7 +53,7 @@ const EditLabels: React.FC<EditLabelsProps> = ({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-full w-full h-full sm:max-w-full m-0 !rounded-none border-none px-4 pt-[max(env(safe-area-inset-top,1rem),1rem)] pb-[max(env(safe-area-inset-bottom,1rem),1rem)] flex flex-col text-black dark:text-white">
+            <DialogContent className="max-w-full w-full h-full sm:max-w-full m-0 !rounded-none border-none px-4 pt-[max(env(safe-area-inset-top,1rem),1rem)] pb-[max(env(safe-area-inset-bottom,1rem),1rem)] flex flex-col text-foreground">
                 <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left shrink-0">
                     <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">
                         <ArrowLeft className="h-5 w-5 text-secondary" />
@@ -77,7 +77,7 @@ const EditLabels: React.FC<EditLabelsProps> = ({
                             value={newLabel}
                             onChange={(e) => setNewLabel(e.target.value)}
                             placeholder="Create new label"
-                            className="border-none shadow-none focus-visible:ring-0 px-0 placeholder:text-black dark:placeholder:text-white"
+                            className="border-none shadow-none focus-visible:ring-0 px-0 placeholder:text-foreground"
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') handleCreate();
                             }}
@@ -112,8 +112,8 @@ const EditLabels: React.FC<EditLabelsProps> = ({
                                         className="touch-target h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
                                         onClick={() => onDeleteTag(tag)}
                                     >
-                                        <Tag className="h-4 w-4 group-hover:hidden transition-all" />
-                                        <Trash2 className="h-4 w-4 hidden group-hover:block transition-all" />
+                                        <Tag className="h-4 w-4 group-hover:hidden" />
+                                        <Trash2 className="h-4 w-4 hidden group-hover:block" />
                                     </Button>
                                 </div>
 

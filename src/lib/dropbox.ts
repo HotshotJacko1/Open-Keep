@@ -1,8 +1,8 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
-import { Note } from "@/types/note";
 import { encryptData, decryptData } from "@/lib/note-storage";
-import { resolveImagesToBase64, restoreImagesFromBase64 } from "@/lib/image-storage";
 import { normalizeCloudMasterKeyPayload } from "@/lib/cloud-master-key";
+import { parseSyncData, serializeSyncData } from "@/lib/sync-data";
+import { emptySyncData, isSameSyncData, mergeSyncData, takeSide, type SyncData, type SyncMergeResult, type SyncNotesOptions } from "@/lib/sync-merge";
 import { Dropbox, DropboxAuth } from "dropbox";
 import { Capacitor } from "@capacitor/core";
 
@@ -167,7 +167,7 @@ export const checkDropboxMasterKey = async (): Promise<{ exists: boolean, payloa
     }
 };
 
-const downloadNotes = async (): Promise<{ notes: Note[], customTags: string[] }> => {
+const downloadNotes = async (): Promise<SyncData> => {
     if (!dbx) throw new Error("Dropbox not initialized");
 
     try {
@@ -193,50 +193,20 @@ const downloadNotes = async (): Promise<{ notes: Note[], customTags: string[] }>
             throw e;
         }
 
-        let parsedNotes: Note[] = [];
-        let parsedTags: string[] = [];
-        let parsedNoteImages: Record<string, Array<{id: string, data: string}>> = {};
-
-        if (Array.isArray(result)) {
-            parsedNotes = result as Note[];
-        } else if (result && typeof result === 'object' && 'notes' in result) {
-            const payload = result as {
-                notes?: Note[];
-                customTags?: string[];
-                noteImages?: Record<string, Array<{id: string, data: string}>>;
-            };
-            parsedNotes = payload.notes || [];
-            parsedTags = payload.customTags || [];
-            parsedNoteImages = payload.noteImages || {};
-        }
-
-        for (const note of parsedNotes) {
-            if (parsedNoteImages[note.id] && parsedNoteImages[note.id].length > 0) {
-                note.images = await restoreImagesFromBase64(parsedNoteImages[note.id]);
-            }
-        }
-
-        return { notes: parsedNotes, customTags: parsedTags };
+        return await parseSyncData(result);
     } catch (error: unknown) {
         if (isDropboxNotFound(error)) {
-            return { notes: [], customTags: [] };
+            return emptySyncData();
         }
         console.error("Error downloading notes from Dropbox:", error);
         throw error;
     }
 };
 
-const uploadNotes = async (notes: Note[], customTags: string[]) => {
+const uploadNotes = async (data: SyncData) => {
     if (!dbx) throw new Error("Dropbox not initialized");
 
-    const noteImages: Record<string, Array<{id: string, data: string}>> = {};
-    for (const note of notes) {
-        if (note.images && note.images.length > 0) {
-            noteImages[note.id] = await resolveImagesToBase64(note.images);
-        }
-    }
-
-    let fileContent = JSON.stringify({ notes, customTags, noteImages });
+    let fileContent = await serializeSyncData(data);
 
     try {
         const encrypted = await encryptData(fileContent);
@@ -288,110 +258,47 @@ export const deleteRemoteData = async (): Promise<void> => {
 };
 
 export const syncNotesWithDropbox = async (
-    localNotes: Note[], 
-    localCustomTags: string[],
-    options?: {
-        masterKeyPayload?: string;
-        forceResolution?: "local" | "cloud";
-    }
-): Promise<{ notes: Note[], customTags: string[] }> => {
+    local: SyncData,
+    { masterKeyPayload, forceResolution, lastSyncStartedAt }: SyncNotesOptions
+): Promise<SyncMergeResult> => {
     if (!dbx) throw new Error("Dropbox not initialized");
-
-    const { masterKeyPayload, forceResolution } = options || {};
 
     // If Keep Local, ignore remote notes entirely
     if (forceResolution === "local") {
-        if (localNotes.length === 0) {
+        if (local.notes.length === 0) {
             throw new Error("Refusing to overwrite cloud with an empty local set");
         }
         if (masterKeyPayload) {
             await uploadMasterKey(masterKeyPayload);
         }
-        await uploadNotes(localNotes, localCustomTags);
-        return { notes: localNotes, customTags: localCustomTags };
+        await uploadNotes(local);
+        return takeSide(local);
     }
 
     // If Keep Cloud, download remote notes only (local was wiped before import)
     if (forceResolution === "cloud") {
-        try {
-            const remoteData = await downloadNotes();
-            return { notes: remoteData.notes, customTags: remoteData.customTags };
-        } catch (e: unknown) {
-            if (isDropboxNotFound(e)) {
-                return { notes: [], customTags: [] };
-            }
-            throw e;
-        }
+        return takeSide(await downloadNotes());
     }
 
-    let remoteNotes: Note[] = [];
-    let remoteCustomTags: string[] = [];
+    let remote: SyncData;
     try {
-        const remoteData = await downloadNotes();
-        remoteNotes = remoteData.notes;
-        remoteCustomTags = remoteData.customTags || [];
+        remote = await downloadNotes();
     } catch (e) {
         console.error("Could not download/parse remote notes, aborting sync to prevent data loss", e);
         throw e;
     }
 
-    // Merge Logic
-    console.log(`[Dropbox Sync] Starting merge. Local notes: ${localNotes.length}, Remote notes: ${remoteNotes.length}`);
-    const mergedNotesMap = new Map<string, Note>();
-
-    // Add all local notes initially
-    localNotes.forEach((note) => {
-        const inRemote = remoteNotes.some(r => r.id === note.id);
-        if (!inRemote) {
-            console.log(`[Dropbox Sync] Note ${note.id} (${note.title}) only exists locally. Will upload.`);
-        }
-        mergedNotesMap.set(note.id, note);
-    });
-
-    // Merge remote notes
-    remoteNotes.forEach((remoteNote) => {
-        const localNote = mergedNotesMap.get(remoteNote.id);
-        if (!localNote) {
-            // Note exists remotely but not locally (new from other device)
-            console.log(`[Dropbox Sync] Note ${remoteNote.id} (${remoteNote.title}) only exists remotely. Adding to local.`);
-            mergedNotesMap.set(remoteNote.id, remoteNote);
-        } else {
-            // Note exists on both
-            if (remoteNote.updatedAt > localNote.updatedAt) {
-                // Remote is newer
-                console.log(`[Dropbox Sync] Note ${remoteNote.id} (${remoteNote.title}) exists on both. Remote is newer (${new Date(remoteNote.updatedAt).toISOString()} > ${new Date(localNote.updatedAt).toISOString()}). Overwriting local with remote.`);
-                mergedNotesMap.set(remoteNote.id, remoteNote);
-            } else if (remoteNote.updatedAt < localNote.updatedAt) {
-                console.log(`[Dropbox Sync] Note ${remoteNote.id} (${localNote.title}) exists on both. Local is newer (${new Date(localNote.updatedAt).toISOString()} > ${new Date(remoteNote.updatedAt).toISOString()}). Keeping local.`);
-            } else {
-                console.log(`[Dropbox Sync] Note ${remoteNote.id} (${localNote.title}) exists on both with same timestamp. Keeping local.`);
-            }
-            // Else keep local (it's newer or same)
-        }
-    });
-
-    const mergedNotes = Array.from(mergedNotesMap.values());
-
-    // Merge Tags logic (Set union)
-    console.log(`[Dropbox Sync] Merging custom tags. Local tags: ${localCustomTags.length}, Remote tags: ${remoteCustomTags.length}`);
-    const mergedTags = Array.from(new Set([...localCustomTags, ...remoteCustomTags])).sort();
-    
-    localCustomTags.forEach(tag => {
-        if (!remoteCustomTags.includes(tag)) {
-            console.log(`[Dropbox Sync] Tag '${tag}' only exists locally. Will upload.`);
-        }
-    });
-    
-    remoteCustomTags.forEach(tag => {
-        if (!localCustomTags.includes(tag)) {
-            console.log(`[Dropbox Sync] Tag '${tag}' only exists remotely. Adding to local.`);
-        }
-    });
+    const merged = mergeSyncData({ local, remote, lastSyncStartedAt, now: Date.now(), logTag: "[Dropbox Sync]" });
 
     if (masterKeyPayload) {
         await uploadMasterKey(masterKeyPayload);
     }
-    await uploadNotes(mergedNotes, mergedTags);
+    // A missing file downloads as empty, so this only skips when both sides are empty too.
+    if (isSameSyncData(merged, remote)) {
+        console.log("[Dropbox Sync] Cloud already up to date, skipping upload");
+    } else {
+        await uploadNotes(merged);
+    }
 
-    return { notes: mergedNotes, customTags: mergedTags };
+    return merged;
 };

@@ -96,11 +96,13 @@ const NoteCard: React.FC<NoteCardProps> = ({
 
   return (
     <Card
+      data-flip-id={note.id}
+      data-note-id={note.id}
       style={getNoteTintVars(note.color) as React.CSSProperties | undefined}
       className={cn(
         isNoteTinted(note.color) && "note-tinted",
-        "note-card press-feedback group block w-full max-w-full relative break-inside-avoid-column mb-4 hover:shadow-lg transition-shadow duration-200 bg-card dark:bg-card text-secondary-foreground cursor-pointer border-2 border-input select-none",
-        isSelected && "border-secondary-foreground shadow-lg bg-card",
+        "note-card press-feedback rounded-card group block w-full max-w-full relative break-inside-avoid-column mb-4 hover:shadow-md transition-shadow duration-md3-short4 bg-card dark:bg-card text-secondary-foreground cursor-pointer border border-outline-variant shadow-none select-none",
+        isSelected && "border-secondary-foreground ring-1 ring-secondary-foreground shadow-md bg-card",
         note.isDeleted && "opacity-75",
         isExiting && "animate-note-exit"
       )}
@@ -123,7 +125,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
           isSelected && "bg-secondary-foreground dark:bg-secondary-foreground border-secondary dark:border-secondary text-secondary-foreground"
         )}>
           {isSelected && <Check className="h-4 w-4 text-secondary dark:text-secondary" />}
-          {!isSelected && <Check className="h-4 w-4 text-transparent hover:text-secondary-foreground dark:hover:text-black" />}
+          {!isSelected && <Check className="h-4 w-4 text-transparent hover:text-secondary" />}
         </div>
       </div>
 
@@ -154,10 +156,10 @@ const NoteCard: React.FC<NoteCardProps> = ({
                     e.stopPropagation();
                     onPinToggle(note.id);
                   }}
-                  className={cn(note.isPinned ? "text-yellow-400" : "text-muted-foreground")}
+                  className={cn(note.isPinned ? "text-highlight" : "text-muted-foreground")}
                   title={note.isPinned ? "Unpin" : "Pin"}
                 >
-                  <Pin className={cn("h-4 w-4", note.isPinned && "fill-yellow-400")} />
+                  <Pin className={cn("h-4 w-4", note.isPinned && "fill-highlight")} />
                 </Button>
               </div>
             )}
@@ -170,7 +172,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
             const item = row.item;
             if (row.kind === 'parent') {
               return (
-                <li key={`parent-${item.id}`} className="flex items-start gap-2 text-sm text-black dark:text-white w-full overflow-hidden opacity-50" aria-hidden="true">
+                <li key={`parent-${item.id}`} className="flex items-start touch:min-h-8 touch:items-center gap-2 text-sm text-foreground w-full overflow-hidden opacity-50" aria-hidden="true">
                   <div className="h-6 w-6 shrink-0" />
                   <span className={cn(item.checked && "line-through", "flex-1 min-w-0 break-words overflow-hidden [overflow-wrap:anywhere] leading-tight mt-0.5")}>
                     {item.content}
@@ -180,11 +182,18 @@ const NoteCard: React.FC<NoteCardProps> = ({
             }
             const indentLevel = row.indented ? Math.max(1, Math.floor((item.indentation?.length ?? 0) / 2)) : 0;
             return (
-              <li key={item.id} className="flex items-start gap-2 text-sm text-black dark:text-white w-full overflow-hidden" style={{ paddingLeft: `${indentLevel * 1}rem` }}>
+              <li key={item.id} className="flex min-h-6 touch:min-h-8 items-start touch:items-center gap-2 text-sm text-foreground w-full overflow-hidden" style={{ paddingLeft: `${indentLevel * 1}rem` }}>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 shrink-0 p-0"
+                  // Visually the same 24px box, but the tap area stretches over the
+                  // full row height, so neighbouring rows' tap areas meet exactly
+                  // without overlapping: 32x24 with a mouse, 48x32 on touch
+                  // screens (where the row is 32px tall). The negative side
+                  // margins keep the text where it was.
+                  // before:hidden drops the icon button's generic 48px halo,
+                  // which would spill onto neighbouring rows.
+                  className="-ml-1 -mr-1 h-auto w-8 self-stretch shrink-0 items-start rounded-md p-0 pt-1.5 hover:bg-transparent before:hidden touch:-mx-3 touch:w-12 touch:items-center touch:pt-0"
                   onClick={(e) => {
                     e.stopPropagation();
                     onToggleListItem?.(note.id, item.id);
@@ -192,7 +201,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                   disabled={isSelectionMode}
                 >
                   {item.checked ? (
-                    <Check className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-success" />
                   ) : (
                     <Square className="h-4 w-4 text-muted-foreground" />
                   )}
@@ -208,7 +217,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
             <div className="w-full overflow-hidden">
               {/* Unchecked items */}
               {visibleUnchecked.length > 0 && (
-                <ul className="space-y-1 w-full overflow-hidden">
+                <ul className="w-full overflow-hidden">
                   {visibleUnchecked.map(renderItem)}
                 </ul>
               )}
@@ -231,7 +240,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                     <span>{checkedItemCount} completed {checkedItemCount === 1 ? 'item' : 'items'}</span>
                   </button>
                   {showCompleted && (
-                    <ul className="space-y-1 w-full overflow-hidden">
+                    <ul className="w-full overflow-hidden">
                       {visibleChecked.map(renderItem)}
                     </ul>
                   )}
@@ -250,7 +259,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
             {note.tags.map((tag) => (
               <span
                 key={tag}
-                className="px-2 py-1 text-xs rounded-full bg-background text-secondary-foreground border border-black/10 dark:border-white/10 max-w-full whitespace-normal break-words [overflow-wrap:anywhere]"
+                className="px-2 py-1 text-xs rounded-full bg-background text-secondary-foreground border border-foreground/10 max-w-full whitespace-normal break-words [overflow-wrap:anywhere]"
               >
                 {tag}
               </span>
@@ -262,7 +271,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
             "mt-2 inline-flex items-center gap-1 text-xs rounded-full px-2 py-0.5",
             // eslint-disable-next-line react-hooks/purity -- overdue styling is evaluated at render time by design
             note.reminder > Date.now()
-              ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+              ? "bg-warning-container text-warning-container-foreground"
               : "bg-muted text-muted-foreground line-through"
           )}>
             <Bell className="h-3 w-3" />
@@ -297,7 +306,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                 }}
                 title="Delete Forever"
               >
-                <Trash2 className="h-4 w-4 text-red-500" />
+                <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             </>
           ) : (
@@ -322,7 +331,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                 }}
                 title="Delete"
               >
-                <Trash2 className="h-4 w-4 text-red-400" />
+                <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             </>
           )}

@@ -24,6 +24,7 @@ import {
 import { Plus, X, GripVertical, ArrowLeft, Pin, Archive, Type, Tag, Trash2, FileDown, ListChecks, Bold, Italic, Underline, Upload, ChevronDown, ChevronRight, Bell, Info, Palette } from "lucide-react";
 import NoteLabels from "@/components/NoteLabels";
 import ReminderSheet from "@/components/ReminderSheet";
+import CheckboxHitArea from "@/components/CheckboxHitArea";
 import FileInfo from "@/components/FileInfo";
 import NoteColorPicker from "@/components/NoteColorPicker";
 import {
@@ -94,6 +95,13 @@ interface NoteEditorProps {
     availableTags: string[];
     autoFocus?: boolean;
     focusTarget?: "title" | "body";
+    /**
+     * The note was opened from its card and a container transform is playing
+     * (lib/container-transform.ts): swap the dialog's zoom for fades timed to
+     * the morph -- stay invisible while the ghost grows, then fade in; fade out
+     * quickly on close while the ghost takes over.
+     */
+    morph?: boolean;
 }
 
 // The fields that count as "the user changed this note". Used for the baseline
@@ -198,18 +206,20 @@ const useItemLineBreaks = (
 /** Greyed, read-only copy of a parent, shown above its sub-items when the parent is in the other section. */
 const ParentHeaderRow: React.FC<{ item: ChecklistItem }> = ({ item }) => (
     <div className="flex items-start bg-transparent rounded-md mb-0.1 overflow-hidden opacity-50 select-none" aria-hidden="true">
-        <div className="flex items-start gap-2 w-full py-1">
-            <div className="mt-1 h-6 w-6 shrink-0" />
-            <Checkbox
-                checked={item.checked}
-                disabled
-                tabIndex={-1}
-                className="mt-2 h-4 w-4 bg-transparent border-gray-400 data-[state=checked]:bg-transparent data-[state=checked]:text-black dark:data-[state=checked]:text-white shrink-0"
-            />
-            <span className={`flex-1 text-base text-black dark:text-white py-1 break-words [overflow-wrap:anywhere] ${item.checked ? 'line-through' : ''}`}>
+        <div className="flex items-start gap-2 w-full py-2">
+            <div className="h-6 w-12 shrink-0" />
+            <CheckboxHitArea inert className="pt-4">
+                <Checkbox
+                    checked={item.checked}
+                    disabled
+                    tabIndex={-1}
+                    className="h-4 w-4 bg-transparent border-muted-foreground data-[state=checked]:bg-transparent data-[state=checked]:text-foreground shrink-0"
+                />
+            </CheckboxHitArea>
+            <span className={`flex-1 text-base text-foreground py-1 break-words [overflow-wrap:anywhere] ${item.checked ? 'line-through' : ''}`}>
                 {item.content}
             </span>
-            <div className="mt-1 h-6 w-6 shrink-0" />
+            <div className="h-6 w-12 shrink-0" />
         </div>
     </div>
 );
@@ -219,9 +229,9 @@ const ParentHeaderRow: React.FC<{ item: ChecklistItem }> = ({ item }) => (
  * Shown so it isn't invisible; the note only changes if "Make item" is tapped.
  */
 const StrayLineRow: React.FC<{ text: string; indented: boolean; disabled?: boolean; onConvert: () => void }> = ({ text, indented, disabled, onConvert }) => (
-    <div className={`flex items-start gap-2 py-1 ${indented ? 'ml-8' : ''}`}>
-        <div className="mt-1 h-6 w-6 shrink-0" />
-        <span className="flex-1 min-w-0 text-base text-gray-500 italic py-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+    <div className={`flex items-start gap-2 py-2 ${indented ? 'ml-8' : ''}`}>
+        <div className="h-6 w-12 shrink-0" />
+        <span className="flex-1 min-w-0 text-base text-muted-foreground italic py-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
             {text}
         </span>
         {!disabled && (
@@ -229,7 +239,7 @@ const StrayLineRow: React.FC<{ text: string; indented: boolean; disabled?: boole
                 variant="ghost"
                 size="sm"
                 onClick={onConvert}
-                className="h-7 px-2 text-xs text-gray-500 shrink-0"
+                className="h-7 px-2 text-xs text-muted-foreground shrink-0"
             >
                 Make item
             </Button>
@@ -354,25 +364,27 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
             className={`flex items-start bg-transparent rounded-md mb-0.1 overflow-hidden ${isIndented ? 'ml-8' : ''}`}
         >
             <div
-                className="flex items-start gap-2 w-full py-1 transition-transform duration-75"
+                className="flex items-start gap-2 w-full py-2 transition-transform duration-75"
                 style={{ transform: `translateX(${swipeX}px)` }}
             >
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="cursor-grab text-black dark:text-white mt-1 h-6 w-6 shrink-0"
+                    className="cursor-grab text-foreground -my-2 h-12 w-12 shrink-0 items-start pt-4"
                     disabled={disabled}
                     {...listeners}
                     {...attributes}
                 >
                     <GripVertical className="h-4 w-4" />
                 </Button>
-                <Checkbox
-                    checked={item.checked}
-                    onCheckedChange={() => onToggleItem(item.id)}
-                    disabled={disabled}
-                    className="mt-2 h-4 w-4 bg-transparent border-gray-400 data-[state=checked]:bg-transparent data-[state=checked]:text-black dark:data-[state=checked]:text-white shrink-0"
-                />
+                <CheckboxHitArea disabled={disabled} className="pt-4">
+                    <Checkbox
+                        checked={item.checked}
+                        onCheckedChange={() => onToggleItem(item.id)}
+                        disabled={disabled}
+                        className="h-4 w-4 bg-transparent border-muted-foreground data-[state=checked]:bg-transparent data-[state=checked]:text-foreground shrink-0"
+                    />
+                </CheckboxHitArea>
                 <LinkHighlightedTextarea
                     id={`list-item-${item.id}`}
                     ref={textareaRef}
@@ -427,14 +439,14 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
                     onTouchStart={handleTouchStart}
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}
-                    className={`flex-1 bg-transparent text-base text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] py-1 ${item.checked ? 'line-through text-gray-500' : ''}`}
+                    className={`flex-1 bg-transparent text-base text-foreground border-none focus:outline-none resize-none overflow-hidden min-h-[24px] py-1 ${item.checked ? 'line-through text-muted-foreground' : ''}`}
                 />
                 <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => onRemoveItem(item.id)}
                     disabled={disabled}
-                    className="text-black dark:text-white mt-1 h-6 w-6 shrink-0"
+                    className="text-foreground -my-2 h-12 w-12 shrink-0 items-start pt-4"
                 >
                     <X className="h-4 w-4" />
                 </Button>
@@ -522,16 +534,18 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
     return (
         <div className={`flex items-start bg-transparent rounded-md mb-0.1 overflow-hidden ${isIndented ? 'ml-8' : ''}`}>
             <div
-                className="flex items-start gap-2 w-full py-1 transition-transform duration-75"
+                className="flex items-start gap-2 w-full py-2 transition-transform duration-75"
                 style={{ transform: `translateX(${swipeX}px)` }}
             >
-                <div className="mt-1 h-6 w-6 shrink-0" />
-                <Checkbox
-                    checked={item.checked}
-                    onCheckedChange={() => onToggleItem(item.id)}
-                    disabled={disabled}
-                    className="mt-2 h-4 w-4 bg-transparent border-gray-400 data-[state=checked]:bg-transparent data-[state=checked]:text-black dark:data-[state=checked]:text-white shrink-0"
-                />
+                <div className="h-6 w-12 shrink-0" />
+                <CheckboxHitArea disabled={disabled} className="pt-4">
+                    <Checkbox
+                        checked={item.checked}
+                        onCheckedChange={() => onToggleItem(item.id)}
+                        disabled={disabled}
+                        className="h-4 w-4 bg-transparent border-muted-foreground data-[state=checked]:bg-transparent data-[state=checked]:text-foreground shrink-0"
+                    />
+                </CheckboxHitArea>
                 <LinkHighlightedTextarea
                     id={`list-item-${item.id}`}
                     ref={textareaRef}
@@ -586,14 +600,14 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
                     onTouchStart={handleTouchStart}
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}
-                    className={`flex-1 bg-transparent text-base text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] py-1 ${item.checked ? 'line-through text-gray-500' : ''}`}
+                    className={`flex-1 bg-transparent text-base text-foreground border-none focus:outline-none resize-none overflow-hidden min-h-[24px] py-1 ${item.checked ? 'line-through text-muted-foreground' : ''}`}
                 />
                 <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => onRemoveItem(item.id)}
                     disabled={disabled}
-                    className="text-black dark:text-white mt-1 h-6 w-6 shrink-0"
+                    className="text-foreground -my-2 h-12 w-12 shrink-0 items-start pt-4"
                 >
                     <X className="h-4 w-4" />
                 </Button>
@@ -613,6 +627,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     availableTags = [],
     autoFocus = true,
     focusTarget = "body",
+    morph = false,
 }) => {
     const isMobile = useIsMobile();
     const isDeleted = initialNote?.isDeleted === true;
@@ -735,7 +750,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 // Body text stays 16px on mobile so text notes match list notes
                 // (which inherit 16px) and Google Keep's 16sp. No xl step — it
                 // pushed body text above the 20px title on wide screens.
-                class: 'prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[40px] text-black dark:text-white',
+                class: 'prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[40px] text-foreground',
             },
         },
         onUpdate: ({ editor }) => {
@@ -1661,7 +1676,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     <Button
                         variant="ghost"
                         size="icon"
-                        className={`text-secondary ${editor.isActive('bold') ? 'bg-accent' : ''}`}
+                        className={`text-secondary ${editor.isActive('bold') ? 'bg-brand-container text-brand-container-foreground' : ''}`}
                         onClick={() => editor.chain().focus().toggleBold().run()}
                     >
                         <Bold className="h-4 w-4" />
@@ -1676,7 +1691,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     <Button
                         variant="ghost"
                         size="icon"
-                        className={`text-secondary ${editor.isActive('italic') ? 'bg-accent' : ''}`}
+                        className={`text-secondary ${editor.isActive('italic') ? 'bg-brand-container text-brand-container-foreground' : ''}`}
                         onClick={() => editor.chain().focus().toggleItalic().run()}
                     >
                         <Italic className="h-4 w-4" />
@@ -1691,7 +1706,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     <Button
                         variant="ghost"
                         size="icon"
-                        className={`text-secondary ${editor.isActive('underline') ? 'bg-accent' : ''}`}
+                        className={`text-secondary ${editor.isActive('underline') ? 'bg-brand-container text-brand-container-foreground' : ''}`}
                         onClick={() => editor.chain().focus().toggleUnderline().run()}
                     >
                         <Underline className="h-4 w-4" />
@@ -1708,7 +1723,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             {fullscreenImageSrc && createPortal(
                 <div
                     ref={fullscreenOverlayRef}
-                    className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center cursor-zoom-out p-4 pointer-events-auto"
+                    className="fixed inset-0 z-[100] bg-scrim/90 flex items-center justify-center cursor-zoom-out p-4 pointer-events-auto"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                         // Stop the native event before it reaches document, so the
@@ -1719,7 +1734,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     }}
                 >
                     <button
-                        className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 rounded-full p-2 text-white transition-colors z-10"
+                        className="absolute top-4 right-4 bg-scrim/50 hover:bg-scrim/70 rounded-full p-2 text-on-scrim transition-colors z-10"
                         onClick={(e) => {
                             e.stopPropagation();
                             setFullscreenImageSrc(null);
@@ -1735,7 +1750,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
             <Dialog open={isOpen} onOpenChange={(open) => !open && handleCloseEditor()}>
                 <DialogContent
-                    className={cn("note-editor-dialog", isNoteTinted(color) && "note-tinted", "fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:bottom-auto sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-auto sm:max-h-[90vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-lg flex flex-col p-0 gap-0 bg-note-editor-background dark:bg-note-editor-background text-black dark:text-white pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:pb-0 outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 origin-center data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:duration-md3-medium2 data-[state=closed]:duration-md3-short4 data-[state=open]:ease-md3-decelerate data-[state=closed]:ease-md3-accelerate")}
+                    className={cn("note-editor-dialog", isNoteTinted(color) && "note-tinted", "fixed inset-0 translate-x-0 translate-y-0 left-0 top-0 w-full h-full max-w-none rounded-none sm:left-[50%] sm:top-[50%] sm:bottom-auto sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-[425px] sm:h-auto sm:max-h-[90vh] md:max-w-[600px] lg:max-w-[800px] sm:rounded-dialog flex flex-col p-0 gap-0 bg-note-editor-background dark:bg-note-editor-background text-foreground pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:pb-0 outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none border-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 origin-center data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:duration-md3-medium2 data-[state=closed]:duration-md3-short4 data-[state=open]:ease-md3-decelerate data-[state=closed]:ease-md3-accelerate",
+                        // 350ms delay = MORPH_MS in lib/container-transform.ts
+                        morph && "data-[state=open]:[animation:md3-fade-in_150ms_linear_350ms_backwards] data-[state=closed]:[animation:md3-fade-out_100ms_linear_forwards]")}
                     style={{
                         ...(isMobile ? {
                             '--tw-enter-translate-x': '0',
@@ -1751,7 +1768,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     <DialogDescription className="sr-only">Note editor modal</DialogDescription>
 
                     {/* Header */}
-                    <div className="flex justify-between items-center p-2 border-b border-gray-200 dark:border-gray-700 shrink-0">
+                    <div className="flex justify-between items-center p-2 border-b border-border shrink-0">
                         {/* ... existing header ... */}
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -1771,9 +1788,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                         size="icon"
                                         disabled={isDeleted}
                                         onClick={() => setIsPinned(!isPinned)}
-                                        className={isPinned ? "text-yellow-400" : "text-secondary"}
+                                        className={isPinned ? "text-highlight" : "text-secondary"}
                                     >
-                                        <Pin className={`h-5 w-5 ${isPinned ? "fill-yellow-400" : ""}`} />
+                                        <Pin className={`h-5 w-5 ${isPinned ? "fill-highlight" : ""}`} />
                                         <span className="sr-only">{isPinned ? "Unpin" : "Pin"}</span>
                                     </Button>
                                 </TooltipTrigger>
@@ -1788,9 +1805,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                         size="icon"
                                         disabled={isDeleted}
                                         onClick={() => setIsReminderSheetOpen(true)}
-                                        className={reminder ? "text-yellow-400" : "text-secondary"}
+                                        className={reminder ? "text-highlight" : "text-secondary"}
                                     >
-                                        <Bell className={`h-5 w-5 ${reminder ? "fill-yellow-400" : ""}`} />
+                                        <Bell className={`h-5 w-5 ${reminder ? "fill-highlight" : ""}`} />
                                         <span className="sr-only">{reminder ? "Edit reminder" : "Set reminder"}</span>
                                     </Button>
                                 </TooltipTrigger>
@@ -1804,7 +1821,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                         size="icon"
                                         disabled={isDeleted}
                                         onClick={handleArchiveToggle}
-                                        className={isArchived ? "text-blue-400" : "text-secondary"}
+                                        className={isArchived ? "text-highlight" : "text-secondary"}
                                     >
                                         <Archive className="h-5 w-5" />
                                         <span className="sr-only">{isArchived ? "Unarchive" : "Archive"}</span>
@@ -1851,7 +1868,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
                         {/* Image strip */}
                         {imageSrcs.length === 1 && (
-                            <div className="relative w-full mb-4 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 max-h-64 sm:max-h-96 cursor-zoom-in" onClick={() => setFullscreenImageSrc(imageSrcs[0])}>
+                            <div className="relative w-full mb-4 rounded-lg overflow-hidden border border-border max-h-64 sm:max-h-96 cursor-zoom-in" onClick={() => setFullscreenImageSrc(imageSrcs[0])}>
                                 <img src={imageSrcs[0]} alt="" className="w-full h-full object-contain bg-note-editor-background dark:bg-note-editor-background" />
                                 {!isDeleted && (
                                     <button
@@ -1861,9 +1878,12 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                             setImages([]);
                                             setImageSrcs([]);
                                         }}
-                                        className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 rounded-full p-1.5 text-white transition-colors"
+                                        aria-label="Remove image"
+                                        className="group/remove absolute top-0 right-0 h-12 w-12 flex items-start justify-end p-2"
                                     >
-                                        <X className="h-5 w-5" />
+                                        <span className="bg-scrim/50 group-hover/remove:bg-scrim/70 rounded-full p-1.5 text-on-scrim transition-colors">
+                                            <X className="h-5 w-5" />
+                                        </span>
                                     </button>
                                 )}
                             </div>
@@ -1872,7 +1892,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         {imageSrcs.length > 1 && (
                             <div className="flex gap-2 overflow-x-auto mb-4 -mx-4 px-4 pb-2">
                                 {imageSrcs.map((src, i) => (
-                                    <div key={i} className="relative flex-shrink-0 w-40 h-32 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 cursor-zoom-in" onClick={() => setFullscreenImageSrc(src)}>
+                                    <div key={i} className="relative flex-shrink-0 w-40 h-32 rounded-lg overflow-hidden border border-border cursor-zoom-in" onClick={() => setFullscreenImageSrc(src)}>
                                         <img src={src} alt="" className="w-full h-full object-cover" />
                                         {!isDeleted && (
                                             <button
@@ -1882,9 +1902,12 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                                     setImages(prev => prev.filter((_, idx) => idx !== i));
                                                     setImageSrcs(prev => prev.filter((_, idx) => idx !== i));
                                                 }}
-                                                className="absolute top-1 right-1 bg-black/50 hover:bg-black/70 rounded-full p-1 text-white transition-colors"
+                                                aria-label="Remove image"
+                                                className="group/remove absolute top-0 right-0 h-12 w-12 flex items-start justify-end p-1"
                                             >
-                                                <X className="h-4 w-4" />
+                                                <span className="bg-scrim/50 group-hover/remove:bg-scrim/70 rounded-full p-1 text-on-scrim transition-colors">
+                                                    <X className="h-4 w-4" />
+                                                </span>
                                             </button>
                                         )}
                                     </div>
@@ -1919,7 +1942,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                             }}
                             rows={1}
                             readOnly={isDeleted}
-                            className="w-full bg-transparent text-black dark:text-white border-0 focus:outline-none text-xl font-semibold px-0 mb-2 placeholder:text-gray-400 resize-none overflow-hidden h-auto"
+                            className="w-full bg-transparent text-foreground border-0 focus:outline-none text-xl font-semibold px-0 mb-2 placeholder:text-muted-foreground resize-none overflow-hidden h-auto"
                             placeholder="Title"
                         />
 
@@ -1927,7 +1950,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         {reminder && (
                             <button
                                 id="reminder-chip"
-                                className="press-feedback inline-flex items-center gap-1.5 mb-3 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
+                                className="press-feedback inline-flex items-center gap-1.5 mb-3 text-xs font-medium px-2.5 py-1 rounded-full bg-warning-container text-warning-container-foreground hover:bg-warning-container/80 transition-colors"
                                 onClick={() => setIsReminderSheetOpen(true)}
                                 disabled={isDeleted}
                             >
@@ -1938,7 +1961,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
                         {/* Editor Content */}
                         {isChecklistMode ? (
-                            <div className="flex flex-col gap-2">
+                            <div className="flex flex-col">
                                 <DndContext
                                     sensors={sensors}
                                     collisionDetection={closestCenter}
@@ -1974,7 +1997,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                     </SortableContext>
                                 </DndContext>
                                 <div className="flex items-start gap-2 mt-2 pl-2">
-                                    <Plus className="h-4 w-4 text-gray-400 mt-1.5" />
+                                    <Plus className="h-4 w-4 text-muted-foreground mt-1.5" />
                                     <LinkHighlightedTextarea
                                         value={newItemContent}
                                         maxLength={LIST_ITEM_MAX}
@@ -2009,14 +2032,14 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                         rows={1}
                                         readOnly={isDeleted}
                                         placeholder="List item"
-                                        className="bg-transparent text-base text-black dark:text-white border-none focus:outline-none resize-none overflow-hidden min-h-[24px] flex-1 py-1"
+                                        className="bg-transparent text-base text-foreground border-none focus:outline-none resize-none overflow-hidden min-h-[24px] flex-1 py-1"
                                     />
                                 </div>
                                 {checkedItemCount > 0 && (
                                     <div className="mt-4 flex flex-col gap-2">
                                         <Button
                                             variant="ghost"
-                                            className="flex items-center gap-2 p-0 h-auto text-sm text-gray-500 hover:bg-transparent hover:text-gray-700 dark:hover:text-gray-300 transition-colors w-fit pl-2"
+                                            className="flex items-center gap-2 p-0 h-auto text-sm text-muted-foreground hover:bg-transparent hover:text-foreground transition-colors w-fit pl-2"
                                             onClick={() => setShowCheckedItems(!showCheckedItems)}
                                         >
                                             {showCheckedItems ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -2058,7 +2081,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                             {tagList.map((tag) => (
                                                 <span
                                                     key={tag}
-                                                    className="px-2.5 py-1 text-xs rounded-full bg-background text-secondary-foreground border border-black/10 dark:border-white/10"
+                                                    className="px-2.5 py-1 text-xs rounded-full bg-background text-secondary-foreground border border-foreground/10"
                                                 >
                                                     {tag}
                                                 </span>
@@ -2078,7 +2101,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                             {tagList.map((tag) => (
                                                 <span
                                                     key={tag}
-                                                    className="px-2.5 py-1 text-xs rounded-full bg-background text-secondary-foreground border border-black/10 dark:border-white/10"
+                                                    className="px-2.5 py-1 text-xs rounded-full bg-background text-secondary-foreground border border-foreground/10"
                                                 >
                                                     {tag}
                                                 </span>
@@ -2092,13 +2115,13 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
                     {/* Mobile formatting bar — sits above the footer so the icon row can't overflow */}
                     {isMobile && canFormat && (
-                        <div className="flex items-center gap-2 px-2 py-1 border-t border-gray-200 dark:border-gray-700 shrink-0">
+                        <div className="flex items-center gap-2 px-2 py-1 border-t border-border shrink-0">
                             {formattingButtons}
                         </div>
                     )}
 
                     {/* Footer */}
-                    <DialogFooter className="flex flex-row items-center justify-between sm:justify-between p-2 border-t border-gray-200 dark:border-gray-700 shrink-0">
+                    <DialogFooter className="flex flex-row items-center justify-between sm:justify-between p-2 border-t border-border shrink-0">
                         <div className="flex gap-2">
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -2170,7 +2193,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                                 variant="ghost"
                                                 size="icon"
                                                 disabled={isDeleted}
-                                                className={`text-secondary ${showFormatting ? "bg-accent" : ""}`}
+                                                className={`text-secondary ${showFormatting ? "bg-brand-container text-brand-container-foreground" : ""}`}
                                                 onClick={() => setShowFormatting(!showFormatting)}
                                             >
                                                 <Type className="h-5 w-5" />
@@ -2214,7 +2237,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" onClick={handleDelete} className="text-secondary hover:text-red-400">
+                                    <Button variant="ghost" size="icon" onClick={handleDelete} className="text-secondary hover:text-destructive">
                                         <Trash2 className="h-5 w-5" />
                                         <span className="sr-only">Delete</span>
                                     </Button>

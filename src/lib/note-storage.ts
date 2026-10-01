@@ -21,6 +21,7 @@ import { normalizeCloudMasterKeyPayload } from "./cloud-master-key";
 import { BODY_MAX, LIST_ITEM_MAX, LIST_ITEMS_MAX, TITLE_MAX } from './note-limits';
 import { CHECKBOX_REGEX } from '../utils/markdown';
 import { normalizeNoteColor } from './note-colors';
+import { clearTombstones } from './tombstones';
 
 /** A legacy list-note item, from before checklists moved into markdown content. */
 interface LegacyListItem {
@@ -460,6 +461,8 @@ export const lockDatabase = async (): Promise<void> => {
 };
 
 export const clearAllData = async (): Promise<void> => {
+  // Tombstones name notes this device deleted; with the notes gone they're meaningless.
+  clearTombstones();
   if (!isNative) {
     localStorage.removeItem(WEB_NOTES_KEY);
     clearWebCryptoKeys();
