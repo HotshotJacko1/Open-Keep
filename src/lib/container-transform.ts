@@ -142,7 +142,8 @@ export class NoteContainerTransform {
 
   private clearGhost() {
     // Cancel first so any pending whenDone() callbacks for it are skipped.
-    this.ghost?.getAnimations().forEach((a) => a.cancel());
+    // getAnimations is missing on old WebViews (C1-24); the fade's own onfinish still removes it.
+    this.ghost?.getAnimations?.().forEach((a) => a.cancel());
     this.ghost?.remove();
     this.ghost = null;
   }
@@ -246,6 +247,8 @@ function showCard(noteId: string) {
   const card = findNoteCard(noteId);
   if (!card) return;
   card.removeAttribute(HIDDEN_ATTR);
-  card.getAnimations().filter((a) => a.id === HIDE_ID).forEach((a) => a.cancel());
+  // First, so nothing below can leave the card hidden (C1-24).
   card.style.visibility = "";
+  // getAnimations is missing on old WebViews; hideCard's fade cancels itself on finish there.
+  card.getAnimations?.().filter((a) => a.id === HIDE_ID).forEach((a) => a.cancel());
 }

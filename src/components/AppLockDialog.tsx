@@ -16,14 +16,15 @@ import { Fingerprint, ShieldCheck, ArrowLeft, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useBackToClose } from "@/hooks/use-back-to-close";
 import { Capacitor } from "@capacitor/core";
+import { RELOCK_AFTER_MS } from "@/lib/app-relock";
 import { verifyEncryptionPin } from "@/lib/encryption-pin";
 import {
-    APP_LOCK_ENABLED_KEY,
     BIOMETRICS_ENABLED_KEY,
     getSessionPin,
     hasAppLockPin,
     isAppLockEnabled,
     isEncryptionEnabled as readEncryptionEnabled,
+    setAppLockEnabled,
     setAppLockPin,
     setSessionPin,
     validateNewPin,
@@ -80,7 +81,7 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
         }
 
         await setAppLockPin(newPin);
-        localStorage.setItem(APP_LOCK_ENABLED_KEY, "true");
+        setAppLockEnabled(true);
         setIsLaunchLockEnabled(true);
         setIsSettingPin(false);
         setNewPin("");
@@ -163,7 +164,7 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
 
                 // Also enable launch lock if biometrics is enabled
                 if (!isLaunchLockEnabled) {
-                    localStorage.setItem(APP_LOCK_ENABLED_KEY, "true");
+                    setAppLockEnabled(true);
                     setIsLaunchLockEnabled(true);
                 }
             } catch (error) {
@@ -207,11 +208,11 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
                 return;
             }
 
-            localStorage.setItem(APP_LOCK_ENABLED_KEY, "true");
+            setAppLockEnabled(true);
             setIsLaunchLockEnabled(true);
             showSuccess("Launch lock enabled");
         } else {
-            localStorage.removeItem(APP_LOCK_ENABLED_KEY);
+            setAppLockEnabled(false);
             showSuccess("Launch lock disabled");
 
             // Also disable biometrics if launch lock is disabled
@@ -404,7 +405,9 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
                             <p className="text-xs text-muted-foreground">
                                 {isLaunchLockForced
                                     ? "Always on in the browser while encryption is enabled"
-                                    : "Lock the app every time it is opened"}
+                                    : Capacitor.isNativePlatform()
+                                        ? `Lock the app when it's opened, and when you come back after ${RELOCK_AFTER_MS / 1000} seconds away.${Capacitor.getPlatform() === "android" ? " Also hides notes in recent apps and blocks screenshots." : ""}`
+                                        : "Lock the app every time it is opened"}
                             </p>
                         </div>
                         <Switch

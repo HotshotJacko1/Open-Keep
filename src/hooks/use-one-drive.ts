@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { Capacitor } from "@capacitor/core";
 import { setupOneDriveOAuthRedirect } from "@/lib/one-drive-oauth";
 import type { SyncResult } from "@/lib/note-storage";
-import { runCloudSync, runOAuthSuccessSync, ForceResolution } from "@/lib/cloud-sync-runner";
+import { runCloudSync, runOAuthSuccessSync, ForceResolution, clearKeepLocalPending } from "@/lib/cloud-sync-runner";
 import { useCloudSyncState, useLastSynced } from "@/lib/cloud-sync-state";
 import { showSuccess, showError } from "@/utils/toast";
 
@@ -110,6 +110,7 @@ export const useOneDrive = () => {
         setUserEmail(null);
         localStorage.removeItem("onedrive-user-email");
         localStorage.removeItem("onedrive-last-synced");
+        clearKeepLocalPending("onedrive");
         setLastSynced(null);
         window.dispatchEvent(new Event("onedrive-user-updated"));
         showSuccess("Disconnected from OneDrive.");

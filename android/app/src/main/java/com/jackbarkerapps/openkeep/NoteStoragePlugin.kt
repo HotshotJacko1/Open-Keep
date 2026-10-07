@@ -2,6 +2,7 @@ package com.jackbarkerapps.openkeep
 
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
+import android.view.WindowManager
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
@@ -633,5 +634,28 @@ class NoteStoragePlugin : Plugin() {
     fun refreshWidgets(call: PluginCall) {
         refreshWidgets()
         call.resolve()
+    }
+
+    /**
+     * FLAG_SECURE while App Lock is on (C3-27): the recent-apps screen shows a
+     * blank card instead of the open notes. It also blocks screenshots, so the
+     * web side turns it on and off with the setting rather than always.
+     */
+    @PluginMethod
+    fun setSecureWindow(call: PluginCall) {
+        val enabled = call.getBoolean("enabled", false) ?: false
+        val activity = activity
+        if (activity == null) {
+            call.resolve()
+            return
+        }
+        activity.runOnUiThread {
+            if (enabled) {
+                activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            } else {
+                activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            }
+            call.resolve()
+        }
     }
 }

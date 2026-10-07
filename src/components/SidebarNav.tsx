@@ -83,7 +83,7 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ uniqueTags, onClose, onEditLabe
           >
             <Link to={`/?tag=${encodeURIComponent(tag)}`} draggable={false} title={tag} aria-label={collapsed ? tag : undefined}>
               <Tag />
-              <span className={labelClass}>{tag}</span>
+              <span dir="auto" className={labelClass}>{tag}</span>
             </Link>
           </Button>
         ))}

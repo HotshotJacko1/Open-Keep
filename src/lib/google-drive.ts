@@ -462,6 +462,11 @@ export const syncNotesWithDrive = async (
             findChildFile(folderId, NOTES_FILE_NAME),
         ]);
 
+        // Checked before anything is written, as Dropbox and OneDrive do: otherwise the
+        // cloud is left holding this device's key next to notes under the old one (C1-27).
+        if (forceResolution === "local" && local.notes.length === 0) {
+            throw new Error("Refusing to overwrite cloud with an empty local set");
+        }
 
         if (masterKeyPayload) {
             await uploadMasterKey(folderId, masterKeyPayload, keyFileId);
@@ -469,9 +474,6 @@ export const syncNotesWithDrive = async (
 
         // If Keep Local, ignore remote notes entirely
         if (forceResolution === "local") {
-            if (local.notes.length === 0) {
-                throw new Error("Refusing to overwrite cloud with an empty local set");
-            }
             await uploadNotes(folderId, local, fileId);
             return takeSide(local);
         }

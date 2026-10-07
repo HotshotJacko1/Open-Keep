@@ -70,6 +70,8 @@ export interface NoteStoragePlugin {
   decrypt(options: { data: string }): Promise<{ data: string }>;
   lock(): Promise<void>;
   clearAllData(): Promise<void>;
+  /** Android only (no iOS implementation). */
+  setSecureWindow(options: { enabled: boolean }): Promise<void>;
 }
 
 const NoteStorage = registerPlugin<NoteStoragePlugin>("NoteStorage");
@@ -457,6 +459,21 @@ export const lockDatabase = async (): Promise<void> => {
     await NoteStorage.lock();
   } catch (error) {
     console.error("Error locking database:", error);
+  }
+};
+
+/**
+ * Android only: FLAG_SECURE on the app's window while App Lock is on (C3-27), so
+ * the recent-apps screen shows a blank card instead of the open notes. It also
+ * blocks screenshots, which is why it follows the setting rather than being on
+ * for everyone. iOS would need its own snapshot cover (not built yet).
+ */
+export const setSecureWindow = async (enabled: boolean): Promise<void> => {
+  if (Capacitor.getPlatform() !== "android") return;
+  try {
+    await NoteStorage.setSecureWindow({ enabled });
+  } catch (error) {
+    console.warn("Could not update the secure window flag:", error);
   }
 };
 

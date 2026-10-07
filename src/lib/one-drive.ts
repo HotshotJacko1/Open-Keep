@@ -3,6 +3,7 @@
 import { PublicClientApplication, Configuration, PopupRequest, NavigationClient, NavigationOptions, LogLevel, InteractionRequiredAuthError, INetworkModule, NetworkRequestOptions, NetworkResponse } from "@azure/msal-browser";
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
+import { expectExternalActivity } from "@/lib/app-relock";
 import { encryptData, decryptData } from "@/lib/note-storage";
 import { parseSyncData, serializeSyncData } from "@/lib/sync-data";
 import { emptySyncData, isSameSyncData, mergeSyncData, takeSide, type SyncData, type SyncMergeResult, type SyncNotesOptions } from "@/lib/sync-merge";
@@ -100,6 +101,7 @@ export const msalInstance = new PublicClientApplication(msalConfig);
 class CustomNavigationClient extends NavigationClient {
     async navigateExternal(url: string, options: NavigationOptions) {
         if (Capacitor.isNativePlatform()) {
+            expectExternalActivity();
             await Browser.open({ url });
             return true;
         } else {

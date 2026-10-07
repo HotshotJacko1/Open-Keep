@@ -14,10 +14,10 @@ import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 import { changeEncryptionKey, verifyEncryptionPin } from "@/lib/note-storage";
 import { syncImageEncryption } from "@/lib/image-storage";
 import {
-    APP_LOCK_ENABLED_KEY,
     BIOMETRICS_ENABLED_KEY,
     clearAppLockPin,
     isAppLockEnabled,
+    setAppLockEnabled,
     setAppLockPin,
     setCloudKeyPushPending,
     setEncryptionEnabled,
@@ -72,7 +72,7 @@ export const disableEncryption = async (currentPin: string): Promise<void> => {
     if (isAppLockEnabled()) {
         await setAppLockPin(currentPin);
     } else {
-        localStorage.removeItem(APP_LOCK_ENABLED_KEY);
+        setAppLockEnabled(false);
         localStorage.removeItem(BIOMETRICS_ENABLED_KEY);
         try {
             await NativeBiometric.deleteCredentials({ server: "open-keep" });

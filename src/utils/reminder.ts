@@ -3,6 +3,8 @@ import { Capacitor } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { Note } from "@/types/note";
 import { saveNote } from "@/lib/note-storage";
+import { isAppLockEnabled, isEncryptionEnabled } from "@/lib/pin";
+import { openNoteFromNotification } from "@/hooks/use-widget-deep-link";
 
 export interface ReminderOption {
   label: string;   // e.g. "Later today"
@@ -69,6 +71,15 @@ export function getReminderOptions(now: Date): ReminderOption[] {
   return options;
 }
 
+/**
+ * The notification's title. Notifications show on the lock screen, so with App
+ * Lock or encryption on, a note's title must not appear there (C3-30).
+ */
+function reminderTitle(note: Note): string {
+  if (isAppLockEnabled() || isEncryptionEnabled()) return "Open Keep reminder";
+  return note.title || "Reminder";
+}
+
 /** Format a Date as HH:MM */
 function formatTime(d: Date): string {
   return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
@@ -110,9 +121,9 @@ export function formatReminderLabel(ts: number): string {
 
 /** Schedule (or reschedule) a local notification for a note reminder.
  *  Returns:
- *    true    â€” scheduled successfully
- *    false   â€” scheduling failed (non-permission error)
- *    'denied' â€” permission is permanently denied; user must go to Settings */
+ *    true    — scheduled successfully
+ *    false   — scheduling failed (non-permission error)
+ *    'denied' — permission is permanently denied; user must go to Settings */
 export async function scheduleReminderNotification(note: Note): Promise<boolean | 'denied'> {
   if (!note.reminder) return true;
 
@@ -124,12 +135,12 @@ export async function scheduleReminderNotification(note: Note): Promise<boolean 
       if (display === 'denied') {
         // Android will not show a dialog once permission has been explicitly denied.
         // The user must re-enable in system Settings manually.
-        console.warn('Notification permission permanently denied â€” user must open Settings.');
+        console.warn('Notification permission permanently denied — user must open Settings.');
         return 'denied';
       }
 
       if (display !== 'granted') {
-        // 'prompt' or 'prompt-with-rationale' â€” OS can still show the dialog
+        // 'prompt' or 'prompt-with-rationale' — OS can still show the dialog
         const result = await LocalNotifications.requestPermissions();
         display = result.display;
       }
@@ -161,7 +172,7 @@ export async function scheduleReminderNotification(note: Note): Promise<boolean 
       await LocalNotifications.schedule({
         notifications: occurrences.map((at, i) => ({
           id: occurrenceNotificationId(note.id, i),
-          title: note.title || "Reminder",
+          title: reminderTitle(note),
           body: "You have a note reminder.",
           schedule: { at: new Date(at) },
           sound: undefined,
@@ -238,8 +249,7 @@ export async function syncReminderWithBin(note: Note): Promise<void> {
 //     schedule -- rescheduleAllReminders re-arms future reminders on every
 //     load -- and a small "already notified" ledger in localStorage lets a
 //     load fire a reminder that came due while the tab was closed, exactly
-//     once. Only note ids and timestamps go in the ledger, never note text,
-//     since web notes are otherwise stored encrypted.
+//     once. Only note ids and timestamps go in the ledger, never note text.
 
 const MAX_TIMEOUT_MS = 2_147_483_647;
 // A reminder missed by more than this is dropped rather than fired late on
@@ -293,11 +303,16 @@ function showWebReminder(note: Note, dueAt: number): void {
   if (wasWebReminderFired(note.id, dueAt)) return;
   markWebReminderFired(note.id, dueAt);
   try {
-    new Notification(note.title || "Reminder", {
+    const notification = new Notification(reminderTitle(note), {
       body: "You have a note reminder.",
       // Same tag across tabs, so duplicates replace rather than stack.
       tag: `open-keep-reminder-${note.id}`,
     });
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+      openNoteFromNotification(note.id);
+    };
   } catch (e) {
     // e.g. Android Chrome only allows notifications via a service worker.
     console.warn("Failed to show reminder notification:", e);

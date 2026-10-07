@@ -70,6 +70,7 @@ const NoteLabels: React.FC<NoteLabelsProps> = ({
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Enter label name"
+                        dir="auto"
                         className="border-none shadow-none focus-visible:ring-0 px-1 h-9 text-base bg-transparent text-text-primary dark:text-text-primary placeholder:text-muted-foreground"
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') {
@@ -102,7 +103,7 @@ const NoteLabels: React.FC<NoteLabelsProps> = ({
                                 }}
                             >
                                 <Tag className="h-5 w-5 shrink-0 text-secondary" />
-                                <span className="flex-1 min-w-0 text-base truncate" title={tag}>{tag}</span>
+                                <span dir="auto" className="flex-1 min-w-0 text-base truncate text-left" title={tag}>{tag}</span>
                                 <div className={cn(
                                     "h-5 w-5 shrink-0 rounded-[3px] border-2 border-secondary flex items-center justify-center transition-colors",
                                     (isChecked || isIndeterminate) && "bg-sidebar-foreground border-sidebar-foreground"

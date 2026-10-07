@@ -5,12 +5,13 @@ import {
   wipeDatabaseButKeepKeys,
   verifyCloudMasterKeyMatch,
 } from "@/lib/note-storage";
-import { APP_LOCK_ENABLED_KEY, clearAppLockPin, setEncryptionEnabled, setSessionPin } from "@/lib/pin";
+import { clearAppLockPin, setAppLockEnabled, setEncryptionEnabled, setSessionPin } from "@/lib/pin";
 import { showError } from "@/utils/toast";
 import { withImagesInPlaintext } from "@/lib/image-storage";
 
 export type CloudKeyImportResult =
-  | { ok: true; effectivePin: string }
+  /** `wiped`: the local database was emptied and re-keyed to the cloud key. */
+  | { ok: true; effectivePin: string; wiped: boolean }
   | { ok: false; reason: "missing_pin" | "invalid_pin" };
 
 /**
@@ -26,7 +27,7 @@ const adoptImportedPin = (importPin: string) => {
   }
   setEncryptionEnabled(true);
   setSessionPin(importPin);
-  localStorage.setItem(APP_LOCK_ENABLED_KEY, "true");
+  setAppLockEnabled(true);
   clearAppLockPin();
 };
 
@@ -41,16 +42,21 @@ export const resolveCloudKeyImport = async (
   providedPin?: string
 ): Promise<CloudKeyImportResult> => {
   if (!forceResolution || !cloudPayload || forceResolution === "local") {
-    return { ok: true, effectivePin: localPin };
+    return { ok: true, effectivePin: localPin, wiped: false };
   }
 
   const importPin = (providedPin || localPin).trim();
 
   // When using the local PIN, verifyCloudMasterKeyMatch is sufficient and works on all native builds.
-  let canDecrypt = false;
-  if (localPin && importPin === localPin) {
-    canDecrypt = await verifyCloudMasterKeyMatch(cloudPayload, importPin);
+  let keysAlreadyMatch = false;
+  if (importPin === localPin) {
+    try {
+      keysAlreadyMatch = await verifyCloudMasterKeyMatch(cloudPayload, importPin);
+    } catch (error) {
+      console.warn("Cloud master key match check failed; falling back to decrypt check", error);
+    }
   }
+  let canDecrypt = keysAlreadyMatch;
   if (!canDecrypt) {
     canDecrypt = await canDecryptCloudMasterKey(cloudPayload, importPin);
   }
@@ -65,8 +71,17 @@ export const resolveCloudKeyImport = async (
     return { ok: false, reason: "invalid_pin" };
   }
 
+  // Same master key on both sides: a merge needs no re-key, so don't wipe (C1-20).
+  // The normal union merge and write-back do the job, and local notes never leave
+  // the database. "cloud" still wipes: write-back never deletes local-only notes,
+  // so the wipe is what makes "replace local with cloud" replace.
+  if (forceResolution === "merge" && keysAlreadyMatch) {
+    return { ok: true, effectivePin: importPin, wiped: false };
+  }
+
   // cloud: replace local with cloud. merge: existing local notes are captured
-  // in memory before this call and are merged and saved during sync write-back.
+  // in memory before this call and are merged and saved during sync write-back
+  // (or put back by runCloudSync if the sync fails after this wipe).
   // Either way, the local DB is wiped and the cloud master key imported.
   // Images stay on disk through the wipe, so they must move to the new key too.
   await withImagesInPlaintext(async () => {
@@ -76,5 +91,5 @@ export const resolveCloudKeyImport = async (
   if (forceResolution === "merge" || importPin !== localPin) {
     adoptImportedPin(importPin);
   }
-  return { ok: true, effectivePin: importPin };
+  return { ok: true, effectivePin: importPin, wiped: true };
 };

@@ -38,6 +38,15 @@ export const setEncryptionEnabled = (enabled: boolean): void => {
 export const isAppLockEnabled = (): boolean =>
     localStorage.getItem(APP_LOCK_ENABLED_KEY) === "true";
 
+/** Fired on window whenever App Lock is turned on or off (App.tsx keeps FLAG_SECURE in step). */
+export const APP_LOCK_CHANGED_EVENT = "open-keep-app-lock-changed";
+
+export const setAppLockEnabled = (enabled: boolean): void => {
+    if (enabled) localStorage.setItem(APP_LOCK_ENABLED_KEY, "true");
+    else localStorage.removeItem(APP_LOCK_ENABLED_KEY);
+    window.dispatchEvent(new Event(APP_LOCK_CHANGED_EVENT));
+};
+
 // ── Session PIN (memory only) ──────────────────────────────────────
 
 let sessionPin: string | null = null;
@@ -169,6 +178,7 @@ export const clearAllPinState = (): void => {
         LEGACY_APP_LOCK_PIN_KEY,
     ].forEach((key) => localStorage.removeItem(key));
     sessionPin = null;
+    window.dispatchEvent(new Event(APP_LOCK_CHANGED_EVENT));
 };
 
 /**
@@ -194,7 +204,7 @@ export const migrateLegacyPins = async (): Promise<{ legacyEncryptionPin: string
     // A launch lock with no PIN behind it can never be opened. That shouldn't
     // happen, but an interrupted flow could leave it, so repair rather than brick.
     if (isAppLockEnabled() && !isEncryptionEnabled() && !hasAppLockPin()) {
-        localStorage.removeItem(APP_LOCK_ENABLED_KEY);
+        setAppLockEnabled(false);
         localStorage.removeItem(BIOMETRICS_ENABLED_KEY);
     }
 

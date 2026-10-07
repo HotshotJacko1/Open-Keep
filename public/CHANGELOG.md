@@ -7,7 +7,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 - N/A
 
-## [5.2.0] - 2026-10-12
+## [5.3.0] - 2026-10-13
+
+### Added
+- Right-to-left support: Persian, Arabic and Hebrew notes display correctly.
+- Mixed-language notes: each line follows its own direction.
+- Right-to-left checklist items show their checkbox on the right.
+- Persian and Arabic text uses the bundled Vazirmatn font.
+- Tapping a reminder notification now opens its note.
+- App Lock now locks again after 30 seconds away.
+- Android: App Lock hides notes in recent apps, blocks screenshots.
+
+### Changed
+- With App Lock or encryption, reminders hide note titles.
+- Web: clearer that encryption covers cloud notes and images only.
+- Checklists: ticked items now slide down instead of jumping.
+- Sync conflict: "Merge" turns on App Lock only when needed.
+
+### Fixed
+- A failed sync merge no longer loses local notes.
+- Notes deleted during a sync no longer come back.
+- Labels changed during a sync are no longer lost.
+- Google Drive: "Keep Local" with no notes leaves cloud untouched.
+- Notes in the Bin no longer get restored by mistake.
+- Your last edit is saved when you switch apps.
+- Removing a photo always deletes the one you tapped.
+- Unreadable photos show a placeholder you can remove.
+- Archiving a photo-only note no longer bins it.
+- Converting a list to text keeps text in angle brackets.
+- Security: converting text to a list ignores embedded code.
+- Older devices: closed notes no longer disappear from the grid.
+- Undoing an AI edit is no longer reverted by sync.
+- Undoing an AI label rename or delete now fully works.
+- Imported notes are now sanitised before saving.
+- Cloud sync files can no longer reach other app files.
+- MCP server: token file is readable only by you.
+- MCP server: reports its real version to AI apps.
+- Sync: an interrupted "Keep Local" finishes on next sync.
+- Web: label names are no longer sent to analytics.
+- Checklists: dragging items now works on touchscreens.
+- Checklists: moving an item no longer indents it by accident.
+- Checklists: un-indenting a sub-item leaves the others in place.
+
+## [5.2.0] - 2026-10-7
 
 ### Changed
 - Android app launch: notes appear 1-2.5s (40-60%) faster.

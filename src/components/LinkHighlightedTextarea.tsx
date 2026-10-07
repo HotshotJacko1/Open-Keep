@@ -84,10 +84,12 @@ export const LinkHighlightedTextarea = React.forwardRef<HTMLTextAreaElement, Lin
         // transparent via inline style, which reliably beats any text-* utility
         // regardless of Tailwind's stylesheet ordering. The wrapper stays
         // auto-sized so it never stretches to fill definite-height ancestors.
+        // Both layers also share auto-dir, so a right-to-left line is laid out
+        // the same in each and the caret stays under the text it edits.
         return (
             <div className="relative w-full flex">
                 <div
-                    className={`${className ?? ''} absolute inset-0 pointer-events-none whitespace-pre-wrap break-words z-20`}
+                    className={`${className ?? ''} auto-dir absolute inset-0 pointer-events-none whitespace-pre-wrap break-words z-20`}
                     aria-hidden="true"
                 >
                     {!value && placeholder ? (
@@ -106,7 +108,7 @@ export const LinkHighlightedTextarea = React.forwardRef<HTMLTextAreaElement, Lin
                         adjustHeight();
                     }}
                     placeholder=""
-                    className={`${className ?? ''} caret-foreground relative z-10 w-full`}
+                    className={`${className ?? ''} auto-dir caret-foreground relative z-10 w-full`}
                     {...props}
                     style={{
                         color: 'transparent',

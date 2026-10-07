@@ -2,10 +2,11 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useGoogleLogin, type CodeResponse } from "@react-oauth/google";
 import { SocialLogin } from "@capgo/capacitor-social-login";
+import { expectExternalActivity } from "@/lib/app-relock";
 import { Capacitor } from "@capacitor/core";
 import { initGoogleDrive, setAccessToken, getGoogleAccessToken, syncNotesWithDrive, checkGoogleDriveMasterKey, isGoogleDriveAuthError, isGoogleDriveScopeError, clearCachedDriveIds } from "@/lib/google-drive";
 import type { SyncResult } from "@/lib/note-storage";
-import { runCloudSync, ForceResolution } from "@/lib/cloud-sync-runner";
+import { runCloudSync, ForceResolution, clearKeepLocalPending } from "@/lib/cloud-sync-runner";
 import {
     blockGoogleDriveScopeAuth,
     clearGoogleDriveScopeBlock,
@@ -214,6 +215,7 @@ const nativeGoogleSignInAndExchange = async (logoutFirst: boolean, forcePrompt: 
         setAccessToken("");
     }
 
+    expectExternalActivity();
     const res = await SocialLogin.login({
         provider: "google",
         options: {
@@ -491,6 +493,7 @@ export const useGoogleDrive = () => {
         setUserEmail(null);
         localStorage.removeItem("google-user-email");
         localStorage.removeItem("last-synced-time");
+        clearKeepLocalPending("google-drive");
         setLastSynced(null);
         setStoredRefreshToken(null);
         clearCachedDriveIds();

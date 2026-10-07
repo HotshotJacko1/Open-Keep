@@ -67,6 +67,9 @@ importers:
       '@fontsource-variable/google-sans-flex':
         specifier: ^5.3.1
         version: 5.3.1
+      '@fontsource-variable/vazirmatn':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@radix-ui/react-alert-dialog':
         specifier: ^1.1.1
         version: 1.1.7(@types/react-dom@18.3.6(@types/react@18.3.20))(@types/react@18.3.20)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -499,6 +502,9 @@ packages:
 
   '@fontsource-variable/google-sans-flex@5.3.1':
     resolution: {integrity: sha512-ItkWlFvW61+BmwOMJQfPY81KpvvslqbiTyfYKceOx+0kEFBzTcPbbMVcL9BKrmqhhqnq36kNs7YRbxonovOmNg==}
+
+  '@fontsource-variable/vazirmatn@5.3.0':
+    resolution: {integrity: sha512-ZA68W8JHbMdNzzwjYHUWKB2PH22QpxNEnk0ukcXM+XiqYMV6ZWJZAKuNXcrMR2JjuIAwsfAU3KknCXPI6wXUvw==}
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -3768,6 +3774,8 @@ snapshots:
   '@floating-ui/utils@0.2.12': {}
 
   '@fontsource-variable/google-sans-flex@5.3.1': {}
+
+  '@fontsource-variable/vazirmatn@5.3.0': {}
 
   '@humanfs/core@0.19.1': {}
 

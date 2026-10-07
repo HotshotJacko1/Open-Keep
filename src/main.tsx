@@ -6,6 +6,8 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 // Google Sans Flex (weight axis), bundled from npm so it is never fetched from Google.
 import "@fontsource-variable/google-sans-flex";
+// Vazirmatn, for the Persian/Arabic letters Google Sans Flex lacks (see --font-sans).
+import "@fontsource-variable/vazirmatn";
 import "./globals.css";
 import { ThemeProvider } from "./context/theme-provider";
 import { SessionContextProvider } from "./context/session-provider";

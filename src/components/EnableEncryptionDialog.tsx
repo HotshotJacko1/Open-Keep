@@ -15,6 +15,11 @@ import { ArrowLeft, Lock } from "lucide-react";
 import { enableEncryption } from "@/lib/encryption-pin";
 import { validateNewPin } from "@/lib/pin";
 import { useBackToClose } from "@/hooks/use-back-to-close";
+import { Capacitor } from "@capacitor/core";
+
+// On web, notes in this browser's storage are not encrypted at rest (C1-21):
+// encryption covers cloud copies and images only. Native stores notes in SQLCipher.
+const isNative = Capacitor.isNativePlatform();
 
 interface EnableEncryptionDialogProps {
     isOpen: boolean;
@@ -82,7 +87,9 @@ const EnableEncryptionDialog: React.FC<EnableEncryptionDialogProps> = ({ isOpen,
                             <Lock className="w-6 h-6 text-success" />
                         </div>
                         <p className="text-sm">
-                            Your database is now encrypted. 
+                            {isNative
+                                ? "Your notes on this device and in the cloud are now encrypted."
+                                : "Your cloud notes and images are now encrypted. Notes stored in this browser are not encrypted."}
                         </p>
                         <div className="bg-muted p-4 rounded-md">
                             <p className="font-semibold text-lg tracking-widest">{newPin}</p>
@@ -102,7 +109,9 @@ const EnableEncryptionDialog: React.FC<EnableEncryptionDialogProps> = ({ isOpen,
                                     <Lock className="w-6 h-6 text-primary" />
                                 </div>
                                 <DialogDescription className="text-sm">
-                                    Choose a 4-6 digit PIN to encrypt your database.
+                                    {isNative
+                                        ? "Choose a 4-6 digit PIN to encrypt your notes on this device and in the cloud."
+                                        : "Choose a 4-6 digit PIN to encrypt your cloud notes and images. Notes stored in this browser stay unencrypted."}
                                     <br />
                                     <span className="text-destructive font-medium">Warning: If you lose this PIN, your cloud notes cannot be recovered.</span>
                                 </DialogDescription>

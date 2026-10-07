@@ -24,8 +24,6 @@
 // an Authorized redirect URI on the OAuth client in Google Cloud Console.
 // Omitted (native) preserves the empty-string behavior already in production.
 
-import { serve } from 'https://deno.land/std@0.190.0/http/server.ts';
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   // baggage/traceparent/sentry-trace are Sentry distributed-tracing headers;
@@ -47,7 +45,7 @@ const FORWARD_FIELDS = [
   'id_token',
 ] as const;
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

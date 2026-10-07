@@ -8,6 +8,7 @@ import { formatReminderLabel } from "@/utils/reminder";
 import { cn } from "@/lib/utils";
 import { isChecklist, parseChecklist, groupChecklistForDisplay, ChecklistDisplayRow } from "@/utils/markdown";
 import { getNoteTintVars, isNoteTinted } from "@/lib/note-colors";
+import { getTextDirection } from "@/utils/text-direction";
 
 import useLongPress from "@/hooks/use-long-press";
 import { useState, useEffect } from "react";
@@ -142,7 +143,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
             </div>
           )}
           <div className="flex flex-row items-start justify-between gap-2 min-w-0 w-full max-w-full">
-            <CardTitle className="text-base sm:text-lg font-semibold break-words flex-1 leading-snug min-w-0 max-w-full overflow-hidden [overflow-wrap:anywhere]">{note.title}</CardTitle>
+            <CardTitle className="auto-dir text-base sm:text-lg font-semibold break-words flex-1 leading-snug min-w-0 max-w-full overflow-hidden [overflow-wrap:anywhere]">{note.title}</CardTitle>
             {!note.isDeleted && (
               <div className={cn(
                 "hidden md:flex flex-shrink-0 transition-opacity duration-200",
@@ -172,7 +173,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
             const item = row.item;
             if (row.kind === 'parent') {
               return (
-                <li key={`parent-${item.id}`} className="flex items-start touch:min-h-8 touch:items-center gap-2 text-sm text-foreground w-full overflow-hidden opacity-50" aria-hidden="true">
+                <li key={`parent-${item.id}`} dir={getTextDirection(item.content)} className="flex items-start touch:min-h-8 touch:items-center gap-2 text-sm text-foreground w-full overflow-hidden opacity-50" aria-hidden="true">
                   <div className="h-6 w-6 shrink-0" />
                   <span className={cn(item.checked && "line-through", "flex-1 min-w-0 break-words overflow-hidden [overflow-wrap:anywhere] leading-tight mt-0.5")}>
                     {item.content}
@@ -181,8 +182,9 @@ const NoteCard: React.FC<NoteCardProps> = ({
               );
             }
             const indentLevel = row.indented ? Math.max(1, Math.floor((item.indentation?.length ?? 0) / 2)) : 0;
+            // A right-to-left item is mirrored: checkbox on the right, indented from the right.
             return (
-              <li key={item.id} className="flex min-h-6 touch:min-h-8 items-start touch:items-center gap-2 text-sm text-foreground w-full overflow-hidden" style={{ paddingLeft: `${indentLevel * 1}rem` }}>
+              <li key={item.id} dir={getTextDirection(item.content)} className="flex min-h-6 touch:min-h-8 items-start touch:items-center gap-2 text-sm text-foreground w-full overflow-hidden" style={{ paddingInlineStart: `${indentLevel * 1}rem` }}>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -250,7 +252,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
           );
         })() : (
           <div
-            className="text-sm text-secondary-foreground max-h-[300px] overflow-hidden text-ellipsis prose prose-sm max-w-none min-w-0 w-full dark:prose-invert prose-p:my-0 prose-headings:my-1 [overflow-wrap:anywhere] [word-break:break-word] [&_*]:[overflow-wrap:anywhere] [&_*]:[word-break:break-word] pointer-events-none [&_a]:no-underline [&_a]:text-inherit [&_a]:cursor-default"
+            className="auto-dir text-sm text-secondary-foreground max-h-[300px] overflow-hidden text-ellipsis prose prose-sm max-w-none min-w-0 w-full dark:prose-invert prose-p:my-0 prose-headings:my-1 [overflow-wrap:anywhere] [word-break:break-word] [&_*]:[overflow-wrap:anywhere] [&_*]:[word-break:break-word] pointer-events-none [&_a]:no-underline [&_a]:text-inherit [&_a]:cursor-default"
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(note.content) }}
           />
         )}
@@ -259,6 +261,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
             {note.tags.map((tag) => (
               <span
                 key={tag}
+                dir="auto"
                 className="px-2 py-1 text-xs rounded-full bg-background text-secondary-foreground border border-foreground/10 max-w-full whitespace-normal break-words [overflow-wrap:anywhere]"
               >
                 {tag}

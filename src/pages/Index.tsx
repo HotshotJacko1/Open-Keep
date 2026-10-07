@@ -1412,12 +1412,21 @@ const Index = () => {
     showSuccess(`Label "${tag}" created`);
   };
 
+  // Quietly adds or removes one label from the list, recording it for sync like any
+  // other label change. The MCP bridge's Undo uses it to reverse a rename or delete.
+  const handleSetLabel = (tag: string, present: boolean) => {
+    recordTagChange(tag, !present);
+    setCustomTags(prev => present
+      ? (prev.includes(tag) ? prev : [...prev, tag])
+      : prev.filter(t => t !== tag));
+  };
+
   // Open Keep MCP Bridge -- lets a paired AI tool read/search/create/edit
   // notes while this tab is open. Off by default; see the "Open Keep MCP
   // Bridge" PRD for the full design. Deliberately reuses handleSaveNote,
   // handleRenameTag and handleDeleteTag rather than talking to note storage
   // directly, so it can never do anything the app's own UI couldn't.
-  const aiBridge = useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDeleteTag });
+  const aiBridge = useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDeleteTag, handleSetLabel });
 
   const mainContent = (
     <div

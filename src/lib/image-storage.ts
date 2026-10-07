@@ -8,6 +8,19 @@ import { isEncryptionEnabled } from "@/lib/pin";
 
 const IMAGE_DIR = "images";
 
+/**
+ * The only form a stored image path takes (see saveImage). Paths also arrive from
+ * cloud files, which aren't trusted (C1-23): anything else could point at another
+ * app-private file, so every read and delete checks against this first.
+ */
+const IMAGE_PATH_RE = /^images\/img_[a-zA-Z0-9-]+\.jpg$/;
+export const isValidImagePath = (path: unknown): path is string =>
+  typeof path === "string" && IMAGE_PATH_RE.test(path);
+
+const assertValidImagePath = (path: string): void => {
+  if (!isValidImagePath(path)) throw new Error(`Invalid image path: ${path}`);
+};
+
 const COMPRESSION_OPTIONS = {
   maxSizeMB: 0.3,
   maxWidthOrHeight: 1600,
@@ -55,8 +68,10 @@ const readStored = async (path: string): Promise<string> => {
 };
 
 /** Reads an image as a plain JPEG base64 string (no data-URI prefix), decrypting if needed. */
-export const readImageBase64 = async (path: string): Promise<string> =>
-  fromStoredData(await readStored(path));
+export const readImageBase64 = async (path: string): Promise<string> => {
+  assertValidImagePath(path);
+  return fromStoredData(await readStored(path));
+};
 
 /**
  * Replaces a file without a window where a crash leaves it truncated: write a temp
@@ -193,6 +208,7 @@ export const saveImage = async (file: File): Promise<string> => {
 export const getImageSrc = async (path: string): Promise<string> => {
   // Already a data URI (e.g. during sync restore preview)
   if (path.startsWith("data:")) return path;
+  assertValidImagePath(path);
 
   // Native can point the WebView straight at the file, but only when it is known
   // to be plain: encryption off, and the last complete sweep left every file plain.
@@ -210,6 +226,10 @@ export const getImageSrc = async (path: string): Promise<string> => {
 
 /** Delete an image file from the device filesystem */
 export const deleteImage = async (path: string): Promise<void> => {
+  if (!isValidImagePath(path)) {
+    console.warn("Refusing to delete invalid image path:", path);
+    return;
+  }
   try {
     await Filesystem.deleteFile({ path, directory: Directory.Data });
   } catch (e) {
@@ -245,7 +265,7 @@ export const restoreImagesFromBase64 = async (
   const paths: string[] = [];
   for (const { id, data } of syncImages) {
     try {
-      if (!/^images\/img_[a-zA-Z0-9-]+\.jpg$/.test(id)) {
+      if (!isValidImagePath(id)) {
         console.warn("Invalid image id for sync restore, skipping:", id);
         continue;
       }

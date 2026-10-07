@@ -127,9 +127,11 @@
       --on-scrim: 0 0% 100%;
 
       /* Typeface: Google Sans Flex, bundled via @fontsource-variable (imported
-         in main.tsx), falling back to the platform's system font for scripts
-         it doesn't cover. */
-      --font-sans: "Google Sans Flex Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+         in main.tsx). It has no Arabic-script letters, so Persian and Arabic
+         come from Vazirmatn (also bundled) rather than whichever system font
+         the device has, which kept mixed lines from lining up. Other scripts
+         fall back to the platform's system font. */
+      --font-sans: "Google Sans Flex Variable", "Vazirmatn Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
 
       /* Corner radii (M3 shape scale) */
       --radius: 0.5rem;
@@ -287,6 +289,19 @@
       width: max(100%, 48px);
       height: max(100%, 48px);
       transform: translate(-50%, -50%);
+    }
+
+    /* Note text in right-to-left scripts (Persian, Arabic, Hebrew). Each line
+       takes its direction from its own first letter, so a Persian line sits on
+       the right with its words in order, and an English line under it stays on
+       the left. Per line rather than per paragraph because Enter in the editor
+       inserts a <br>, so most notes are a single <p>. Nothing is written into
+       the note, so old, synced and imported notes get it too.
+       unicode-bidi isn't inherited, hence the text blocks inside as well. */
+    .auto-dir,
+    .auto-dir :where(p, li, h1, h2, h3, h4, h5, h6, blockquote, pre) {
+      unicode-bidi: plaintext;
+      text-align: start;
     }
   }
 

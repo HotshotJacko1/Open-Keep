@@ -16,6 +16,7 @@ import { clearAllData } from "@/lib/note-storage";
 import { changeEncryptionPin, verifyEncryptionPin } from "@/lib/encryption-pin";
 import { clearAllPinState, validateNewPin } from "@/lib/pin";
 import { deleteAllRemoteData } from "@/lib/cloud-reset";
+import { clearKeepLocalPending } from "@/lib/cloud-sync-runner";
 import ResetDialog from "./ResetDialog";
 import { useBackToClose } from "@/hooks/use-back-to-close";
 
@@ -115,6 +116,7 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
             localStorage.removeItem("dropbox-last-synced");
             localStorage.removeItem("onedrive-user-email");
             localStorage.removeItem("onedrive-last-synced");
+            clearKeepLocalPending();
 
             showSuccess("App reset successfully");
             

@@ -95,6 +95,7 @@ const TopBar: React.FC<TopBarProps> = ({
                 <Input
                     type="text"
                     placeholder="Search"
+                    dir="auto"
                     className="w-full h-12 p-2 rounded-lg shadow focus:ring-2 focus:ring-primary bg-card dark:bg-card text-card-foreground border-input pr-24"
                     value={searchTerm}
                     onChange={(e) => onSearchChange(e.target.value)}

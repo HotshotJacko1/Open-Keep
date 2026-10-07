@@ -1,4 +1,5 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
+import DOMPurify from "dompurify";
 import { Importer, ImportInput, ImportInputFile, ImportNote } from "../../types/import";
 import { isChecklist } from "../markdown";
 import { looksLikeHtml, parseNoteMarkdown, plainTextToHtml } from "../note-markdown-format";
@@ -36,9 +37,10 @@ export class MarkdownImporter implements Importer {
 
       // Text notes are rendered as HTML, so plain markdown must be converted
       // or every newline collapses. Content that is already HTML (our own
-      // exports of text notes) is left alone.
-      if (type === 'text' && content.trim().length > 0 && !looksLikeHtml(content)) {
-        content = plainTextToHtml(content);
+      // exports of text notes) is kept, but sanitised before it is stored, as
+      // the MCP bridge does: an imported file is untrusted (C3-31).
+      if (type === 'text' && content.trim().length > 0) {
+        content = looksLikeHtml(content) ? DOMPurify.sanitize(content) : plainTextToHtml(content);
       }
 
       const now = Date.now();

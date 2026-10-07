@@ -77,6 +77,7 @@ const EditLabels: React.FC<EditLabelsProps> = ({
                             value={newLabel}
                             onChange={(e) => setNewLabel(e.target.value)}
                             placeholder="Create new label"
+                            dir="auto"
                             className="border-none shadow-none focus-visible:ring-0 px-0 placeholder:text-foreground"
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') handleCreate();
@@ -123,6 +124,7 @@ const EditLabels: React.FC<EditLabelsProps> = ({
                                         <Input
                                             value={editValue}
                                             onChange={(e) => setEditValue(e.target.value)}
+                                            dir="auto"
                                             className="h-8 py-1 px-2"
                                             autoFocus
                                             onBlur={submitEdit}
@@ -132,7 +134,8 @@ const EditLabels: React.FC<EditLabelsProps> = ({
                                         />
                                     ) : (
                                         <span
-                                            className="text-sm font-medium truncate block cursor-pointer"
+                                            dir="auto"
+                                            className="text-sm font-medium truncate block text-left cursor-pointer"
                                             title={tag}
                                             onClick={() => startEditing(tag)}
                                         >

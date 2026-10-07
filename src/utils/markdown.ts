@@ -338,6 +338,22 @@ export const indentChecklistItem = (
 };
 
 /**
+ * Outdents a sub-item. It moves out to just after the last sub-item of its
+ * group, so the sub-items below it stay with their parent instead of becoming
+ * its own (C2-31). The last sub-item of a group just loses its indentation.
+ * Works on stored order, so a ticked sub-item of an unticked parent (or the
+ * reverse) is handled the same way.
+ */
+export const outdentChecklistItem = (items: ChecklistItem[], id: string): ChecklistItem[] => {
+    const k = items.findIndex(i => i.id === id);
+    if (k === -1 || isTopLevel(items[k])) return items;
+    const end = groupEnd(items, k);
+    const without = [...items.slice(0, k), ...items.slice(k + 1)];
+    const insertAt = end - 1;
+    return [...without.slice(0, insertAt), { ...items[k], indentation: "" }, ...without.slice(insertAt)];
+};
+
+/**
  * Converts plain text content to a checklist.
  * Splits by newlines, adds "- [ ] ".
  */

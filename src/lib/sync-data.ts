@@ -1,6 +1,6 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import type { Note } from "@/types/note";
-import { resolveImagesToBase64, restoreImagesFromBase64 } from "@/lib/image-storage";
+import { isValidImagePath, resolveImagesToBase64, restoreImagesFromBase64 } from "@/lib/image-storage";
 import { normalizeTagChanges, normalizeTombstones } from "@/lib/tombstones";
 import type { SyncData } from "@/lib/sync-merge";
 
@@ -68,6 +68,14 @@ export const parseSyncData = async (result: unknown): Promise<SyncData> => {
     for (const note of notes) {
         if (noteImages[note.id] && noteImages[note.id].length > 0) {
             note.images = await restoreImagesFromBase64(noteImages[note.id]);
+        } else if (note.images !== undefined) {
+            // Untrusted paths from the cloud file (C1-23): keep only real image paths
+            // and inline data URIs, never a path to some other app-private file.
+            note.images = Array.isArray(note.images)
+                ? (note.images as unknown[]).filter(
+                    (p): p is string => isValidImagePath(p) || (typeof p === "string" && p.startsWith("data:image/"))
+                )
+                : [];
         }
     }
 

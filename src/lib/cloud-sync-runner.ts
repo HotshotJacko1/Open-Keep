@@ -27,8 +27,9 @@ import {
 import { setCloudSyncState, CloudSyncProvider } from "@/lib/cloud-sync-state";
 import { showSuccess, showError } from "@/utils/toast";
 import { deleteImage, withImagesInPlaintext } from "@/lib/image-storage";
-import { pruneTagChanges, pruneTombstones, readTagChanges, readTombstones, writeTagChanges, writeTombstones } from "@/lib/tombstones";
+import { mergeTagChanges, mergeTombstones, pruneTagChanges, pruneTombstones, readTagChanges, readTombstones, writeTagChanges, writeTombstones } from "@/lib/tombstones";
 import { isSameNote, type SyncData, type SyncMergeResult, type SyncNotesOptions } from "@/lib/sync-merge";
+import type { Note } from "@/types/note";
 
 export type ForceResolution = "local" | "cloud" | "merge";
 
@@ -98,6 +99,52 @@ const readLastSyncStartedAt = (adapter: CloudSyncAdapter): number | null => {
     return Number.isFinite(value) && value > 0 ? value : null;
 };
 
+/**
+ * The cloud key a "Keep local" choice uploaded, kept until its notes have landed
+ * too (C1-28). The key and the notes are two uploads, so a failure between them
+ * leaves this device's key in the cloud next to notes under the old one, and the
+ * next sync would ask the same question again. Instead it finishes the upload, but
+ * only while the cloud key is still exactly this payload: if another device or
+ * account has written since, that stands and the normal checks run. It's the same
+ * public blob as the cloud key cache (see pin.ts), so keeping it exposes nothing.
+ */
+const keepLocalPendingKey = (provider: CloudSyncProvider): string => `${provider}-keep-local-pending`;
+
+/** Forget an unfinished "Keep local" (disconnect, reset). No `provider`: all of them. */
+export const clearKeepLocalPending = (provider?: CloudSyncProvider): void => {
+    const providers: CloudSyncProvider[] = provider ? [provider] : ["google-drive", "onedrive", "dropbox"];
+    for (const p of providers) localStorage.removeItem(keepLocalPendingKey(p));
+};
+
+/**
+ * Local notes a failed "merge" couldn't put back after its wipe (C1-20). Kept for
+ * the rest of the session so the next sync attempt can save them before reading
+ * local notes. An app kill still loses them; only a persisted snapshot would fix
+ * that, and on web it would be plaintext (C1-21).
+ */
+let unrestoredNotes: Note[] | null = null;
+
+/**
+ * Puts `notes` back into the local database after a wipe, skipping any the user
+ * has since saved a newer copy of. Returns false if the database won't take them.
+ */
+const restoreLocalNotes = async (notes: Note[], logTag: string): Promise<boolean> => {
+    try {
+        const current = new Map((await loadNotes()).map((n) => [n.id, n]));
+        for (const note of notes) {
+            const existing = current.get(note.id);
+            if (existing && existing.updatedAt >= note.updatedAt) continue;
+            await saveNote(note, { skipLimits: true });
+        }
+        console.log(`${logTag} Restored ${notes.length} local notes after a failed merge`);
+        window.dispatchEvent(new Event("notes-updated"));
+        return true;
+    } catch (error) {
+        console.error(`${logTag} Could not restore local notes after a failed merge`, error);
+        return false;
+    }
+};
+
 const pinRequired = (cloudPayload: string): SyncResult =>
     ({ status: "conflict", cloudPayload, reason: "pin_required" });
 
@@ -118,7 +165,16 @@ export const runCloudSync = async (
 ): Promise<SyncResult> => {
     const logTag = `[${adapter.label} Sync]`;
     setCloudSyncState(adapter.provider, true);
+    // Set while a "merge" may have wiped the local DB: the local notes to put back if the sync fails.
+    let restoreOnFailure: Note[] | null = null;
     try {
+        // Before prepare: putting notes back is purely local, so it mustn't wait on a
+        // token refresh or the network, which may be what failed last time (C1-29).
+        if (unrestoredNotes) {
+            const pending = unrestoredNotes;
+            if (await restoreLocalNotes(pending, logTag)) unrestoredNotes = null;
+        }
+
         await adapter.prepare?.(silent);
 
         const encryptionOn = isEncryptionEnabled();
@@ -148,10 +204,15 @@ export const runCloudSync = async (
         let masterKeyPayload: string | undefined;
         // The cloud key payload that will be known to match this device once the sync lands.
         let verifiedPayload: string | null = null;
+        // What the provider does with the notes. "merge" only decides the key; the notes then merge as usual.
+        let resolution: "local" | "cloud" | undefined = forceResolution === "merge" ? undefined : forceResolution;
 
         if (forceResolution) {
             if (pin === null) return pinRequired(cloudPayload ?? "");
+            // Set before the import: importMasterKey can throw after the wipe has run.
+            if (forceResolution === "merge") restoreOnFailure = localNotes;
             const keyImport = await resolveCloudKeyImport(forceResolution, cloudPayload, pin, providedPin);
+            if (keyImport.ok === true && !keyImport.wiped) restoreOnFailure = null;
             if (keyImport.ok === false) {
                 if (cloudPayload) {
                     return { status: "conflict", cloudPayload, reason: "key_mismatch" };
@@ -168,7 +229,24 @@ export const runCloudSync = async (
             const cache = getCloudKeyCache();
             const pushPending = isCloudKeyPushPending();
 
-            if (!cloudKey.exists || !cloudKey.payload) {
+            let keepLocalPending = localStorage.getItem(keepLocalPendingKey(adapter.provider));
+            if (keepLocalPending !== null && (cloudKey.payload !== keepLocalPending || localNotes.length === 0)) {
+                // The cloud key has changed since (or the key upload never happened), or
+                // there's nothing here to upload: drop it and let the checks below decide.
+                clearKeepLocalPending(adapter.provider);
+                keepLocalPending = null;
+            }
+
+            if (keepLocalPending !== null) {
+                // A "Keep local" got its key into the cloud but not its notes (C1-28), and
+                // nobody has written since: finish it rather than ask the question again.
+                console.log(`${logTag} Finishing an interrupted "Keep local" upload`);
+                resolution = "local";
+                if (!pushPending) verifiedPayload = keepLocalPending;
+                // The PIN changed since: the key it uploaded is wrapped under the old one.
+                else if (pin !== null) masterKeyPayload = await exportMasterKey(pin);
+                else return pinRequired(keepLocalPending);
+            } else if (!cloudKey.exists || !cloudKey.payload) {
                 // Nothing in the cloud yet: upload ours.
                 if (pin !== null) masterKeyPayload = await exportMasterKey(pin);
                 else if (cache && !pushPending) masterKeyPayload = cache;
@@ -218,7 +296,11 @@ export const runCloudSync = async (
         }
 
         console.log(`${logTag} Loaded ${localNotes.length} local notes for sync`);
-        const providerForceResolution = forceResolution === "merge" ? undefined : forceResolution;
+        if (resolution === "local") {
+            // Recorded before the uploads start, and cleared only once both are done.
+            const keyInCloud = masterKeyPayload ?? verifiedPayload;
+            if (keyInCloud) localStorage.setItem(keepLocalPendingKey(adapter.provider), keyInCloud);
+        }
         const localTombstones = pruneTombstones(readTombstones(), syncStartedAt);
         const {
             notes: mergedNotes,
@@ -233,8 +315,10 @@ export const runCloudSync = async (
                 tombstones: localTombstones,
                 tagChanges: pruneTagChanges(readTagChanges(), syncStartedAt),
             },
-            { masterKeyPayload, forceResolution: providerForceResolution, lastSyncStartedAt }
+            { masterKeyPayload, forceResolution: resolution, lastSyncStartedAt }
         );
+        // Both uploads have landed; nothing to finish next time.
+        if (resolution === "local") clearKeepLocalPending(adapter.provider);
 
         // Re-read local DB state now that sync is complete. Local notes may have changed
         // while the sync was in-flight (e.g. user deleted a note during a long sync).
@@ -242,12 +326,30 @@ export const runCloudSync = async (
         // current local copy — this prevents a stale sync from resurrecting deleted notes.
         const currentLocalNotes = await loadNotes();
         const currentLocalMap = new Map(currentLocalNotes.map((n) => [n.id, n]));
+
+        // Deletes and label changes recorded on this device while the sync ran (C1-22).
+        // They aren't in the merge result, which was built from the state at sync start,
+        // so overwriting the local stores with it would drop them. Recorded with
+        // Date.now(), so anything at or after syncStartedAt is new.
+        const tombstonesDuringSync = readTombstones().filter((t) => t.deletedAt >= syncStartedAt);
+        const tombstonedDuringSync = new Set(tombstonesDuringSync.map((t) => t.id));
+        const tagChangesDuringSync = readTagChanges().filter((c) => c.at >= syncStartedAt);
+        const currentCustomTags = readCustomTags();
+        const tagsAddedDuringSync = currentCustomTags.filter((t) => !localCustomTags.includes(t));
+        const tagsRemovedDuringSync = new Set(localCustomTags.filter((t) => !currentCustomTags.includes(t)));
         let savedCount = 0;
         let skippedCount = 0;
         let unchangedCount = 0;
         await Promise.all(
             mergedNotes.map(async (note) => {
                 const current = currentLocalMap.get(note.id);
+                // Permanently deleted here while this sync ran (C1-22): don't bring it back.
+                // Its tombstone is kept below and removes it from the cloud next sync.
+                if (!current && tombstonedDuringSync.has(note.id)) {
+                    console.log(`${logTag} Write-back skipped for note ${note.id}: deleted during sync`);
+                    skippedCount++;
+                    return;
+                }
                 if (current && current.updatedAt > note.updatedAt) {
                     console.log(`${logTag} Write-back skipped for note ${note.id}: local is newer (${new Date(current.updatedAt).toISOString()} > ${new Date(note.updatedAt).toISOString()})`);
                     skippedCount++;
@@ -264,6 +366,9 @@ export const runCloudSync = async (
             })
         );
         console.log(`${logTag} Write-back complete: ${savedCount} saved, ${unchangedCount} unchanged, ${skippedCount} skipped (local was newer)`);
+        // Only now does the local DB hold the merged notes. Until the write-back
+        // finished, a merge that wiped it had local-only notes in memory alone (C1-29).
+        restoreOnFailure = null;
 
         // Notes another device permanently deleted (C3-01). Same guard as above: a note
         // edited here after the delete (including during this sync) is kept, and the next
@@ -284,9 +389,14 @@ export const runCloudSync = async (
             removedCount++;
         }
         if (removedCount > 0) console.log(`${logTag} Removed ${removedCount} notes deleted on another device`);
-        writeTombstones(mergedTombstones);
-        localStorage.setItem("custom-tags", JSON.stringify(mergedTags));
-        writeTagChanges(mergedTagChanges);
+        writeTombstones(mergeTombstones(mergedTombstones, tombstonesDuringSync));
+        const finalTagChanges = mergeTagChanges(mergedTagChanges, tagChangesDuringSync);
+        writeTagChanges(finalTagChanges);
+        const deletedDuringSync = new Set(tagChangesDuringSync.filter((c) => c.deleted).map((c) => c.name));
+        const finalTags = Array.from(new Set([...mergedTags, ...tagsAddedDuringSync]))
+            .filter((t) => !tagsRemovedDuringSync.has(t) && !deletedDuringSync.has(t))
+            .sort();
+        localStorage.setItem("custom-tags", JSON.stringify(finalTags));
         setCloudKeyCache(masterKeyPayload ?? verifiedPayload ?? getCloudKeyCache());
         setCloudKeyPushPending(false);
 
@@ -300,6 +410,14 @@ export const runCloudSync = async (
         }
         return { status: "success" };
     } catch (error) {
+        if (restoreOnFailure && restoreOnFailure.length > 0) {
+            // A "merge" wiped the local DB and the sync then failed: put the local
+            // notes back, under whichever key the DB now has.
+            if (!(await restoreLocalNotes(restoreOnFailure, logTag))) {
+                unrestoredNotes = restoreOnFailure;
+                showError("Sync failed and your local notes couldn't be saved back yet. Keep the app open and sync again.");
+            }
+        }
         const message = (error as Error)?.message || "";
         const kind = adapter.classifyError(error);
 

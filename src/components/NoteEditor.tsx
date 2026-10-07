@@ -60,6 +60,7 @@ import {
     groupChecklistForDisplay,
     moveChecklistItem,
     indentChecklistItem,
+    outdentChecklistItem,
     groupEnd,
     convertTextToList,
     convertListToText,
@@ -68,12 +69,15 @@ import {
     ChecklistDisplayRow
 } from "@/utils/markdown";
 import { Capacitor } from "@capacitor/core";
+import { App as CapacitorApp } from "@capacitor/app";
 
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useFlipNextChange } from "@/hooks/use-flip-layout";
 
 import { saveImage, getImageSrc, deleteImage } from "@/lib/image-storage";
+import { expectExternalActivity } from "@/lib/app-relock";
 import { ImageIcon } from "lucide-react";
 
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -83,7 +87,8 @@ import CharacterCount from '@tiptap/extension-character-count'
 import { CustomLink, HardBreakOnEnter, LINK_OPTIONS } from "@/lib/editor-extensions"
 import { LinkHighlightedTextarea } from "@/components/LinkHighlightedTextarea"
 import { TITLE_MAX, BODY_MAX, LIST_ITEM_MAX, LIST_ITEMS_MAX } from "../lib/note-limits"
-import { serializeNoteToMarkdown } from "@/utils/note-markdown-format";
+import { plainTextToHtml, serializeNoteToMarkdown } from "@/utils/note-markdown-format";
+import { getTextDirection } from "@/utils/text-direction";
 import { useBackToClose } from "@/hooks/use-back-to-close";
 
 interface NoteEditorProps {
@@ -205,7 +210,7 @@ const useItemLineBreaks = (
 
 /** Greyed, read-only copy of a parent, shown above its sub-items when the parent is in the other section. */
 const ParentHeaderRow: React.FC<{ item: ChecklistItem }> = ({ item }) => (
-    <div className="flex items-start bg-transparent rounded-md mb-0.1 overflow-hidden opacity-50 select-none" aria-hidden="true">
+    <div data-flip-id={`parent-${item.id}`} dir={getTextDirection(item.content)} className="flex items-start bg-transparent rounded-md mb-0.1 overflow-hidden opacity-50 select-none" aria-hidden="true">
         <div className="flex items-start gap-2 w-full py-2">
             <div className="h-6 w-12 shrink-0" />
             <CheckboxHitArea inert className="pt-4">
@@ -228,10 +233,10 @@ const ParentHeaderRow: React.FC<{ item: ChecklistItem }> = ({ item }) => (
  * A stored line that isn't an item (e.g. text left behind by an old bug).
  * Shown so it isn't invisible; the note only changes if "Make item" is tapped.
  */
-const StrayLineRow: React.FC<{ text: string; indented: boolean; disabled?: boolean; onConvert: () => void }> = ({ text, indented, disabled, onConvert }) => (
-    <div className={`flex items-start gap-2 py-2 ${indented ? 'ml-8' : ''}`}>
+const StrayLineRow: React.FC<{ text: string; indented: boolean; disabled?: boolean; flipId: string; onConvert: () => void }> = ({ text, indented, disabled, flipId, onConvert }) => (
+    <div data-flip-id={flipId} className={`flex items-start gap-2 py-2 ${indented ? 'ml-8' : ''}`}>
         <div className="h-6 w-12 shrink-0" />
-        <span className="flex-1 min-w-0 text-base text-muted-foreground italic py-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+        <span className="auto-dir flex-1 min-w-0 text-base text-muted-foreground italic py-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
             {text}
         </span>
         {!disabled && (
@@ -289,10 +294,17 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const { handlePaste, handleChangeValue } = useItemLineBreaks(textareaRef, item.id, onEnter, onMultilineText);
     const isIndented = displayIndented ?? item.indentation !== "";
+    // A right-to-left item is mirrored: checkbox on the right, indented from
+    // the right, and the swipes and arrow keys below reversed to match.
+    const dir = getTextDirection(item.content);
+    const nextArrow = dir === "rtl" ? "ArrowLeft" : "ArrowRight";
+    const prevArrow = dir === "rtl" ? "ArrowRight" : "ArrowLeft";
     const touchStartRef = useRef<{ x: number, y: number } | null>(null);
     const [swipeX, setSwipeX] = useState(0);
 
     const handleTouchStart = (e: React.TouchEvent) => {
+        // A binned note is read-only: swipes would indent/outdent it (C2-25).
+        if (disabled) return;
         touchStartRef.current = {
             x: e.touches[0].clientX,
             y: e.touches[0].clientY
@@ -316,7 +328,8 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
 
         const threshold = 50;
         if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > threshold) {
-            if (dx > 0) {
+            // Swiping towards the end of the line indents
+            if ((dir === "rtl" ? -dx : dx) > 0) {
                 if (onIndent) onIndent(item.id);
             } else {
                 if (onOutdent) onOutdent(item.id);
@@ -361,16 +374,21 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
         <div
             ref={setNodeRef}
             style={style}
-            className={`flex items-start bg-transparent rounded-md mb-0.1 overflow-hidden ${isIndented ? 'ml-8' : ''}`}
+            data-flip-id={item.id}
+            dir={dir}
+            className={`flex items-start bg-transparent rounded-md mb-0.1 overflow-hidden ${isIndented ? 'ms-8' : ''}`}
         >
             <div
                 className="flex items-start gap-2 w-full py-2 transition-transform duration-75"
                 style={{ transform: `translateX(${swipeX}px)` }}
             >
+                {/* touch-none on the grip only: without it a finger on the grip
+                    starts a scroll, which cancels the drag (C2-27). The row and
+                    the text must still scroll. */}
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="cursor-grab text-foreground -my-2 h-12 w-12 shrink-0 items-start pt-4"
+                    className="cursor-grab touch-none text-foreground -my-2 h-12 w-12 shrink-0 items-start pt-4"
                     disabled={disabled}
                     {...listeners}
                     {...attributes}
@@ -398,6 +416,9 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
                     }}
                     onPaste={handlePaste}
                     onKeyDown={(e) => {
+                        // readOnly stops typing but not these handlers, which insert,
+                        // merge and indent items. Arrow-key navigation stays (C2-25).
+                        if (disabled && (e.key === "Enter" || e.key === "Backspace" || e.key === "Tab")) return;
                         if (e.key === "Enter") {
                             e.preventDefault();
                             onEnter(item.id, e.currentTarget.selectionStart ?? undefined);
@@ -415,7 +436,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
                                 if (onIndent) onIndent(item.id);
                             }
                         } else if (
-                            (e.key === "ArrowDown" || e.key === "ArrowRight") &&
+                            (e.key === "ArrowDown" || e.key === nextArrow) &&
                             !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey &&
                             e.currentTarget.selectionStart === e.currentTarget.value.length &&
                             e.currentTarget.selectionEnd === e.currentTarget.value.length
@@ -424,7 +445,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
                                 e.preventDefault();
                             }
                         } else if (
-                            (e.key === "ArrowUp" || e.key === "ArrowLeft") &&
+                            (e.key === "ArrowUp" || e.key === prevArrow) &&
                             !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey &&
                             e.currentTarget.selectionStart === 0 &&
                             e.currentTarget.selectionEnd === 0
@@ -472,10 +493,17 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const { handlePaste, handleChangeValue } = useItemLineBreaks(textareaRef, item.id, onEnter, onMultilineText);
     const isIndented = displayIndented ?? item.indentation !== "";
+    // A right-to-left item is mirrored: checkbox on the right, indented from
+    // the right, and the swipes and arrow keys below reversed to match.
+    const dir = getTextDirection(item.content);
+    const nextArrow = dir === "rtl" ? "ArrowLeft" : "ArrowRight";
+    const prevArrow = dir === "rtl" ? "ArrowRight" : "ArrowLeft";
     const touchStartRef = useRef<{ x: number, y: number } | null>(null);
     const [swipeX, setSwipeX] = useState(0);
 
     const handleTouchStart = (e: React.TouchEvent) => {
+        // A binned note is read-only: swipes would indent/outdent it (C2-25).
+        if (disabled) return;
         touchStartRef.current = {
             x: e.touches[0].clientX,
             y: e.touches[0].clientY
@@ -499,7 +527,8 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
 
         const threshold = 50;
         if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > threshold) {
-            if (dx > 0) {
+            // Swiping towards the end of the line indents
+            if ((dir === "rtl" ? -dx : dx) > 0) {
                 if (onIndent) onIndent(item.id);
             } else {
                 if (onOutdent) onOutdent(item.id);
@@ -532,7 +561,7 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
     }, [autoFocus]);
 
     return (
-        <div className={`flex items-start bg-transparent rounded-md mb-0.1 overflow-hidden ${isIndented ? 'ml-8' : ''}`}>
+        <div data-flip-id={item.id} dir={dir} className={`flex items-start bg-transparent rounded-md mb-0.1 overflow-hidden ${isIndented ? 'ms-8' : ''}`}>
             <div
                 className="flex items-start gap-2 w-full py-2 transition-transform duration-75"
                 style={{ transform: `translateX(${swipeX}px)` }}
@@ -559,6 +588,9 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
                     }}
                     onPaste={handlePaste}
                     onKeyDown={(e) => {
+                        // readOnly stops typing but not these handlers, which insert,
+                        // merge and indent items. Arrow-key navigation stays (C2-25).
+                        if (disabled && (e.key === "Enter" || e.key === "Backspace" || e.key === "Tab")) return;
                         if (e.key === "Enter") {
                             e.preventDefault();
                             onEnter(item.id, e.currentTarget.selectionStart ?? undefined);
@@ -576,7 +608,7 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
                                 if (onIndent) onIndent(item.id);
                             }
                         } else if (
-                            (e.key === "ArrowDown" || e.key === "ArrowRight") &&
+                            (e.key === "ArrowDown" || e.key === nextArrow) &&
                             !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey &&
                             e.currentTarget.selectionStart === e.currentTarget.value.length &&
                             e.currentTarget.selectionEnd === e.currentTarget.value.length
@@ -585,7 +617,7 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
                                 e.preventDefault();
                             }
                         } else if (
-                            (e.key === "ArrowUp" || e.key === "ArrowLeft") &&
+                            (e.key === "ArrowUp" || e.key === prevArrow) &&
                             !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey &&
                             e.currentTarget.selectionStart === 0 &&
                             e.currentTarget.selectionEnd === 0
@@ -639,7 +671,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const [isLabelsOpen, setIsLabelsOpen] = useState(false);
     const [showFormatting, setShowFormatting] = useState(false);
     const [images, setImages] = useState<string[]>([]);
-    const [imageSrcs, setImageSrcs] = useState<string[]>([]);
+    // Display src per stored path: null if it couldn't be read, absent while loading.
+    // Keyed by path, not index, so a slow or failed load can't shift which file an
+    // X button deletes (C2-26). `images` stays the source of truth for what's shown.
+    const [imageSrcs, setImageSrcs] = useState<Record<string, string | null>>({});
     const [fullscreenImageSrc, setFullscreenImageSrc] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -662,6 +697,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const [newItemContent, setNewItemContent] = useState("");
     const [focusItemId, setFocusItemId] = useState<string | null>(null);
     const [showCheckedItems, setShowCheckedItems] = useState(true);
+    // Ticking an item slides it down to the ticked section (and unticking
+    // slides it back up), instead of it vanishing and reappearing.
+    const checklistRef = useRef<HTMLDivElement>(null);
+    const captureChecklistLayout = useFlipNextChange(checklistRef);
     const [reminder, setReminder] = useState<number | undefined>(undefined);
     const [recurrence, setRecurrence] = useState<Note['recurrence'] | undefined>(undefined);
     const [isReminderSheetOpen, setIsReminderSheetOpen] = useState(false);
@@ -750,7 +789,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 // Body text stays 16px on mobile so text notes match list notes
                 // (which inherit 16px) and Google Keep's 16sp. No xl step — it
                 // pushed body text above the 20px title on wide screens.
-                class: 'prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[40px] text-foreground',
+                class: 'auto-dir prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[40px] text-foreground',
             },
         },
         onUpdate: ({ editor }) => {
@@ -782,7 +821,19 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
                 const initialImages = initialNote.images || [];
                 setImages(initialImages);
-                Promise.all(initialImages.map(getImageSrc)).then(setImageSrcs);
+                setImageSrcs({});
+                const openedNoteId = initialNote.id;
+                Promise.allSettled(initialImages.map(getImageSrc)).then((results) => {
+                    // Another note may have opened while these were decrypting.
+                    if (noteIdRef.current !== openedNoteId) return;
+                    setImageSrcs((prev) => {
+                        const next = { ...prev };
+                        results.forEach((result, i) => {
+                            next[initialImages[i]] = result.status === "fulfilled" ? result.value : null;
+                        });
+                        return next;
+                    });
+                });
 
                 // Update Editor Content
                 // emitUpdate: false — TipTap 3 emits an update by default, which ran
@@ -830,7 +881,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 initialTagsTextRef.current = "";
                 setShowCheckedItems(true);
                 setImages([]);
-                setImageSrcs([]);
+                setImageSrcs({});
                 setReminder(undefined);
                 setRecurrence(undefined);
                 setColor(DEFAULT_NOTE_COLOR);
@@ -1006,6 +1057,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     // Saves from the editor's own autosave/close paths, then moves the baseline
     // to what was saved (see lastSavedUpdatedAtRef).
     const saveFromEditor = (note: Note) => {
+        // The editor is view-only for a note in the Bin. buildNoteFromState doesn't
+        // carry isDeleted/deletedAt, so any save from here would silently restore it
+        // and sync that restore everywhere (C2-25).
+        if (isDeleted) return;
         onSave(note);
         baselineNoteSnapshotRef.current = makeNoteSnapshot(note);
         lastSavedUpdatedAtRef.current = note.updatedAt;
@@ -1018,6 +1073,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             return;
         }
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
 
         // Don't save if completely empty
         const plainText = content.replace(/<[^>]+>/g, '').trim();
@@ -1037,6 +1093,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         }
 
         saveTimeoutRef.current = setTimeout(() => {
+            saveTimeoutRef.current = null;
             saveFromEditor(buildNoteFromState());
         }, 500);
 
@@ -1046,16 +1103,36 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [title, content, tags, isPinned, isArchived, images, color, reminder, recurrence]);
 
+    // Runs a pending autosave now instead of in up to 500ms. Called as the app goes
+    // to the background: Android may kill it there, and App Lock unmounts the editor
+    // on the way back (C3-27). Either would drop the last edit.
+    const flushPendingSaveRef = useRef<() => void>(() => { });
+    // eslint-disable-next-line react-hooks/refs -- latest-value ref: the listener below must save the current state
+    flushPendingSaveRef.current = () => {
+        if (!isOpen || saveTimeoutRef.current === null) return;
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+        saveFromEditor(buildNoteFromState());
+    };
+
+    useEffect(() => {
+        if (!Capacitor.isNativePlatform()) return;
+        const listenerPromise = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+            if (!isActive) flushPendingSaveRef.current();
+        });
+        return () => {
+            listenerPromise.then((listener) => listener.remove());
+        };
+    }, []);
+
     // Toggle Mode Logic
     const handleToggleMode = () => {
         if (isChecklistMode) {
             // List -> Text
-            // Convert list to text, then wrap lines in <p> for Tiptap to respect newlines
+            // Convert list to text, then wrap lines in <p> for Tiptap to respect newlines.
+            // Item text is plain, so it's escaped: "Buy <milk>" must not be read as a tag (C2-30).
             const plainText = convertListToText(content);
-            const htmlContent = plainText
-                .split('\n')
-                .map(line => `<p>${line}</p>`)
-                .join('');
+            const htmlContent = plainTextToHtml(plainText);
 
             setContent(htmlContent);
             setIsChecklistMode(false);
@@ -1067,7 +1144,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         } else {
             // Text -> List
             // Parse HTML to text manually to ensure we get lines back
-            // We use a temporary div but pre-process HTML to ensure newlines are preserved
+            // Pre-process HTML so newlines are preserved, then read its text.
             let textContent = content;
 
             if (content.includes('<')) {
@@ -1076,9 +1153,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     .replace(/<br\s*\/?>/gi, '\n') // Break tag = newline
                     .replace(/<\/div>/gi, '\n'); // End of div = newline
 
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = tempHtml;
-                textContent = tempDiv.textContent || tempDiv.innerText || "";
+                // Parsed in an inert document, not a div's innerHTML: `content` is the
+                // stored note, which can come from a cloud file or an import, and a
+                // detached div still loads <img> and runs its onerror (C2-24).
+                textContent = new DOMParser().parseFromString(tempHtml, 'text/html').body.textContent || "";
             }
 
             const newContent = convertTextToList(textContent);
@@ -1113,13 +1191,18 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         const { active, over, delta } = event;
         const activeId = active.id as string;
 
-        // Handle horizontal indentation
-        if (Math.abs(delta.x) > 40) {
-            if (delta.x > 40) {
+        // A mostly sideways drag indents or outdents, and anything else is a
+        // move and only a move: sideways drift on a long drag must not also
+        // nest the item under whatever was above its old position (C2-28).
+        // The sideways case ignores `over`, because closestCenter often
+        // reports the row above as `over` (sub-item rows sit further right).
+        if (Math.abs(delta.x) > 40 && Math.abs(delta.x) > Math.abs(delta.y)) {
+            if (delta.x > 0) {
                 handleIndent(activeId);
-            } else if (delta.x < -40) {
+            } else {
                 handleOutdent(activeId);
             }
+            return;
         }
 
         if (over && activeId !== over.id) {
@@ -1142,12 +1225,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     };
 
     const handleOutdent = (id: string) => {
-        updateItems(prev => prev.map(item => {
-            if (item.id === id) {
-                return { ...item, indentation: "" };
-            }
-            return item;
-        }));
+        updateItems(prev => outdentChecklistItem(prev, id));
     };
 
     // Indentation for an item inserted directly after `index`: a new item
@@ -1420,6 +1498,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     };
 
     const handleToggleItem = (id: string) => {
+        captureChecklistLayout();
         updateItems(prev => {
             const itemIndex = prev.findIndex(i => i.id === id);
             if (itemIndex === -1) return prev;
@@ -1483,6 +1562,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             text.trim() === "" ? null : (
                 <StrayLineRow
                     key={`stray-${ownerId ?? 'top'}-${lineIndex}`}
+                    flipId={`stray-${ownerId ?? 'top'}-${lineIndex}`}
                     text={text}
                     indented={indented}
                     disabled={isDeleted}
@@ -1540,6 +1620,19 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     };
     // eslint-disable-next-line react-hooks/refs -- latest-value ref: keeps stable callbacks pointed at the current close handler
     handleCloseEditorRef.current = handleCloseEditor;
+
+    // Loaded (or failed) images only; ones still decrypting appear when ready.
+    const shownImages = images.filter((path) => imageSrcs[path] !== undefined);
+
+    const removeImage = async (path: string) => {
+        await deleteImage(path);
+        setImages(prev => prev.filter(p => p !== path));
+        setImageSrcs(prev => {
+            const next = { ...prev };
+            delete next[path];
+            return next;
+        });
+    };
 
     const checklistDisplay = groupChecklistForDisplay(checklistItems);
     const checkedItemCount = checklistDisplay.checked.filter(row => row.kind === 'item').length;
@@ -1625,9 +1718,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             clearTimeout(saveTimeoutRef.current);
         }
 
-        const plainText = content.replace(/<[^>]+>/g, '').trim();
-
-        if (title.trim() === "" && plainText === "") {
+        // isNoteEmpty counts images and checklist items, so a photo-only note is
+        // archived rather than binned (C2-29).
+        if (isNoteEmpty()) {
             onDelete(noteIdRef.current);
         } else {
             const savedNote = buildNoteFromState({ isArchived: newState });
@@ -1858,7 +1951,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                     const path = await saveImage(file);
                                     const src = await getImageSrc(path);
                                     setImages(prev => [...prev, path]);
-                                    setImageSrcs(prev => [...prev, src]);
+                                    setImageSrcs(prev => ({ ...prev, [path]: src }));
                                 } catch (err) {
                                     toast.error('Failed to add image');
                                 }
@@ -1867,16 +1960,21 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         />
 
                         {/* Image strip */}
-                        {imageSrcs.length === 1 && (
-                            <div className="relative w-full mb-4 rounded-lg overflow-hidden border border-border max-h-64 sm:max-h-96 cursor-zoom-in" onClick={() => setFullscreenImageSrc(imageSrcs[0])}>
-                                <img src={imageSrcs[0]} alt="" className="w-full h-full object-contain bg-note-editor-background dark:bg-note-editor-background" />
+                        {shownImages.length === 1 && shownImages.map((path) => (
+                            <div key={path} className="relative w-full mb-4 rounded-lg overflow-hidden border border-border max-h-64 sm:max-h-96 cursor-zoom-in" onClick={() => imageSrcs[path] && setFullscreenImageSrc(imageSrcs[path])}>
+                                {imageSrcs[path] ? (
+                                    <img src={imageSrcs[path]} alt="" className="w-full h-full object-contain bg-note-editor-background dark:bg-note-editor-background" />
+                                ) : (
+                                    // Unreadable (missing or undecryptable). Still shown, so it can be removed.
+                                    <div className="w-full h-32 flex items-center justify-center bg-muted text-muted-foreground" role="img" aria-label="Image unavailable">
+                                        <ImageIcon className="h-8 w-8" />
+                                    </div>
+                                )}
                                 {!isDeleted && (
                                     <button
                                         onClick={async (e) => {
                                             e.stopPropagation();
-                                            await deleteImage(images[0]);
-                                            setImages([]);
-                                            setImageSrcs([]);
+                                            await removeImage(path);
                                         }}
                                         aria-label="Remove image"
                                         className="group/remove absolute top-0 right-0 h-12 w-12 flex items-start justify-end p-2"
@@ -1887,20 +1985,24 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                     </button>
                                 )}
                             </div>
-                        )}
+                        ))}
 
-                        {imageSrcs.length > 1 && (
+                        {shownImages.length > 1 && (
                             <div className="flex gap-2 overflow-x-auto mb-4 -mx-4 px-4 pb-2">
-                                {imageSrcs.map((src, i) => (
-                                    <div key={i} className="relative flex-shrink-0 w-40 h-32 rounded-lg overflow-hidden border border-border cursor-zoom-in" onClick={() => setFullscreenImageSrc(src)}>
-                                        <img src={src} alt="" className="w-full h-full object-cover" />
+                                {shownImages.map((path) => (
+                                    <div key={path} className="relative flex-shrink-0 w-40 h-32 rounded-lg overflow-hidden border border-border cursor-zoom-in" onClick={() => imageSrcs[path] && setFullscreenImageSrc(imageSrcs[path])}>
+                                        {imageSrcs[path] ? (
+                                            <img src={imageSrcs[path]} alt="" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground" role="img" aria-label="Image unavailable">
+                                                <ImageIcon className="h-6 w-6" />
+                                            </div>
+                                        )}
                                         {!isDeleted && (
                                             <button
                                                 onClick={async (e) => {
                                                     e.stopPropagation();
-                                                    await deleteImage(images[i]);
-                                                    setImages(prev => prev.filter((_, idx) => idx !== i));
-                                                    setImageSrcs(prev => prev.filter((_, idx) => idx !== i));
+                                                    await removeImage(path);
                                                 }}
                                                 aria-label="Remove image"
                                                 className="group/remove absolute top-0 right-0 h-12 w-12 flex items-start justify-end p-1"
@@ -1961,7 +2063,11 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
                         {/* Editor Content */}
                         {isChecklistMode ? (
-                            <div className="flex flex-col">
+                            <div ref={checklistRef} className="flex flex-col -mx-4">
+                                {/* -mx-4 cancels the body's side padding so each row's
+                                    48px grip and remove buttons sit at the edges; their
+                                    icons then line up with the title. The add row, checked
+                                    header and tag chips add it back so they stay put. */}
                                 <DndContext
                                     sensors={sensors}
                                     collisionDetection={closestCenter}
@@ -1996,7 +2102,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                         ))}
                                     </SortableContext>
                                 </DndContext>
-                                <div className="flex items-start gap-2 mt-2 pl-2">
+                                <div data-flip-id="add-item" className="flex items-start gap-2 mt-2 ps-6 pe-4">
                                     <Plus className="h-4 w-4 text-muted-foreground mt-1.5" />
                                     <LinkHighlightedTextarea
                                         value={newItemContent}
@@ -2038,8 +2144,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                 {checkedItemCount > 0 && (
                                     <div className="mt-4 flex flex-col gap-2">
                                         <Button
+                                            data-flip-id="checked-header"
                                             variant="ghost"
-                                            className="flex items-center gap-2 p-0 h-auto text-sm text-muted-foreground hover:bg-transparent hover:text-foreground transition-colors w-fit pl-2"
+                                            className="flex items-center gap-2 p-0 h-auto text-sm text-muted-foreground hover:bg-transparent hover:text-foreground transition-colors w-fit ps-6"
                                             onClick={() => setShowCheckedItems(!showCheckedItems)}
                                         >
                                             {showCheckedItems ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -2077,10 +2184,11 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                 {(() => {
                                     const tagList = tags.split(",").map(t => t.trim()).filter(Boolean);
                                     return tagList.length > 0 ? (
-                                        <div className="mt-3 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                        <div className="mt-3 mx-4 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
                                             {tagList.map((tag) => (
                                                 <span
                                                     key={tag}
+                                                    dir="auto"
                                                     className="px-2.5 py-1 text-xs rounded-full bg-background text-secondary-foreground border border-foreground/10"
                                                 >
                                                     {tag}
@@ -2101,6 +2209,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                             {tagList.map((tag) => (
                                                 <span
                                                     key={tag}
+                                                    dir="auto"
                                                     className="px-2.5 py-1 text-xs rounded-full bg-background text-secondary-foreground border border-foreground/10"
                                                 >
                                                     {tag}
@@ -2125,7 +2234,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         <div className="flex gap-2">
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" disabled={isDeleted} onClick={() => fileInputRef.current?.click()} className="text-secondary">
+                                    <Button variant="ghost" size="icon" disabled={isDeleted} onClick={() => { expectExternalActivity(); fileInputRef.current?.click(); }} className="text-secondary">
                                         <ImageIcon className="h-5 w-5" />
                                         <span className="sr-only">Add Photo</span>
                                     </Button>

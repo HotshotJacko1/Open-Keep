@@ -1,5 +1,5 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
-import { useLayoutEffect, useRef, type RefObject } from "react";
+import { useCallback, useLayoutEffect, useRef, type RefObject } from "react";
 
 // M3 motion: standard easing for things moving on screen, emphasized
 // decelerate for things entering.
@@ -95,6 +95,107 @@ export function useFlipLayout(containerRef: RefObject<HTMLElement | null>, layou
 
     positions.current = next;
   });
+}
+
+type Snapshot = Map<string, Point & { el: HTMLElement }>;
+
+/**
+ * FLIP for one change you know is coming, such as ticking a checklist item,
+ * which sends it down to the ticked section. Call the returned `capture()`
+ * just before the state change; on the next commit, every `[data-flip-id]`
+ * element under the container slides from where it was to where it now is,
+ * and new ones fade in.
+ *
+ * Unlike useFlipLayout, the elements can be anywhere under the container (a
+ * checklist's two sections are separate lists), and nothing is measured until
+ * capture() is called, so typing doesn't pay for it.
+ *
+ * An element that was re-created rather than moved (an item changing section
+ * is a new element with the same id) travels above its neighbours on the
+ * nearest solid background, so it passes over the rows it crosses rather than
+ * through them. Its parent must be a flex or grid container for the z-index
+ * to apply.
+ */
+export function useFlipNextChange(containerRef: RefObject<HTMLElement | null>) {
+  const snapshot = useRef<Snapshot | null>(null);
+  const running = useRef(new Set<Animation>());
+
+  useLayoutEffect(() => {
+    const before = snapshot.current;
+    const container = containerRef.current;
+    snapshot.current = null;
+    if (!before || !container) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+
+    // The snapshot was taken as drawn, mid-animation included, so stopping
+    // the old animations here only means measuring the new layout cleanly.
+    for (const animation of running.current) animation.cancel();
+    running.current.clear();
+
+    const origin = container.getBoundingClientRect();
+    let background: string | undefined;
+    for (const el of descendants(container)) {
+      const prev = before.get(el.dataset.flipId!);
+      let animation: Animation;
+      if (!prev) {
+        animation = el.animate([{ opacity: 0 }, { opacity: 1 }], { ...ENTER, fill: "backwards" });
+      } else {
+        const rect = el.getBoundingClientRect();
+        const dx = prev.x - (rect.left - origin.left);
+        const dy = prev.y - (rect.top - origin.top);
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
+        const from: Keyframe = { transform: `translate(${dx}px, ${dy}px)` };
+        const to: Keyframe = { transform: "none" };
+        if (prev.el !== el) {
+          if (background === undefined) background = solidBackground(container);
+          for (const frame of [from, to]) {
+            frame.zIndex = 1;
+            frame.backgroundColor = background;
+          }
+        }
+        // A little longer for a long trip, so it reads as moving, not jumping.
+        const duration = Math.min(500, MOVE.duration + Math.abs(dy) / 10);
+        animation = el.animate([from, to], { ...MOVE, duration });
+      }
+      running.current.add(animation);
+      animation.onfinish = () => running.current.delete(animation);
+    }
+  });
+
+  return useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const origin = container.getBoundingClientRect();
+    const map: Snapshot = new Map();
+    for (const el of descendants(container)) {
+      const rect = el.getBoundingClientRect();
+      map.set(el.dataset.flipId!, { x: rect.left - origin.left, y: rect.top - origin.top, el });
+    }
+    snapshot.current = map;
+  }, [containerRef]);
+}
+
+function descendants(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>("[data-flip-id]"));
+}
+
+// The colour actually painted behind the container: the first ancestor with a
+// background that isn't fully transparent.
+function solidBackground(container: HTMLElement): string {
+  for (let el: HTMLElement | null = container; el; el = el.parentElement) {
+    const color = getComputedStyle(el).backgroundColor;
+    if (color && !isTransparent(color)) return color;
+  }
+  return "transparent";
+}
+
+// Zero alpha comes back as "rgba(0, 0, 0, 0)" or, in newer colour syntax, "... / 0)".
+function isTransparent(color: string): boolean {
+  return (
+    color === "transparent" ||
+    /^rgba\([^,]*,[^,]*,[^,]*,\s*0(\.0+)?\s*\)$/.test(color) ||
+    /\/\s*0(\.0+)?\s*\)$/.test(color)
+  );
 }
 
 function items(container: HTMLElement): HTMLElement[] {

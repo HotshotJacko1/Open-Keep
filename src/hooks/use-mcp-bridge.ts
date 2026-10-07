@@ -26,6 +26,7 @@ import { Note } from "@/types/note";
 import { looksLikeHtml, plainTextToHtml } from "@/utils/note-markdown-format";
 import { showSuccess } from "@/utils/toast";
 import { safeRandomUUID } from "@/lib/utils";
+import { readCustomTags } from "@/lib/custom-tags";
 import { syncReminderWithBin } from "@/utils/reminder";
 import { McpBridgeClient, ConnectionState, RejectReason } from "@/lib/mcp-bridge/bridge-client";
 import { BridgeErrorCode, BridgeOp, BridgeRequest, BridgeResponse, NoteFull, NoteSummary, TagInfo } from "@/lib/mcp-bridge/protocol";
@@ -75,6 +76,8 @@ export interface McpBridgeHandlers {
   handleSaveNote: (note: Note) => Promise<boolean>;
   handleRenameTag: (oldTag: string, newTag: string) => Promise<void>;
   handleDeleteTag: (tag: string) => Promise<void>;
+  /** Adds or removes a label from the label list, recording the change for sync. Used by Undo. */
+  handleSetLabel: (tag: string, present: boolean) => void;
 }
 
 export interface McpBridgeState {
@@ -144,7 +147,7 @@ function agentEditRefusal(note: Note | undefined) {
     : { code: "NOT_FOUND", message: "No note with that id." };
 }
 
-export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDeleteTag }: McpBridgeHandlers): McpBridgeState {
+export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDeleteTag, handleSetLabel }: McpBridgeHandlers): McpBridgeState {
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
   const [connectedCount, setConnectedCount] = useState(0);
   const [rejectReason, setRejectReason] = useState<RejectReason | null>(null);
@@ -172,11 +175,13 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
   const handleSaveNoteRef = useRef(handleSaveNote);
   const handleRenameTagRef = useRef(handleRenameTag);
   const handleDeleteTagRef = useRef(handleDeleteTag);
+  const handleSetLabelRef = useRef(handleSetLabel);
   useEffect(() => {
     handleSaveNoteRef.current = handleSaveNote;
     handleRenameTagRef.current = handleRenameTag;
     handleDeleteTagRef.current = handleDeleteTag;
-  }, [handleSaveNote, handleRenameTag, handleDeleteTag]);
+    handleSetLabelRef.current = handleSetLabel;
+  }, [handleSaveNote, handleRenameTag, handleDeleteTag, handleSetLabel]);
 
   const recordActivity = useCallback((label: string, undo: () => Promise<void>) => {
     const entry: AiActivityEntry = { id: safeRandomUUID(), timestamp: Date.now(), label, undo };
@@ -212,6 +217,20 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
       if (typeof id !== "string") return undefined;
       return currentNotes.find((n) => n.id === id);
     };
+
+    // An updatedAt newer than the note's current one. Every Undo saves with it:
+    // restoring a snapshot with its old updatedAt loses to the AI's version on the
+    // next sync (higher updatedAt wins), which silently undoes the Undo (C3-28).
+    const undoUpdatedAt = (id: string): number =>
+      Math.max(Date.now(), (notesRef.current.find((n) => n.id === id)?.updatedAt ?? 0) + 1);
+
+    // Undo for the bulk label ops: puts back each note's tags only, on its copy at
+    // the time of the Undo, so edits made to those notes since are kept.
+    const restoreTags = (snapshots: Note[]) =>
+      Promise.all(snapshots.map((snapshot) => {
+        const current = notesRef.current.find((n) => n.id === snapshot.id) ?? snapshot;
+        return saveNote({ ...current, tags: snapshot.tags, updatedAt: undoUpdatedAt(snapshot.id) });
+      }));
 
     switch (op) {
       case "list_all_notes":
@@ -278,7 +297,7 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
         recordActivity(`Claude created "${title}"`, async () => {
           // Undoing a create moves it to the bin, same as any other
           // delete -- recoverable, never a silent hard-remove.
-          await saveNote({ ...newNote, isDeleted: true, deletedAt: Date.now() });
+          await saveNote({ ...newNote, isDeleted: true, deletedAt: Date.now(), updatedAt: undoUpdatedAt(newNote.id) });
         });
         return { note: toFull(newNote), trimmed };
       }
@@ -298,7 +317,7 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
           updatedAt: Date.now(),
         };
         const trimmed = await saveNote(updated);
-        recordActivity(`Claude edited "${updated.title}"`, async () => { await saveNote(before); });
+        recordActivity(`Claude edited "${updated.title}"`, async () => { await saveNote({ ...before, updatedAt: undoUpdatedAt(before.id) }); });
         return { note: toFull(updated), trimmed };
       }
 
@@ -313,7 +332,7 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
         const newContent = op === "append_to_note" ? note.content + fragment : fragment + note.content;
         const updated: Note = { ...note, content: newContent, tags: withTag(note.tags, AI_EDITED_TAG), updatedAt: Date.now() };
         const trimmed = await saveNote(updated);
-        recordActivity(`Claude ${op === "append_to_note" ? "added to" : "added to the start of"} "${updated.title}"`, async () => { await saveNote(before); });
+        recordActivity(`Claude ${op === "append_to_note" ? "added to" : "added to the start of"} "${updated.title}"`, async () => { await saveNote({ ...before, updatedAt: undoUpdatedAt(before.id) }); });
         return { note: toFull(updated), trimmed };
       }
 
@@ -335,8 +354,9 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
         await saveNote(updated);
         await syncReminderWithBin(updated);
         recordActivity(`Claude deleted "${note.title}"`, async () => {
-          await saveNote(before);
-          await syncReminderWithBin(before);
+          const restored = { ...before, updatedAt: undoUpdatedAt(before.id) };
+          await saveNote(restored);
+          await syncReminderWithBin(restored);
         });
         return { id: note.id, deleted: true };
       }
@@ -353,7 +373,7 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
           : note.tags.filter((t) => !tagsParam.includes(t));
         const updated: Note = { ...note, tags: newTags, updatedAt: Date.now() };
         await saveNote(updated);
-        recordActivity(`Claude ${op === "add_tags_to_note" ? "tagged" : "untagged"} "${updated.title}"`, async () => { await saveNote(before); });
+        recordActivity(`Claude ${op === "add_tags_to_note" ? "tagged" : "untagged"} "${updated.title}"`, async () => { await saveNote({ ...before, updatedAt: undoUpdatedAt(before.id) }); });
         return toFull(updated);
       }
 
@@ -362,9 +382,15 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
         const to = String(params.to ?? "");
         if (!from || !to) throw { code: "INVALID_PARAMS", message: "from and to are required." };
         const affected = currentNotes.filter((n) => n.tags.includes(from)).map((n) => ({ ...n }));
+        // Whether `to` was already a label, i.e. this rename merged into it.
+        const toExisted = readCustomTags().includes(to) || currentNotes.some((n) => n.tags.includes(to));
         await handleRenameTagRef.current(from, to);
         recordActivity(`Claude renamed tag "${from}" to "${to}" on ${affected.length} note${affected.length === 1 ? "" : "s"}`, async () => {
-          await Promise.all(affected.map((n) => saveNote(n)));
+          await restoreTags(affected);
+          // The rename recorded `from` as deleted and `to` as created; reverse both,
+          // or sync keeps the rename on every other device.
+          handleSetLabelRef.current(from, true);
+          if (!toExisted) handleSetLabelRef.current(to, false);
         });
         return { from, to, affectedCount: affected.length };
       }
@@ -375,7 +401,8 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
         const affected = currentNotes.filter((n) => n.tags.includes(tag)).map((n) => ({ ...n }));
         await handleDeleteTagRef.current(tag);
         recordActivity(`Claude removed tag "${tag}" from ${affected.length} note${affected.length === 1 ? "" : "s"}`, async () => {
-          await Promise.all(affected.map((n) => saveNote(n)));
+          await restoreTags(affected);
+          handleSetLabelRef.current(tag, true);
         });
         return { tag, affectedCount: affected.length };
       }

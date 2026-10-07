@@ -1,7 +1,7 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import { Importer, ImportInput, ImportInputFile, ImportNote } from "../../types/import";
 import { isChecklist } from "../markdown";
-import { looksLikeHtml, plainTextToHtml } from "../note-markdown-format";
+import { plainTextToHtml } from "../note-markdown-format";
 
 interface KeepNoteLabel {
   name: string;
@@ -80,8 +80,10 @@ export class GoogleKeepImporter implements Importer {
 
         // Keep gives us plain text. Text notes are rendered as HTML, so
         // without this every newline collapses into one run-on paragraph.
+        // Always escaped, even when it looks like HTML: Keep has no rich text,
+        // so "<b>" in a Keep note is something the user typed (C3-31).
         const type = isChecklist(body) ? 'list' : 'text';
-        const content = type === 'text' && body.trim().length > 0 && !looksLikeHtml(body)
+        const content = type === 'text' && body.trim().length > 0
           ? plainTextToHtml(body)
           : body;
 

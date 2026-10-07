@@ -3,11 +3,12 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { initDropbox, getAuthenticationUrl, handleAuthRedirect, syncNotesWithDropbox, checkDropboxMasterKey, consumeOAuthState, clearDropboxTokens } from "@/lib/dropbox";
 import type { SyncResult } from "@/lib/note-storage";
-import { runCloudSync, runOAuthSuccessSync, ForceResolution } from "@/lib/cloud-sync-runner";
+import { runCloudSync, runOAuthSuccessSync, ForceResolution, clearKeepLocalPending } from "@/lib/cloud-sync-runner";
 import { setupDropboxOAuthRedirect } from "@/lib/dropbox-oauth";
 import { useCloudSyncState, useLastSynced } from "@/lib/cloud-sync-state";
 import { showSuccess, showError } from "@/utils/toast";
 import { Browser } from "@capacitor/browser";
+import { expectExternalActivity } from "@/lib/app-relock";
 import { Capacitor } from "@capacitor/core";
 
 export const useDropbox = () => {
@@ -78,6 +79,7 @@ export const useDropbox = () => {
         try {
             const url = await getAuthenticationUrl();
             if (Capacitor.isNativePlatform()) {
+                expectExternalActivity();
                 await Browser.open({ url: encodeURI(url.toString()) });
             } else {
                 window.location.href = encodeURI(url.toString());
@@ -129,6 +131,7 @@ export const useDropbox = () => {
         setAccessToken(null);
         clearDropboxTokens();
         localStorage.removeItem("dropbox-last-synced");
+        clearKeepLocalPending("dropbox");
         setLastSynced(null);
         window.dispatchEvent(new Event("dropbox-token-updated"));
         // Note: We don't revoke token on server here, just forget it locally.

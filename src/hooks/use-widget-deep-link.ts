@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
+import { LocalNotifications } from "@capacitor/local-notifications";
 
 const pendingWidgetUrlKey = "openkeep.pendingWidgetUrl";
 
@@ -41,7 +42,7 @@ export function parseWidgetDeepLink(url: string): WidgetAction {
       return { type: "new-list" };
     }
     if (actionType === "open-note" && rest[0]) {
-      return { type: "open-note", noteId: rest[0] };
+      return { type: "open-note", noteId: decodeURIComponent(rest[0]) };
     }
     // Deliberately no URL action that changes a note. Any installed app can open an
     // openkeep:// URL, so checkbox toggles stay inside the widgets (Glance
@@ -97,6 +98,25 @@ export function ensureWidgetDeepLinkCapture() {
   void App.addListener("appUrlOpen", (event) => {
     persistAndNotify(event.url);
   });
+
+  // Reminder taps. Both platforms' plugins retain this event until a listener
+  // is attached, so a tap that cold-starts the app is still delivered here.
+  void LocalNotifications.addListener("localNotificationActionPerformed", (event) => {
+    if (event.actionId !== "tap") return;
+    const noteId = event.notification?.extra?.noteId;
+    if (typeof noteId === "string" && noteId) {
+      openNoteFromNotification(noteId);
+    }
+  });
+}
+
+/**
+ * Open a note from a reminder notification tap. Goes through the same pending
+ * open-note action as a widget tap, so it survives the lock screen and waits
+ * for notes to load.
+ */
+export function openNoteFromNotification(noteId: string) {
+  persistAndNotify(`openkeep://open-note/${encodeURIComponent(noteId)}`);
 }
 
 export function clearPendingWidgetDeepLink() {

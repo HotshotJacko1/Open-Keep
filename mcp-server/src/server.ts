@@ -1,7 +1,12 @@
+import { createRequire } from "node:module";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { BridgeServer } from "./bridge-server.js";
 import type { BridgeOp } from "./protocol.js";
+
+// From package.json (one level above dist/, and bundled into the .mcpb), so the
+// version reported to MCP clients can't drift from the published one again.
+const PACKAGE_VERSION: string = createRequire(import.meta.url)("../package.json").version;
 
 function ok(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
@@ -22,7 +27,7 @@ function fail(err: unknown) {
  * chooses to send back.
  */
 export function createServer(bridge: BridgeServer): McpServer {
-  const server = new McpServer({ name: "open-keep", version: "0.1.0" });
+  const server = new McpServer({ name: "open-keep", version: PACKAGE_VERSION });
 
   // MCP tool annotations. Clients use these to group tools and set default
   // permissions (Claude Desktop shows "Read-only tools" vs "Write/delete

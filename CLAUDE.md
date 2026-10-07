@@ -20,7 +20,7 @@ pnpm lint            # eslint .
 pnpm preview          # preview a production build
 ```
 
-The main app's only unit tests cover the sync merge rules (`src/lib/sync-merge.test.ts`); run them with `pnpm test` (Vitest). The **mcp-server** sub-package has its own tests:
+The main app's only unit tests cover sync: the merge rules (`src/lib/sync-merge.test.ts`) and the shared sync pipeline's conflict-resolution and write-back paths (`src/lib/cloud-sync-runner.test.ts`, with the database and providers mocked). Run them with `pnpm test` (Vitest). The **mcp-server** sub-package has its own tests:
 
 ```bash
 cd mcp-server

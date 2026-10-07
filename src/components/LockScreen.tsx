@@ -17,6 +17,7 @@ import { clearAllData } from "@/lib/note-storage";
 import { clearAllPinState, verifyAppLockPin, BIOMETRICS_ENABLED_KEY } from "@/lib/pin";
 import { deleteAllRemoteData } from "@/lib/cloud-reset";
 import { clearTagChanges } from "@/lib/tombstones";
+import { clearKeepLocalPending } from "@/lib/cloud-sync-runner";
 import ResetDialog from "./ResetDialog";
 
 interface LockScreenProps {
@@ -220,6 +221,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isEncryptionEnabled, 
             localStorage.removeItem("dropbox-last-synced");
             localStorage.removeItem("onedrive-user-email");
             localStorage.removeItem("onedrive-last-synced");
+            clearKeepLocalPending();
 
             if (onReset) onReset();
 

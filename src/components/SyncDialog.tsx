@@ -372,7 +372,8 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                   <Button 
                     variant="outline" 
                     onClick={() => resolveConflict("local")}
-                    disabled={isAnySyncing || localNotesCount === 0}
+                    // Off until the count has loaded (null), not only when it's 0 (C1-27).
+                    disabled={isAnySyncing || !localNotesCount}
                   >
                      {isAnySyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Keep Local Data (Overwrites Cloud)

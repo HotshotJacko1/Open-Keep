@@ -44,6 +44,8 @@ import {
 } from "@/lib/editor-extensions";
 import NoteColorPicker from "@/components/NoteColorPicker";
 import ReminderSheet from "@/components/ReminderSheet";
+import { getTextDirection } from "@/utils/text-direction";
+import { useFlipNextChange } from "@/hooks/use-flip-layout";
 import NoteLabels from "@/components/NoteLabels";
 import {
   DEFAULT_NOTE_COLOR,
@@ -56,6 +58,7 @@ import {
   formatReminderLabel,
 } from "@/utils/reminder";
 import { saveImage, getImageSrc, deleteImage } from "@/lib/image-storage";
+import { expectExternalActivity } from "@/lib/app-relock";
 import { TITLE_MAX, BODY_MAX, LIST_ITEM_MAX } from "@/lib/note-limits";
 
 interface InlineChecklistItem {
@@ -128,6 +131,9 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const itemInputRefs = useRef<Record<string, HTMLInputElement>>({});
+  // Ticking an item slides it down to the completed section.
+  const listRef = useRef<HTMLDivElement>(null);
+  const captureListLayout = useFlipNextChange(listRef);
 
   // Body editor. Mirrors NoteEditor's configuration so notes created here and
   // notes edited there are the same HTML format — see @/lib/editor-extensions.
@@ -143,7 +149,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
     editorProps: {
       attributes: {
         class:
-          "prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[40px] text-foreground",
+          "auto-dir prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[40px] text-foreground",
       },
     },
     onUpdate: ({ editor }) => {
@@ -367,6 +373,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
   };
 
   const handleToggleItemChecked = (id: string) => {
+    captureListLayout();
     setItems((prev) =>
       prev.map((item) =>
         item.id === id ? { ...item, checked: !item.checked } : item
@@ -560,6 +567,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
           maxLength={TITLE_MAX}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Title"
+          dir="auto"
           className="bg-transparent border-none outline-none focus:outline-none focus-visible:ring-0 text-text-primary dark:text-text-primary placeholder:text-muted-foreground text-base sm:text-lg font-semibold flex-1 min-w-0"
         />
 
@@ -631,11 +639,13 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
         {!isListMode ? (
           <EditorContent editor={editor} className="w-full" />
         ) : (
-          <div className="space-y-1">
+          <div ref={listRef} className="flex flex-col gap-1">
             {/* Uncompleted Items */}
             {uncompletedItems.map((item, index) => (
               <div
                 key={item.id}
+                data-flip-id={item.id}
+                dir={getTextDirection(item.content)}
                 className="group flex items-center gap-2 py-1"
               >
                 <GripVertical className="h-4 w-4 text-muted-foreground/60 shrink-0 cursor-grab" />
@@ -672,6 +682,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
 
             {/* + List item Prompt */}
             <div
+              data-flip-id="add-item"
               onClick={handleAddNewItem}
               className="flex items-center gap-2 py-1 text-muted-foreground hover:text-text-primary cursor-pointer select-none"
             >
@@ -681,11 +692,12 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
 
             {/* Completed Items Section */}
             {completedItems.length > 0 && (
-              <div className="pt-2 border-t border-border/50 mt-2">
+              <div className="pt-2 border-t border-border/50 flex flex-col">
                 <button
                   type="button"
+                  data-flip-id="completed-header"
                   onClick={() => setShowCompleted(!showCompleted)}
-                  className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground hover:text-text-primary font-medium mb-1"
+                  className="self-start flex items-center gap-2 text-xs sm:text-sm text-muted-foreground hover:text-text-primary font-medium mb-1"
                 >
                   {showCompleted ? (
                     <ChevronDown className="h-4 w-4" />
@@ -704,7 +716,9 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
                   completedItems.map((item) => (
                     <div
                       key={item.id}
-                      className="group flex items-center gap-2 py-1 pl-6"
+                      data-flip-id={item.id}
+                      dir={getTextDirection(item.content)}
+                      className="group flex items-center gap-2 py-1 ps-6"
                     >
                       <Checkbox
                         checked={item.checked}
@@ -758,7 +772,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
               key={tag}
               className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground border border-border/50"
             >
-              <span>{tag}</span>
+              <span dir="auto">{tag}</span>
               <button
                 type="button"
                 onClick={() =>
@@ -784,7 +798,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
                 type="button"
                 variant="ghost"
                 size="icon"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => { expectExternalActivity(); fileInputRef.current?.click(); }}
                 className="text-secondary"
               >
                 <ImageIcon className="h-5 w-5" />

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -6,6 +6,20 @@ import { join } from "node:path";
 const CONFIG_DIR = join(homedir(), ".config", "openkeep-mcp");
 const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 const DEFAULT_PORT = 8420;
+
+/**
+ * The config file holds the token that gates full read/write access to the
+ * notes, so only its owner may read it. `mode` on write only applies when the
+ * file is created, hence the chmod, which also tightens files saved before
+ * this was added. No-op on Windows, where the file sits in the user profile.
+ */
+function restrictConfigFile(): void {
+  try {
+    chmodSync(CONFIG_PATH, 0o600);
+  } catch {
+    // best effort
+  }
+}
 
 export interface Config {
   token: string;
@@ -46,6 +60,7 @@ export function loadConfig(): Config {
     try {
       const stored = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
       if (typeof stored.token === "string" && stored.token.length > 0) {
+        restrictConfigFile();
         return { token: stored.token, port };
       }
     } catch {
@@ -54,8 +69,9 @@ export function loadConfig(): Config {
   }
 
   const token = randomBytes(24).toString("base64url");
-  mkdirSync(CONFIG_DIR, { recursive: true });
-  writeFileSync(CONFIG_PATH, JSON.stringify({ token }, null, 2) + "\n");
+  mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
+  writeFileSync(CONFIG_PATH, JSON.stringify({ token }, null, 2) + "\n", { mode: 0o600 });
+  restrictConfigFile();
 
   process.stderr.write(
     [

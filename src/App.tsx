@@ -3,20 +3,22 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Analytics } from "@vercel/analytics/react";
+import { Analytics, type BeforeSend } from "@vercel/analytics/react";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
 import LockScreen from "./components/LockScreen";
 import { Button } from "@/components/ui/button";
 import React, { useState, useEffect, useRef } from "react";
-import { checkDatabaseStatus, initializeDatabase, lockDatabase, clearAllData } from "./lib/note-storage";
+import { checkDatabaseStatus, initializeDatabase, clearAllData, setSecureWindow, verifyEncryptionPin } from "./lib/note-storage";
 import { Capacitor } from "@capacitor/core";
+import { App as CapacitorApp } from "@capacitor/app";
 import { supabase } from "./integrations/supabase/client";
 import FeedbackDialog from "./components/FeedbackDialog";
 import { useSession } from "./context/session-provider";
 import { ensureWidgetDeepLinkCapture } from "./hooks/use-widget-deep-link";
 import {
+  APP_LOCK_CHANGED_EVENT,
   getSessionPin,
   isAppLockEnabled,
   isEncryptionEnabled,
@@ -27,11 +29,26 @@ import {
 } from "./lib/pin";
 import { upgradeLegacyNativeKey } from "./lib/encryption-pin";
 import { syncImageEncryption } from "./lib/image-storage";
+import { shouldRelock } from "./lib/app-relock";
 
 const queryClient = new QueryClient();
 
+// Analytics sends the full page address, and the query string can hold a label
+// name (`/?tag=<label>`) or an OAuth `code`. Send the path only (C3-29).
+const stripQueryForAnalytics: BeforeSend = (event) => {
+  const url = new URL(event.url);
+  url.search = "";
+  url.hash = "";
+  return { ...event, url: url.toString() };
+};
+
 const App = () => {
   const [appState, setAppState] = useState<'loading' | 'setup' | 'locked' | 'ready'>('loading');
+  // Locked again after a trip to the background (C3-27), as opposed to at launch.
+  // The database is still open then, so unlocking only has to check the PIN.
+  const [relocked, setRelocked] = useState(false);
+  const appStateRef = useRef(appState);
+  useEffect(() => { appStateRef.current = appState; }, [appState]);
   const [shouldShowFeedback, setShouldShowFeedback] = useState(false);
   const { session } = useSession();
 
@@ -43,12 +60,49 @@ const App = () => {
     ensureWidgetDeepLinkCapture();
   }, []);
 
+  // App Lock also applies when coming back to a running app (C3-27): Android keeps
+  // the process alive for days, so locking only at launch let anyone with the
+  // phone open the notes from recent apps. Same lock screen as a launch, and Index
+  // unmounts behind it, so widget taps and sync conflicts wait until it's unlocked.
+  // NoteEditor saves any pending edit as the app goes to the background.
+  useEffect(() => {
+    if (!isNative) return;
+    let backgroundedAt: number | null = null;
+    const listenerPromise = CapacitorApp.addListener("appStateChange", ({ isActive }) => {
+      if (!isActive) {
+        backgroundedAt = Date.now();
+        return;
+      }
+      const since = backgroundedAt;
+      backgroundedAt = null;
+      if (since === null || appStateRef.current !== 'ready' || !isAppLockEnabled()) return;
+      if (shouldRelock(since, Date.now())) {
+        setRelocked(true);
+        setAppState('locked');
+      }
+    });
+    return () => {
+      listenerPromise.then((listener) => listener.remove());
+    };
+  }, [isNative]);
+
+  // Keep Android's FLAG_SECURE (blank recent-apps card) in step with App Lock.
+  useEffect(() => {
+    const apply = () => { void setSecureWindow(isAppLockEnabled()); };
+    apply();
+    window.addEventListener(APP_LOCK_CHANGED_EVENT, apply);
+    return () => window.removeEventListener(APP_LOCK_CHANGED_EVENT, apply);
+  }, []);
+
   // Native key verification now happens on the first real read, not in checkStatus --
   // checkStatus reports whether an auto-unlock key is PRESENT, not whether it has been
   // proven. If that first read fails (wrong key, corrupt DB), Index.tsx fires this and
   // we fall back to the lock screen, which is where a failed verification always led.
   useEffect(() => {
-    const handleUnverified = () => setAppState('locked');
+    const handleUnverified = () => {
+      setRelocked(false);
+      setAppState('locked');
+    };
     window.addEventListener("open-keep-db-unverified", handleUnverified);
     return () => window.removeEventListener("open-keep-db-unverified", handleUnverified);
   }, []);
@@ -200,7 +254,23 @@ const App = () => {
     }
   };
 
+  // Unlock after a resume re-lock. Nothing is re-initialised: the database never
+  // closed. LockScreen has already checked an App Lock PIN or biometrics before
+  // calling this; an encryption PIN is checked here by unwrapping the key with it.
+  // Deliberately not handleUnlock: native initialize() resets the open database,
+  // and closes it on a wrong PIN, which would pull it out from under the widgets.
+  const handleRelockUnlock = async (pin?: string): Promise<boolean> => {
+    if (isEncryptionEnabled()) {
+      if (!pin || !(await verifyEncryptionPin(pin))) return false;
+      setSessionPin(pin);
+    }
+    setRelocked(false);
+    setAppState('ready');
+    return true;
+  };
+
   const handleReset = () => {
+    setRelocked(false);
     setAppState('setup');
   };
 
@@ -290,6 +360,7 @@ const App = () => {
       {(appState === 'locked') && (
         <LockScreen
           onUnlock={async (pin) => {
+            if (relocked) return handleRelockUnlock(pin);
             if (isEncryptionEnabled()) {
               return handleUnlock(pin);
             } else {
@@ -329,7 +400,7 @@ const App = () => {
         onSubmit={handleFeedbackSubmit}
       />
       {/* Vercel analytics is web-only; on native its script 404s on every launch. */}
-      {!isNative && <Analytics />}
+      {!isNative && <Analytics beforeSend={stripQueryForAnalytics} />}
     </QueryClientProvider>
   );
 };
