@@ -84,7 +84,9 @@ const Index = () => {
   const [searchParams] = useSearchParams();
   const [selectedTag, setSelectedTag] = useState<string | null>(searchParams.get("tag"));
   const isMobile = useIsMobile();
-  const [sortMode, setSortMode] = useState<"recent" | "alphabetical">("recent");
+  const [sortMode, setSortMode] = useState<"recent" | "alphabetical">(
+    () => (localStorage.getItem("sort-mode") === "alphabetical" ? "alphabetical" : "recent")
+  );
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -102,6 +104,10 @@ const Index = () => {
   useEffect(() => {
     localStorage.setItem("custom-tags", JSON.stringify(customTags));
   }, [customTags]);
+
+  useEffect(() => {
+    localStorage.setItem("sort-mode", sortMode);
+  }, [sortMode]);
 
   // Derive selection mode from selected count
     const isSelectionMode = selectedNoteIds.size > 0;

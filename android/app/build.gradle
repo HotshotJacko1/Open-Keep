@@ -106,9 +106,10 @@ dependencies {
     ksp "androidx.room:room-compiler:$roomVersion"
 
     // SQLCipher
-    // Pinned to 4.17.0: 4.18.0 sets minCompileSdk=37, which needs AGP 9.1+ and
-    // compileSdk 37. Revisit together with the compose-bom bump below.
-    implementation "net.zetetic:sqlcipher-android:4.17.0"
+    // 4.18.0 and 4.19.0 set minCompileSdk=37 (needs AGP 9.1+ and compileSdk 37);
+    // 4.19.1 went back to compileSdk 36. Check the AAR's minCompileSdk before
+    // bumping, and stay on 4.x: 5.0 changes the on-disk format.
+    implementation "net.zetetic:sqlcipher-android:4.19.1"
     implementation "androidx.sqlite:sqlite:2.7.1"
     implementation "androidx.security:security-crypto:1.1.0"
 

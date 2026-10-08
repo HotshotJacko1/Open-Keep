@@ -7,7 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 - N/A
 
-## [5.3.0] - 2026-10-13
+## [5.3.1] - 2026-10-13
+
+### Fixed
+- Your chosen sort order is now remembered between launches.
+
+## [5.3.0] - 2026-10-10
 
 ### Added
 - Right-to-left support: Persian, Arabic and Hebrew notes display correctly.
