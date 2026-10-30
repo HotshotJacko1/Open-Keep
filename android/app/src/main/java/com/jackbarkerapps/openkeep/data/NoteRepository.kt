@@ -277,7 +277,7 @@ class NoteRepository(context: Context) {
     }
 
     suspend fun deleteNote(id: String) {
-        getDatabase().noteDao().markDeleted(id, System.currentTimeMillis())
+        getDatabase().noteDao().deleteById(id)
     }
 
     suspend fun bulkInsert(notes: List<NoteEntity>) {

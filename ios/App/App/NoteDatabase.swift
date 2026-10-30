@@ -298,15 +298,16 @@ class NoteDatabase {
     func deleteNote(noteId: String) throws {
         guard let db = self.db else { throw NSError(domain: "NoteDatabase", code: 1, userInfo: [NSLocalizedDescriptionKey: "Database not initialized"]) }
         
-        let query = "UPDATE notes SET deleted = 1, updatedAt = ?, syncState = 'PENDING' WHERE id = ?;"
+        // Permanent delete. Moving a note to the Bin is a saveNote with isDeleted = true,
+        // not this. The tombstone that stops other devices syncing it back is recorded
+        // in JS before this runs (C3-01).
+        let query = "DELETE FROM notes WHERE id = ?;"
         var stmt: OpaquePointer?
         if sqlite3_prepare_v2(db, query, -1, &stmt, nil) != SQLITE_OK {
             throw NSError(domain: "NoteDatabase", code: 7, userInfo: [NSLocalizedDescriptionKey: "Failed to prepare delete query"])
         }
-        
-        let now = Int64(Date().timeIntervalSince1970 * 1000)
-        sqlite3_bind_int64(stmt, 1, now)
-        bindString(stmt!, index: 2, value: noteId)
+
+        bindString(stmt!, index: 1, value: noteId)
         
         if sqlite3_step(stmt) != SQLITE_DONE {
             sqlite3_finalize(stmt)

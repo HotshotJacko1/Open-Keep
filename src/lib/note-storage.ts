@@ -321,6 +321,7 @@ export const saveNote = async (note: Note, options?: { skipLimits?: boolean }): 
   return wasTrimmed;
 };
 
+/** Permanently removes the note on every platform. Moving to the Bin is a saveNote with isDeleted. */
 export const deleteNote = async (id: string): Promise<void> => {
   if (!isNative) {
     const all = webLoadNotes().filter((n) => n.id !== id);

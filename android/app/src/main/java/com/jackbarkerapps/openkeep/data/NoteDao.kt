@@ -14,8 +14,11 @@ interface NoteDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertNote(note: NoteEntity)
 
-    @Query("UPDATE notes SET deleted = 1, updatedAt = :timestamp, syncState = 'PENDING' WHERE id = :id")
-    suspend fun markDeleted(id: String, timestamp: Long)
+    // Permanent delete. Moving a note to the Bin is a saveNote with isDeleted = true,
+    // not this. The tombstone that stops other devices syncing it back is recorded
+    // in JS before this runs (C3-01).
+    @Query("DELETE FROM notes WHERE id = :id")
+    suspend fun deleteById(id: String)
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(notes: List<NoteEntity>)

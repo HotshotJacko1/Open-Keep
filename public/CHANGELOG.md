@@ -5,8 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), but this project does not adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) because there is no public API.
 
 ## [Unreleased]
+- N/A
+
+## [5.4.0] - 2026-11-03
+
+### Changed
+- Refreshed look: rounded search bar, dialogs and pop-up messages.
+- Pop-up messages now sit above the + button.
+- Clearer wording when turning encryption off.
+- Forgetting your App Lock PIN now resets this device's notes.
+- A PIN reset also signs you out of cloud sync.
+- Notes written by AI tools can't load internet content.
+- Turning biometrics off deletes its stored PIN.
+- Exported files are cleared from the app's cache.
+- Unexpected errors show a Reload screen instead of blank.
+- Widgets and setup screens match the app, including dark mode.
 
 ### Fixed
+- Desktop: new lists support sub-items and drag to reorder.
+- Android and iOS: Bin now deletes notes after 30 days.
 - Biometric unlock can be retried when encryption is on.
 - Desktop: a new note no longer sometimes saves twice.
 - Resetting a forgotten PIN no longer shows a database error.
@@ -22,15 +39,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Web: a stale page after an update reloads itself.
 - Status bar icons now match the app's light/dark theme.
 - iOS widgets show note text, not raw formatting.
-
-### Changed
-- Clearer wording when turning encryption off.
-- Forgetting your App Lock PIN now resets this device's notes.
-- Notes written by AI tools can't load internet content.
-- Turning biometrics off deletes its stored PIN.
-- Exported files are cleared from the app's cache.
-- Unexpected errors show a Reload screen instead of blank.
-- Widgets and setup screens match the app, including dark mode.
 
 ## [5.3.1] - 2026-10-13
 
