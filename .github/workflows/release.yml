@@ -51,6 +51,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Unit tests
+        run: pnpm test
+
       - name: Decode signing keystore
         run: echo "${{ secrets.PLAY_KEYSTORE_BASE64 }}" | base64 -d > android/app/release-signing.jks
 

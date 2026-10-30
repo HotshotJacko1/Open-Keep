@@ -6,7 +6,6 @@ import {
   initializeDatabaseWeb,
   encryptDataWeb,
   decryptDataWeb,
-  lockDatabaseWeb,
   clearWebCryptoKeys,
   changeEncryptionKeyWeb,
   exportCloudMasterKeyWeb,
@@ -450,18 +449,6 @@ export const decryptData = async (data: string): Promise<string> => {
   }
 };
 
-export const lockDatabase = async (): Promise<void> => {
-  if (!isNative) {
-    await lockDatabaseWeb();
-    return;
-  }
-  try {
-    await NoteStorage.lock();
-  } catch (error) {
-    console.error("Error locking database:", error);
-  }
-};
-
 /**
  * Android only: FLAG_SECURE on the app's window while App Lock is on (C3-27), so
  * the recent-apps screen shows a blank card instead of the open notes. It also
@@ -650,8 +637,4 @@ export const getLegacyWebNotes = (): StoredNote[] => {
     return [];
   }
   return parsed;
-};
-
-export const clearLegacyWebNotes = () => {
-  localStorage.removeItem(LOCAL_STORAGE_KEY);
 };

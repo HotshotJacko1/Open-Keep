@@ -13,7 +13,7 @@ import { getTextDirection } from "@/utils/text-direction";
 import useLongPress from "@/hooks/use-long-press";
 import { useState, useEffect } from "react";
 import { getImageSrc } from "@/lib/image-storage";
-import DOMPurify from "dompurify";
+import { sanitizeNoteHtml } from "@/lib/note-html-sanitizer";
 
 interface NoteCardProps {
   note: Note;
@@ -102,8 +102,8 @@ const NoteCard: React.FC<NoteCardProps> = ({
       style={getNoteTintVars(note.color) as React.CSSProperties | undefined}
       className={cn(
         isNoteTinted(note.color) && "note-tinted",
-        "note-card press-feedback rounded-card group block w-full max-w-full relative break-inside-avoid-column mb-4 hover:shadow-md transition-shadow duration-md3-short4 bg-card dark:bg-card text-secondary-foreground cursor-pointer border border-outline-variant shadow-none select-none",
-        isSelected && "border-secondary-foreground ring-1 ring-secondary-foreground shadow-md bg-card",
+        "note-card press-feedback rounded-card group block w-full max-w-full relative break-inside-avoid-column mb-4 hover:shadow-elevation-1 transition-shadow duration-md3-short4 bg-card dark:bg-card text-secondary-foreground cursor-pointer border border-outline-variant shadow-none select-none",
+        isSelected && "border-secondary-foreground ring-1 ring-secondary-foreground shadow-elevation-1 bg-card",
         note.isDeleted && "opacity-75",
         isExiting && "animate-note-exit"
       )}
@@ -112,7 +112,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
       {/* Selection Checkbox */}
       <div
         className={cn(
-          "absolute top-0 left-0 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200",
+          "absolute top-0 left-0 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-md3-short4",
           (isSelected || isSelectionMode) && "opacity-100"
         )}
         onClick={handleSelectionClick}
@@ -146,7 +146,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
             <CardTitle className="auto-dir text-base sm:text-lg font-semibold break-words flex-1 leading-snug min-w-0 max-w-full overflow-hidden [overflow-wrap:anywhere]">{note.title}</CardTitle>
             {!note.isDeleted && (
               <div className={cn(
-                "hidden md:flex flex-shrink-0 transition-opacity duration-200",
+                "hidden md:flex flex-shrink-0 transition-opacity duration-md3-short4",
                 note.isPinned ? "opacity-100" : "opacity-0 group-hover:opacity-100",
                 isSelectionMode && "opacity-0 pointer-events-none"
               )}>
@@ -228,7 +228,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
               {checkedItemCount > 0 && (
                 <>
                   <button
-                    className="press-feedback flex items-center gap-2 w-full py-1.5 mt-1 text-xs text-muted-foreground hover:text-secondary-foreground transition-colors duration-150"
+                    className="press-feedback flex items-center gap-2 w-full py-1.5 mt-1 text-xs text-muted-foreground hover:text-secondary-foreground transition-colors duration-md3-short3"
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowCompleted(prev => !prev);
@@ -253,7 +253,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
         })() : (
           <div
             className="auto-dir text-sm text-secondary-foreground max-h-[300px] overflow-hidden text-ellipsis prose prose-sm max-w-none min-w-0 w-full dark:prose-invert prose-p:my-0 prose-headings:my-1 [overflow-wrap:anywhere] [word-break:break-word] [&_*]:[overflow-wrap:anywhere] [&_*]:[word-break:break-word] pointer-events-none [&_a]:no-underline [&_a]:text-inherit [&_a]:cursor-default"
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(note.content) }}
+            dangerouslySetInnerHTML={{ __html: sanitizeNoteHtml(note.content) }}
           />
         )}
         {note.tags.length > 0 && (
@@ -284,7 +284,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
 
         {/* Action buttons row — visible on hover (desktop only) */}
         <div className={cn(
-          "hidden md:flex items-center justify-end gap-1 mt-2 -mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200",
+          "hidden md:flex items-center justify-end gap-1 mt-2 -mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-md3-short4",
           isSelectionMode && "opacity-0 pointer-events-none"
         )}>
           {note.isDeleted ? (

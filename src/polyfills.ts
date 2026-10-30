@@ -1,7 +1,7 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 //
 // Shims for built-ins that dependencies call but older Android WebViews lack
-// (Sentry OPENKEEP-P: Object.hasOwn in react-markdown; OPENKEEP-Q/N:
+// (Sentry OPENKEEP-P: Object.hasOwn in react-markdown; OPENKEEP-Q:
 // Array.prototype.findLast in TipTap/ProseMirror). esbuild's build.target only
 // transpiles syntax, so these have to be patched at runtime. crypto.randomUUID
 // is handled separately by safeRandomUUID in lib/utils.ts.

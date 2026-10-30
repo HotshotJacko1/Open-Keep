@@ -14,7 +14,13 @@ import { showSuccess, showError } from "@/utils/toast";
 import { ArrowLeft, Unlock } from "lucide-react";
 import { disableEncryption, verifyEncryptionPin } from "@/lib/encryption-pin";
 import { getLockRemainingMs, recordFailedAttempt, clearFailedAttempts, formatLockRemaining } from "@/lib/pin-attempts";
+import { BIOMETRICS_ENABLED_KEY, isAppLockEnabled } from "@/lib/pin";
 import { useBackToClose } from "@/hooks/use-back-to-close";
+import { Capacitor } from "@capacitor/core";
+
+// On web, notes in this browser's storage were never encrypted (C1-21), so only
+// images and the cloud copy change. Native keeps notes in SQLCipher either way.
+const isNative = Capacitor.isNativePlatform();
 
 interface DisableEncryptionDialogProps {
     isOpen: boolean;
@@ -81,7 +87,7 @@ const DisableEncryptionDialog: React.FC<DisableEncryptionDialogProps> = ({ isOpe
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent
                 aria-describedby={undefined}
-                className="sm:max-w-[425px] bg-background text-primary-foreground"
+                className="w-[calc(100%-2rem)] sm:max-w-[425px] rounded-dialog text-text-primary"
             >
                 <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
                     <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">
@@ -96,10 +102,20 @@ const DisableEncryptionDialog: React.FC<DisableEncryptionDialogProps> = ({ isOpe
                             <Unlock className="w-6 h-6 text-destructive" />
                         </div>
                         <DialogDescription className="text-sm">
-                            Your notes stay encrypted on this device, but with a key anyone with a copy of the app could derive. Anything you sync to the cloud will be uploaded unencrypted.
-                            <br />
-                            <br />
-                            App Lock and Biometrics will remain enabled using your current PIN.
+                            {isNative
+                                ? "Your notes stay encrypted on this device, but with a key anyone with a copy of the app could derive. Anything you sync to the cloud will be uploaded unencrypted."
+                                : "Images stored in this browser will no longer be encrypted, and anything you sync to the cloud will be uploaded unencrypted."}
+                            {/* disableEncryption keeps App Lock (and biometrics) only if App Lock
+                                was on; otherwise it turns both off, so say only what's true (C2-37). */}
+                            {isAppLockEnabled() && (
+                                <>
+                                    <br />
+                                    <br />
+                                    {localStorage.getItem(BIOMETRICS_ENABLED_KEY) === "true"
+                                        ? "App Lock and biometric unlock stay on, using your current PIN."
+                                        : "App Lock stays on, using your current PIN."}
+                                </>
+                            )}
                         </DialogDescription>
                     </div>
 

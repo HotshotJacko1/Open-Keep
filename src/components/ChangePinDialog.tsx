@@ -12,11 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { showSuccess, showError } from "@/utils/toast";
 import { ArrowLeft } from "lucide-react";
-import { clearAllData } from "@/lib/note-storage";
 import { changeEncryptionPin, verifyEncryptionPin } from "@/lib/encryption-pin";
-import { clearAllPinState, validateNewPin } from "@/lib/pin";
-import { deleteAllRemoteData } from "@/lib/cloud-reset";
-import { clearKeepLocalPending } from "@/lib/cloud-sync-runner";
+import { validateNewPin } from "@/lib/pin";
+import { resetAppState } from "@/lib/reset-app-state";
 import ResetDialog from "./ResetDialog";
 import { useBackToClose } from "@/hooks/use-back-to-close";
 
@@ -99,24 +97,7 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
         try {
             // This dialog only exists while encryption is on, so a forgotten PIN
             // means the notes can't be opened again: delete them (web included).
-            await clearAllData();
-            await deleteAllRemoteData();
-
-            clearAllPinState();
-            localStorage.removeItem("custom-tags");
-            
-            // Clear sync state
-            localStorage.removeItem("last-synced-time");
-            localStorage.removeItem("google-access-token");
-            localStorage.removeItem("google-token-expiry");
-            localStorage.removeItem("google-user-email");
-            localStorage.removeItem("dropbox-access-token");
-            localStorage.removeItem("dropbox-refresh-token");
-            localStorage.removeItem("dropbox-token-expires-at");
-            localStorage.removeItem("dropbox-last-synced");
-            localStorage.removeItem("onedrive-user-email");
-            localStorage.removeItem("onedrive-last-synced");
-            clearKeepLocalPending();
+            await resetAppState({ deleteCloudData: true });
 
             showSuccess("App reset successfully");
             
@@ -139,7 +120,7 @@ const ChangePinDialog: React.FC<ChangePinDialogProps> = ({ isOpen, onClose }) =>
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent
                 aria-describedby={undefined}
-                className="sm:max-w-[425px] bg-background text-primary-foreground"
+                className="w-[calc(100%-2rem)] sm:max-w-[425px] rounded-dialog text-text-primary"
             >
                 <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
                     <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">

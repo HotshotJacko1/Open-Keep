@@ -102,7 +102,7 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
         aria-modal="true"
         aria-label="Set reminder"
         className={cn(
-          "fixed bottom-0 left-0 right-0 z-[110] bg-popover text-popover-foreground rounded-t-sheet shadow-2xl",
+          "fixed bottom-0 left-0 right-0 z-[110] bg-popover text-popover-foreground rounded-t-sheet shadow-elevation-1",
           // Slides only (no fade), per M3 bottom sheets. Visibility is transitioned
           // too so the sheet flips hidden only after sliding out: that keeps its
           // shadow from peeking above the screen edge and its buttons out of the
@@ -116,7 +116,7 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
       >
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+          <div className="w-8 h-1 rounded-full bg-muted-foreground/30" />
         </div>
 
         <div className="px-4 pb-4">
@@ -195,7 +195,7 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
                       min="1"
                       value={customInterval}
                       onChange={(e) => setCustomInterval(parseInt(e.target.value) || 1)}
-                      className="w-12 bg-foreground/5 rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-12 bg-foreground/5 rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
                     />
                     <select
                       value={customUnit}

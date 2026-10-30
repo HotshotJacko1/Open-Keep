@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Home-screen widget colours, shared by the live widgets (Glance) and the
+    widget picker previews. values-night/widget_colors.xml holds the dark set;
+    Android picks one from the phone's dark mode setting.
+
+    Every value is one of the app's own theme tokens (src/globals.css :root),
+    named in the comment, so the widgets look like the app. If a token changes
+    there, change it here too.
+-->
+<resources>
+    <!-- background: the app's page colour -->
+    <color name="widget_background">#FCEADE</color>
+    <!-- foreground -->
+    <color name="widget_heading">#201B18</color>
+    <!-- secondary-foreground: text on note cards -->
+    <color name="widget_text_primary">#211E1C</color>
+    <!-- muted-foreground -->
+    <color name="widget_text_secondary">#70645C</color>
+    <!-- foreground: checklist items -->
+    <color name="widget_text_list">#201B18</color>
+    <!-- foreground at 70%: checked items, which are also struck through as in the app -->
+    <color name="widget_text_checked">#B3201B18</color>
+    <!-- muted-foreground -->
+    <color name="widget_text_count">#70645C</color>
+    <!-- muted-foreground -->
+    <color name="widget_label">#70645C</color>
+    <!-- secondary: the app's unselected-icon colour -->
+    <color name="widget_icon">#78726D</color>
+    <!-- outline-variant -->
+    <color name="widget_divider">#DED5CE</color>
+    <!-- card -->
+    <color name="widget_card">#FFF8F5</color>
+    <!-- outline-variant: note card outline -->
+    <color name="widget_card_stroke">#DED5CE</color>
+    <!-- muted-foreground: unchecked box -->
+    <color name="widget_checkbox">#70645C</color>
+    <!-- success: checked tick -->
+    <color name="widget_check">#157F3C</color>
+
+    <!-- Widget setup screens -->
+    <!-- brand: selected radio buttons and the loading spinner -->
+    <color name="widget_config_accent">#B36F0F</color>
+    <!-- brand-container: the Save button, like the app's + button -->
+    <color name="widget_config_button">#FAD89E</color>
+    <!-- brand-container-foreground -->
+    <color name="widget_config_button_text">#3D240B</color>
+    <!-- destructive -->
+    <color name="widget_config_error">#BB1B1B</color>
+</resources>

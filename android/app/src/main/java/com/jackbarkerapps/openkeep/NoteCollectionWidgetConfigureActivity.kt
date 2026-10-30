@@ -5,6 +5,8 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.res.ColorStateList
+import android.graphics.Typeface
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
@@ -25,6 +27,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 
 /**
  * Configuration Activity for the Note Collection widget.
@@ -84,10 +87,20 @@ class NoteCollectionWidgetConfigureActivity : AppCompatActivity() {
         loadLabels()
     }
 
+    private fun color(id: Int): Int = ContextCompat.getColor(this, id)
+
+    private fun dp(value: Int): Int = WidgetConfigStyle.dp(this, value)
+
+    private val mediumTypeface: Typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+
     private fun buildUI() {
+        // The page colour comes from Theme.OpenKeep.WidgetConfigure (see AndroidManifest.xml).
+        WidgetConfigStyle.applySystemBars(this)
+
+        // fitsSystemWindows replaces the ScrollView's own padding with the system bar
+        // insets, so the page margins go on the content inside it.
         val scrollView = ScrollView(this)
         scrollView.fitsSystemWindows = true
-        scrollView.setPadding(32, 24, 32, 24)
 
         contentLayout = LinearLayout(this)
         contentLayout.orientation = LinearLayout.VERTICAL
@@ -95,45 +108,53 @@ class NoteCollectionWidgetConfigureActivity : AppCompatActivity() {
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         )
+        contentLayout.setPadding(dp(20), dp(16), dp(20), dp(16))
 
         // Title
         val title = TextView(this)
         title.text = "Choose notes to display"
-        title.textSize = 18f
-        title.setTextColor(0xFF202124.toInt())
-        title.setPadding(0, 0, 0, 16)
+        title.textSize = 22f
+        title.typeface = mediumTypeface
+        title.setTextColor(color(R.color.widget_heading))
+        title.setPadding(0, 0, 0, dp(4))
         contentLayout.addView(title)
 
         // Subtitle
         val subtitle = TextView(this)
         subtitle.text = "Select a filter for this widget:"
         subtitle.textSize = 14f
-        subtitle.setTextColor(0xFF5F6368.toInt())
-        subtitle.setPadding(0, 0, 0, 20)
+        subtitle.setTextColor(color(R.color.widget_text_secondary))
+        subtitle.setPadding(0, 0, 0, dp(16))
         contentLayout.addView(subtitle)
 
         // Progress bar
         progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleSmall)
+        progressBar.indeterminateTintList = ColorStateList.valueOf(color(R.color.widget_config_accent))
         progressBar.layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { gravity = android.view.Gravity.CENTER }
+        ).apply {
+            gravity = android.view.Gravity.CENTER
+            bottomMargin = dp(12)
+        }
         contentLayout.addView(progressBar)
 
         // Error text (hidden initially)
         errorText = TextView(this)
         errorText.textSize = 13f
-        errorText.setTextColor(0xFFD93025.toInt())
-        errorText.setPadding(0, 12, 0, 12)
+        errorText.setTextColor(color(R.color.widget_config_error))
+        errorText.setPadding(0, 0, 0, dp(12))
         errorText.visibility = android.view.View.GONE
         contentLayout.addView(errorText)
 
-        // Radio group
+        // Radio group, drawn as one of the app's note cards
         radioGroup = RadioGroup(this)
         radioGroup.layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         )
+        radioGroup.setBackgroundResource(R.drawable.widget_note_card)
+        radioGroup.setPadding(dp(8), dp(4), dp(12), dp(4))
 
         // Add "All Notes" option
         allNotesOptionId = addRadioOption(FilterPrefs.FILTER_ALL, "All Notes", "Show all non-archived notes")
@@ -142,11 +163,22 @@ class NoteCollectionWidgetConfigureActivity : AppCompatActivity() {
 
         contentLayout.addView(radioGroup)
 
-        // Save button
+        // Save button: a pill in the colour of the app's + button
         saveButton = Button(this)
         saveButton.text = "Save"
+        saveButton.isAllCaps = false
+        saveButton.textSize = 16f
+        saveButton.typeface = mediumTypeface
+        saveButton.setTextColor(ContextCompat.getColorStateList(this, R.color.widget_config_button_text_color))
+        saveButton.setBackgroundResource(R.drawable.widget_config_button)
+        saveButton.stateListAnimator = null
+        saveButton.minHeight = dp(48)
+        saveButton.minimumHeight = dp(48)
+        saveButton.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(20) }
         saveButton.isEnabled = false
-        saveButton.setPadding(0, 24, 0, 0)
         saveButton.setOnClickListener {
             val selectedId = radioGroup.checkedRadioButtonId
             if (selectedId != -1) {
@@ -163,18 +195,25 @@ class NoteCollectionWidgetConfigureActivity : AppCompatActivity() {
     }
 
     private fun addRadioOption(tag: String, label: String, description: String?): Int {
-        val radioBtn = RadioButton(this)
-        radioBtn.id = android.view.View.generateViewId()
-        radioBtn.text = label
-        radioBtn.tag = tag
-        radioBtn.setTextColor(0xFF202124.toInt())
-        radioBtn.textSize = 16f
-        radioBtn.setPadding(16, 12, 16, 12)
+        val radioBtn = styledRadioButton(tag, label)
         if (description != null) {
             radioBtn.contentDescription = description
         }
         radioGroup.addView(radioBtn)
         return radioBtn.id
+    }
+
+    private fun styledRadioButton(tag: String, label: String): RadioButton {
+        val radioBtn = RadioButton(this)
+        radioBtn.id = android.view.View.generateViewId()
+        radioBtn.text = label
+        radioBtn.tag = tag
+        radioBtn.setTextColor(color(R.color.widget_heading))
+        radioBtn.buttonTintList = WidgetConfigStyle.radioTint(this)
+        radioBtn.textSize = 16f
+        radioBtn.minHeight = dp(48)
+        radioBtn.setPadding(dp(8), dp(8), dp(8), dp(8))
+        return radioBtn
     }
 
     private fun loadLabels() {
@@ -236,28 +275,21 @@ class NoteCollectionWidgetConfigureActivity : AppCompatActivity() {
             // and anything added to contentLayout instead ends up below the labels.
             val separator = View(this)
             separator.layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 1
-            ).apply { setMargins(0, 16, 0, 8) }
-            separator.setBackgroundColor(0xFFE0E0E0.toInt())
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(1)
+            ).apply { setMargins(dp(4), dp(8), 0, dp(4)) }
+            separator.setBackgroundColor(color(R.color.widget_divider))
             radioGroup.addView(separator)
 
             val labelHeader = TextView(this)
             labelHeader.text = "By Label"
             labelHeader.textSize = 14f
-            labelHeader.setTextColor(0xFF202124.toInt())
-            labelHeader.typeface = android.graphics.Typeface.DEFAULT_BOLD
-            labelHeader.setPadding(0, 8, 0, 8)
+            labelHeader.setTextColor(color(R.color.widget_text_secondary))
+            labelHeader.typeface = mediumTypeface
+            labelHeader.setPadding(dp(4), dp(8), 0, dp(4))
             radioGroup.addView(labelHeader)
 
             for (label in tagLabels) {
-                val radioBtn = RadioButton(this)
-                radioBtn.id = android.view.View.generateViewId()
-                radioBtn.text = label
-                radioBtn.tag = FilterPrefs.FILTER_LABEL
-                radioBtn.setTextColor(0xFF202124.toInt())
-                radioBtn.textSize = 16f
-                radioBtn.setPadding(32, 12, 16, 12)
-                radioGroup.addView(radioBtn)
+                radioGroup.addView(styledRadioButton(FilterPrefs.FILTER_LABEL, label))
             }
         }
 

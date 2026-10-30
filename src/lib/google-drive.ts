@@ -228,6 +228,14 @@ export const clearCachedDriveIds = (): void => {
     staleKeys.forEach((key) => localStorage.removeItem(key));
 };
 
+/** Forgets the Drive tokens and cached ids, as the hook's disconnect() does (C2-35). */
+export const clearGoogleDriveSession = (): void => {
+    setAccessToken("");
+    // REFRESH_TOKEN_STORAGE_KEY in use-google-drive.ts
+    localStorage.removeItem("google-refresh-token");
+    clearCachedDriveIds();
+};
+
 const resolveFolderId = async (): Promise<string> => {
     const cached = getCachedId(FOLDER_ID_CACHE_KEY);
     if (cached) return cached;

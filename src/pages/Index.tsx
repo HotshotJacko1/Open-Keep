@@ -1,7 +1,7 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
 import { Note } from "@/types/note";
-import { loadNotes, saveNote as localSaveNote, deleteNote as localDeleteNote, getLegacyWebNotes, migrateWebNotes, clearLegacyWebNotes, isWebReadFailed } from "@/lib/note-storage";
+import { loadNotes, saveNote as localSaveNote, deleteNote as localDeleteNote, getLegacyWebNotes, migrateWebNotes, isWebReadFailed } from "@/lib/note-storage";
 import { deleteImage } from "@/lib/image-storage";
 import { Capacitor } from "@capacitor/core";
 import NoteCard from "@/components/NoteCard";
@@ -12,9 +12,7 @@ import { Loader2 } from "lucide-react";
 import SidebarNav from "@/components/SidebarNav";
 import EditLabels from "@/components/EditLabels";
 import AddNoteOptions from "@/components/AddNoteOptions";
-import InitialAskToMigrate from "@/components/InitialAskToMigrate";
 import WelcomeMessage from "@/components/WelcomeMessage";
-import GoogleKeepMigrationGuide from "@/components/GoogleKeepMigrationGuide";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, safeRandomUUID } from "@/lib/utils";
@@ -96,9 +94,7 @@ const Index = () => {
   const [isFileInfoOpen, setIsFileInfoOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [customTags, setCustomTags] = useState<string[]>(readCustomTags);
-  const [showInitialMigrationAsk, setShowInitialMigrationAsk] = useState(false);
   const [showEarlyAccessDialog, setShowEarlyAccessDialog] = useState(false);
-  const [showMigrationGuide, setShowMigrationGuide] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -565,7 +561,7 @@ const Index = () => {
           // no longer opens the database. A failure here means a wrong key or an
           // unreadable DB, so hand back to the lock screen: exactly where a failed
           // checkStatus verification used to land the user. App.tsx listens for this.
-          window.dispatchEvent(new CustomEvent("open-keep-db-unverified"));
+          window.dispatchEvent(new CustomEvent("open-keep-db-unverified", { detail: error }));
         } else {
           setDbUnavailable(true);
         }
@@ -1449,7 +1445,7 @@ const Index = () => {
       {/* Pull to Refresh Indicator */}
       {(pullChange > 0 || isRefreshing) && (
         <div
-          className="absolute top-[-50px] left-0 right-0 flex justify-center items-center h-[50px] transition-opacity duration-300"
+          className="absolute top-[-50px] left-0 right-0 flex justify-center items-center h-[50px] transition-opacity duration-md3-medium2"
           style={{ opacity: Math.min(pullChange / 50, 1) }}
         >
           {isRefreshing ? (
@@ -1462,7 +1458,7 @@ const Index = () => {
 
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto px-4 pt-4 sm:px-6 sm:pt-6 md:px-8 md:pt-8 pb-[calc(7rem+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))]"
+        className="flex-1 overflow-y-auto px-2 pt-4 sm:px-6 sm:pt-6 md:px-8 md:pt-8 pb-[calc(7rem+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))]"
       >
         {dbUnavailable && isWebReadFailed() && (
           <div className="bg-destructive/15 border border-destructive/30 rounded-lg p-4 mb-4 text-sm text-destructive">
@@ -1542,7 +1538,7 @@ const Index = () => {
           <div className="pt-4 space-y-6 w-full">
             {pinnedNotes.length > 0 && (
               <section aria-label="Pinned notes">
-                <h2 className="text-[11px] font-medium tracking-wider uppercase text-muted-foreground px-2 mb-2 select-none">
+                <h2 className="text-label-sm uppercase text-muted-foreground px-2 mb-2 select-none">
                   PINNED
                 </h2>
                 <div
@@ -1578,7 +1574,7 @@ const Index = () => {
             )}
             {otherNotes.length > 0 && (
               <section aria-label="Other notes">
-                <h2 className="text-[11px] font-medium tracking-wider uppercase text-muted-foreground px-2 mb-2 select-none">
+                <h2 className="text-label-sm uppercase text-muted-foreground px-2 mb-2 select-none">
                   OTHERS
                 </h2>
                 <div
@@ -1703,31 +1699,12 @@ const Index = () => {
         onDeleteTag={handleDeleteTag}
       />
 
-      {/* InitialAskToMigrate disabled â€” kept for future use */}
-      {/* <InitialAskToMigrate
-        isOpen={showInitialMigrationAsk}
-        onAccept={() => {
-          localStorage.setItem('has_seen_keep_migration_prompt', 'true');
-          setShowInitialMigrationAsk(false);
-          setShowMigrationGuide(true);
-        }}
-        onDecline={() => {
-          localStorage.setItem('has_seen_keep_migration_prompt', 'true');
-          setShowInitialMigrationAsk(false);
-        }}
-      /> */}
-
       <WelcomeMessage
         isOpen={showEarlyAccessDialog}
         onClose={() => {
           localStorage.setItem('has_seen_early_access_dialog_v1', 'true');
           setShowEarlyAccessDialog(false);
         }}
-      />
-
-      <GoogleKeepMigrationGuide
-        isOpen={showMigrationGuide}
-        onClose={() => setShowMigrationGuide(false)}
       />
     </div >
   );

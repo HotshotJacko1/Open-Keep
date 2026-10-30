@@ -8,7 +8,7 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-import { Settings, CloudSync, Loader2, ArrowUpDown, Check, LayoutGrid, List } from "lucide-react";
+import { Settings, CloudSync, Loader2, ArrowUpDown, Check, LayoutGrid, List, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { useGoogleDrive } from "@/hooks/use-google-drive";
@@ -92,15 +92,16 @@ const TopBar: React.FC<TopBarProps> = ({
             </div>
 
             <div className="relative flex-grow max-w-3xl mx-auto">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                 <Input
                     type="text"
                     placeholder="Search"
                     dir="auto"
-                    className="w-full h-12 p-2 rounded-lg shadow focus:ring-2 focus:ring-primary bg-card dark:bg-card text-card-foreground border-input pr-24"
+                    className="w-full h-14 rounded-full border-0 bg-surface-container-high text-card-foreground shadow-elevation-0 pl-12 pr-28 text-body-lg"
                     value={searchTerm}
                     onChange={(e) => onSearchChange(e.target.value)}
                 />
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center">
+                <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button

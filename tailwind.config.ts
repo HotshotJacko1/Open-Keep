@@ -28,6 +28,32 @@ export default {
       fontFamily: {
         sans: ["var(--font-sans)"],
       },
+      // M3 type scale. Prefer these roles (text-title-md, text-body-lg, ...)
+      // over raw sizes; they are registered with tailwind-merge in lib/utils.ts.
+      fontSize: {
+        "display-sm": ["36px", { lineHeight: "44px", fontWeight: "400" }],
+        "headline-lg": ["32px", { lineHeight: "40px", fontWeight: "400" }],
+        "headline-md": ["28px", { lineHeight: "36px", fontWeight: "400" }],
+        "headline-sm": ["24px", { lineHeight: "32px", fontWeight: "400" }],
+        "title-lg": ["22px", { lineHeight: "28px", fontWeight: "400" }],
+        "title-md": ["16px", { lineHeight: "24px", fontWeight: "500", letterSpacing: "0.15px" }],
+        "title-sm": ["14px", { lineHeight: "20px", fontWeight: "500", letterSpacing: "0.1px" }],
+        "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400", letterSpacing: "0.5px" }],
+        "body-md": ["14px", { lineHeight: "20px", fontWeight: "400", letterSpacing: "0.25px" }],
+        "body-sm": ["12px", { lineHeight: "16px", fontWeight: "400", letterSpacing: "0.4px" }],
+        "label-lg": ["14px", { lineHeight: "20px", fontWeight: "500", letterSpacing: "0.1px" }],
+        "label-md": ["12px", { lineHeight: "16px", fontWeight: "500", letterSpacing: "0.5px" }],
+        "label-sm": ["11px", { lineHeight: "16px", fontWeight: "500", letterSpacing: "0.5px" }],
+      },
+      // M3 elevation levels (values in globals.css).
+      boxShadow: {
+        "elevation-0": "none",
+        "elevation-1": "var(--elevation-1)",
+        "elevation-2": "var(--elevation-2)",
+        "elevation-3": "var(--elevation-3)",
+        "elevation-4": "var(--elevation-4)",
+        "elevation-5": "var(--elevation-5)",
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -78,6 +104,12 @@ export default {
           variant: "hsl(var(--outline-variant))",
         },
         "switch-track": "hsl(var(--switch-track))",
+        "surface-container-high": "hsl(var(--surface-container-high))",
+        inverse: {
+          surface: "hsl(var(--inverse-surface))",
+          foreground: "hsl(var(--inverse-on-surface))",
+          primary: "hsl(var(--inverse-primary))",
+        },
         success: {
           DEFAULT: "hsl(var(--success))",
           foreground: "hsl(var(--success-foreground))",

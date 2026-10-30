@@ -212,7 +212,7 @@ function makeGhost(s: Surface): HTMLDivElement {
     height: `${s.rect.height}px`,
     borderRadius: s.radius,
     backgroundColor: s.background,
-    boxShadow: "0 10px 30px rgb(0 0 0 / 0.2)",
+    boxShadow: "var(--elevation-3)",
     // Above the dialog scrim (z-50) so the panel isn't dimmed, below toasts.
     zIndex: "55",
     pointerEvents: "none",

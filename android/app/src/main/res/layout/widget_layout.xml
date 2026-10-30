@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="horizontal"
-    android:background="@android:color/white"
+    android:background="@color/widget_background"
     android:padding="0dp">
 
     <!-- Left: New Text Note button -->
@@ -16,7 +16,7 @@
         android:orientation="vertical"
         android:clickable="true"
         android:focusable="true"
-        android:background="@android:color/white"
+        android:background="@color/widget_background"
         android:padding="8dp">
 
         <ImageView
@@ -31,7 +31,7 @@
             android:layout_marginTop="4dp"
             android:text="New Note"
             android:textSize="11sp"
-            android:textColor="@android:color/darker_gray"
+            android:textColor="@color/widget_label"
             android:fontFamily="sans-serif-medium" />
 
     </LinearLayout>
@@ -42,7 +42,7 @@
         android:layout_height="match_parent"
         android:layout_marginTop="16dp"
         android:layout_marginBottom="16dp"
-        android:background="#E0E0E0" />
+        android:background="@color/widget_divider" />
 
     <!-- Right: New List Note button -->
     <LinearLayout
@@ -54,7 +54,7 @@
         android:orientation="vertical"
         android:clickable="true"
         android:focusable="true"
-        android:background="@android:color/white"
+        android:background="@color/widget_background"
         android:padding="8dp">
 
         <ImageView
@@ -69,7 +69,7 @@
             android:layout_marginTop="4dp"
             android:text="New List"
             android:textSize="11sp"
-            android:textColor="@android:color/darker_gray"
+            android:textColor="@color/widget_label"
             android:fontFamily="sans-serif-medium" />
 
     </LinearLayout>

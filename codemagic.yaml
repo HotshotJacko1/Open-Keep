@@ -29,6 +29,8 @@ workflows:
         script: pnpm install --frozen-lockfile
       - name: Lint
         script: pnpm lint
+      - name: Unit tests
+        script: pnpm test
       - name: Build web application
         script: pnpm build
       - name: Sync Capacitor

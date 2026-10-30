@@ -22,7 +22,7 @@ const GoogleKeepMigrationGuide: React.FC<GoogleKeepMigrationGuideProps> = ({ isO
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
         aria-describedby={undefined}
-        className="w-full h-full max-w-full sm:max-w-[500px] sm:h-auto sm:max-h-[85vh] sm:rounded-lg !rounded-none sm:!rounded-lg overflow-y-auto bg-background text-primary-foreground border-0 sm:border pt-[max(env(safe-area-inset-top),1.5rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)] px-6"
+        className="w-full h-full max-w-full sm:max-w-[500px] sm:h-auto sm:max-h-[85vh] sm:rounded-dialog !rounded-none sm:!rounded-dialog flex flex-col overflow-hidden bg-background sm:bg-surface-container-high text-text-primary border-0 sm:border pt-[max(env(safe-area-inset-top),1.5rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)] px-6"
       >
         <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left mb-4">
           <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">
@@ -32,7 +32,7 @@ const GoogleKeepMigrationGuide: React.FC<GoogleKeepMigrationGuideProps> = ({ isO
           <DialogTitle className="text-foreground">Google Keep Migration Guide</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 text-sm text-foreground pb-4">
+        <div className="space-y-6 text-sm text-foreground pb-4 min-h-0 overflow-y-auto -mx-6 px-6">
           <div className="space-y-2">
             <h3 className="font-semibold text-base">Step 1: Export your notes from Google Keep</h3>
             <ol className="list-decimal pl-5 space-y-1">

@@ -101,7 +101,7 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({ collapsed, uniqueTags, 
           "group/sidebar absolute inset-y-0 left-0 z-30 flex flex-col overflow-hidden pt-4",
           "bg-sidebar dark:bg-sidebar text-sidebar-foreground border-r border-sidebar-border",
           motion,
-          collapsed ? "w-[72px] hover:w-[var(--sidebar-width)] hover:shadow-2xl" : "w-[var(--sidebar-width)]"
+          collapsed ? "w-[72px] hover:w-[var(--sidebar-width)] hover:shadow-elevation-2" : "w-[var(--sidebar-width)]"
         )}
       >
         <SidebarNav uniqueTags={uniqueTags} onEditLabels={onEditLabels} collapsed={collapsed} />
@@ -121,7 +121,7 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({ collapsed, uniqueTags, 
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
           onKeyDown={onKeyDown}
-          className="absolute inset-y-0 -right-1.5 z-40 flex w-3 cursor-col-resize touch-none items-center justify-center focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="absolute inset-y-0 -right-1.5 z-40 flex w-3 cursor-col-resize touch-none items-center justify-center focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
         >
           <div className="z-10 flex h-4 w-3 items-center justify-center rounded-sm border bg-border">
             <GripVertical className="h-2.5 w-2.5" />

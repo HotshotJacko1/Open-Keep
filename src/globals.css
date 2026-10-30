@@ -70,8 +70,9 @@
     :root {
       /* Surfaces */
       --background: 24 83% 93%;
-      --foreground: 0 0% 0%;
-      --text-primary: 0 0% 0%;
+      /* M3 on-surface: a warm near-black, never pure #000 */
+      --foreground: 20 14% 11%;
+      --text-primary: 20 14% 11%;
       --card: 18 100% 98%;
       --card-foreground: 20 15% 8%;
       --popover: 18 100% 98%;
@@ -106,10 +107,21 @@
       --outline: 25 10% 42%;
       /* Card and divider outlines: quieter than --outline */
       --outline-variant: 24 20% 84%;
-      --ring: 25 20% 15%;
+      /* Focus indicator (M3: 3px, accent colour, 2px offset) */
+      --ring: 35 85% 38%;
 
       /* Switch track when off */
       --switch-track: 30 40% 88%;
+
+      /* Raised surfaces (dialogs, search bar). In light mode raised things are
+         lighter than the peach page; in dark mode M3 also shows height with a
+         lighter tone rather than relying on shadows. */
+      --surface-container-high: 18 100% 98%;
+
+      /* Inverse surface: snackbars/toasts, which must stand out from the page */
+      --inverse-surface: 25 10% 18%;
+      --inverse-on-surface: 30 20% 95%;
+      --inverse-primary: 38 90% 65%;
 
       /* Status */
       --destructive: 0 75% 42%;
@@ -132,6 +144,15 @@
          the device has, which kept mixed lines from lining up. Other scripts
          fall back to the platform's system font. */
       --font-sans: "Google Sans Flex Variable", "Vazirmatn Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+
+      /* Elevation (M3 levels 1-5). Use shadow-elevation-N, never ad-hoc sizes:
+         1 cards, sheets, drawers / 2 menus, popovers, hovered cards /
+         3 FAB, dialogs, snackbars / 4 hovered FAB / 5 rarely. */
+      --elevation-1: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 1px 3px 1px rgb(0 0 0 / 0.15);
+      --elevation-2: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 2px 6px 2px rgb(0 0 0 / 0.15);
+      --elevation-3: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 4px 8px 3px rgb(0 0 0 / 0.15);
+      --elevation-4: 0 2px 3px 0 rgb(0 0 0 / 0.3), 0 6px 10px 4px rgb(0 0 0 / 0.15);
+      --elevation-5: 0 4px 4px 0 rgb(0 0 0 / 0.3), 0 8px 12px 6px rgb(0 0 0 / 0.15);
 
       /* Corner radii (M3 shape scale) */
       --radius: 0.5rem;
@@ -179,8 +200,9 @@
     .dark {
       /* Surfaces */
       --background: 26 32% 10%;
-      --foreground: 0 0% 100%;
-      --text-primary: 0 0% 100%;
+      /* A warm near-white: pure #fff on dark surfaces glares */
+      --foreground: 30 20% 90%;
+      --text-primary: 30 20% 90%;
       --card: 18 13% 9%;
       --card-foreground: 30 20% 95%;
       --popover: 22 18% 13%;
@@ -208,9 +230,15 @@
       --input: 25 6% 60%;
       --outline: 28 10% 62%;
       --outline-variant: 25 8% 30%;
-      --ring: 30 20% 84%;
+      --ring: 38 90% 65%;
 
       --switch-track: 25 18% 18%;
+
+      --surface-container-high: 22 18% 15%;
+
+      --inverse-surface: 30 20% 90%;
+      --inverse-on-surface: 25 10% 15%;
+      --inverse-primary: 35 85% 38%;
 
       /* M3 dark error: light red with dark text, readable on dark surfaces */
       --destructive: 6 100% 84%;

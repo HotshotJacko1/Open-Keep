@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark set for values/widget_colors.xml: the app's .dark tokens in src/globals.css. -->
+<resources>
+    <!-- background -->
+    <color name="widget_background">#221811</color>
+    <!-- foreground -->
+    <color name="widget_heading">#EBE6E0</color>
+    <!-- secondary-foreground -->
+    <color name="widget_text_primary">#EDEBE8</color>
+    <!-- muted-foreground -->
+    <color name="widget_text_secondary">#B0A59B</color>
+    <!-- foreground -->
+    <color name="widget_text_list">#EBE6E0</color>
+    <!-- foreground at 70% -->
+    <color name="widget_text_checked">#B3EBE6E0</color>
+    <!-- muted-foreground -->
+    <color name="widget_text_count">#B0A59B</color>
+    <!-- muted-foreground -->
+    <color name="widget_label">#B0A59B</color>
+    <!-- secondary -->
+    <color name="widget_icon">#9E9894</color>
+    <!-- outline-variant -->
+    <color name="widget_divider">#534B46</color>
+    <!-- card -->
+    <color name="widget_card">#1A1614</color>
+    <!-- outline-variant -->
+    <color name="widget_card_stroke">#534B46</color>
+    <!-- muted-foreground -->
+    <color name="widget_checkbox">#B0A59B</color>
+    <!-- success -->
+    <color name="widget_check">#4ADE80</color>
+
+    <!-- Widget setup screens -->
+    <!-- brand -->
+    <color name="widget_config_accent">#F6BB55</color>
+    <!-- brand-container -->
+    <color name="widget_config_button">#8A610F</color>
+    <!-- brand-container-foreground -->
+    <color name="widget_config_button_text">#FBF0DA</color>
+    <!-- destructive -->
+    <color name="widget_config_error">#FFB6AD</color>
+</resources>

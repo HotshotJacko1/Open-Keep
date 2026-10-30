@@ -30,40 +30,39 @@ const ResetDialog: React.FC<ResetDialogProps> = ({ isOpen, onOpenChange, onConfi
         }
     }, [isOpen]);
 
-    const isDestructive = isEncryptionEnabled;
-    const canConfirm = isDestructive ? confirmText === "DELETE" : true;
+    // Both resets delete this device's notes (C2-32): without encryption,
+    // a reset that kept them let anyone holding the device remove App Lock.
+    const canConfirm = confirmText === "DELETE";
 
     return (
         <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
-            <AlertDialogContent>
+            <AlertDialogContent className="w-[calc(100%-2rem)] rounded-dialog">
                 <AlertDialogHeader>
                     <AlertDialogTitle className="text-foreground">
-                        {isDestructive ? "Reset App & Delete All Data?" : "Reset App Lock?"}
+                        {isEncryptionEnabled ? "Reset App & Delete All Data?" : "Reset App Lock & Delete Notes?"}
                     </AlertDialogTitle>
-                    <AlertDialogDescription className={isDestructive ? "text-destructive" : ""}>
-                        {isDestructive 
+                    <AlertDialogDescription className="text-destructive">
+                        {isEncryptionEnabled
                             ? "Your encryption PIN cannot be recovered. If you reset it, all encrypted notes will be permanently deleted from this device (and supported cloud providers)."
-                            : "This will remove your App Lock PIN and clear your cloud sync sessions. Your notes will not be deleted."
+                            : "Your App Lock PIN cannot be recovered. Resetting it permanently deletes the notes on this device and signs you out of cloud sync. Notes already in the cloud are kept: sign in again to get them back."
                         }
                     </AlertDialogDescription>
                 </AlertDialogHeader>
-                {isDestructive && (
-                    <div className="py-4">
-                        <p className="text-sm text-muted-foreground mb-2">
-                            Please type <strong>DELETE</strong> to confirm this action.
-                        </p>
-                        <Input
-                            value={confirmText}
-                            onChange={(e) => setConfirmText(e.target.value)}
-                            placeholder="DELETE"
-                            disabled={isResetting}
-                        />
-                    </div>
-                )}
+                <div className="py-4">
+                    <p className="text-sm text-muted-foreground mb-2">
+                        Please type <strong>DELETE</strong> to confirm this action.
+                    </p>
+                    <Input
+                        value={confirmText}
+                        onChange={(e) => setConfirmText(e.target.value)}
+                        placeholder="DELETE"
+                        disabled={isResetting}
+                    />
+                </div>
                 <AlertDialogFooter>
-                    <AlertDialogCancel disabled={isResetting} className="text-foreground">Cancel</AlertDialogCancel>
+                    <AlertDialogCancel disabled={isResetting}>Cancel</AlertDialogCancel>
                     <AlertDialogAction
-                        className={isDestructive ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                         onClick={(e) => {
                             e.preventDefault();
                             if (canConfirm) {
@@ -72,7 +71,7 @@ const ResetDialog: React.FC<ResetDialogProps> = ({ isOpen, onOpenChange, onConfi
                         }}
                         disabled={isResetting || !canConfirm}
                     >
-                        {isResetting ? "Resetting..." : isDestructive ? "Reset & Delete All" : "Reset App Lock"}
+                        {isResetting ? "Resetting..." : isEncryptionEnabled ? "Reset & Delete All" : "Reset & Delete Notes"}
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>

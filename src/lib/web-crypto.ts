@@ -289,10 +289,6 @@ export const decryptDataWeb = async (encryptedBase64: string): Promise<string> =
     return dec.decode(plaintextBytes);
 };
 
-export const lockDatabaseWeb = async (): Promise<void> => {
-    sessionMasterKey = null;
-};
-
 export const clearWebCryptoKeys = (): void => {
     localStorage.removeItem(ENCRYPTED_MASTER_KEY_V2);
     localStorage.removeItem(SALT_KEY);

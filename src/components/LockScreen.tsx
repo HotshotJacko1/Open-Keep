@@ -13,11 +13,8 @@ import {
     clearFailedAttempts,
     formatLockRemaining,
 } from "@/lib/pin-attempts";
-import { clearAllData } from "@/lib/note-storage";
-import { clearAllPinState, verifyAppLockPin, BIOMETRICS_ENABLED_KEY } from "@/lib/pin";
-import { deleteAllRemoteData } from "@/lib/cloud-reset";
-import { clearTagChanges } from "@/lib/tombstones";
-import { clearKeepLocalPending } from "@/lib/cloud-sync-runner";
+import { verifyAppLockPin, BIOMETRICS_ENABLED_KEY } from "@/lib/pin";
+import { resetAppState } from "@/lib/reset-app-state";
 import ResetDialog from "./ResetDialog";
 
 interface LockScreenProps {
@@ -193,35 +190,9 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isEncryptionEnabled, 
     const confirmReset = async () => {
         setIsResetting(true);
         try {
-            // With encryption on, a forgotten PIN means the notes can't be opened
-            // again on any platform, so the reset has to delete them.
-            if (isEncryptionEnabled) {
-                // 1. Delete local DB
-                await clearAllData();
-
-                // 2. Delete cloud data (attempt)
-                await deleteAllRemoteData();
-            }
-
-            // 3. Clear local storage flags
-            clearAllPinState();
-            localStorage.removeItem("custom-tags"); // While we're at it
-            // The label list's change records go with it. Note tombstones stay: with
-            // encryption off the notes are kept, and so are the deletes that shaped them.
-            clearTagChanges();
-
-            // 4. Clear sync state
-            localStorage.removeItem("last-synced-time");
-            localStorage.removeItem("google-access-token");
-            localStorage.removeItem("google-token-expiry");
-            localStorage.removeItem("google-user-email");
-            localStorage.removeItem("dropbox-access-token");
-            localStorage.removeItem("dropbox-refresh-token");
-            localStorage.removeItem("dropbox-token-expires-at");
-            localStorage.removeItem("dropbox-last-synced");
-            localStorage.removeItem("onedrive-user-email");
-            localStorage.removeItem("onedrive-last-synced");
-            clearKeepLocalPending();
+            // A forgotten PIN costs this device's notes, with or without
+            // encryption (C2-32); the cloud copy goes only with encryption on.
+            await resetAppState({ deleteCloudData: isEncryptionEnabled });
 
             if (onReset) onReset();
 
@@ -279,7 +250,10 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isEncryptionEnabled, 
                     </Button>
                 </form>
 
-                {isBiometricsAvailable && isBiometricsEnabled && !isEncryptionEnabled && (
+                {/* Shown with encryption on too: handleBiometricUnlock fetches the stored
+                    PIN in that case, and without the button a cancelled automatic
+                    prompt can't be retried (C2-40). */}
+                {isBiometricsAvailable && isBiometricsEnabled && (
                     <Button
                         variant="ghost"
                         size="lg"

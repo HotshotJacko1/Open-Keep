@@ -20,7 +20,7 @@
 //    is markdown-shaped list syntax, not HTML, and blindly editing it here
 //    would corrupt it the same way the app already guards against elsewhere
 import { Capacitor } from "@capacitor/core";
-import DOMPurify from "dompurify";
+import { sanitizeNoteHtml } from "@/lib/note-html-sanitizer";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Note } from "@/types/note";
 import { looksLikeHtml, plainTextToHtml } from "@/utils/note-markdown-format";
@@ -124,7 +124,7 @@ function toHtmlIfPlain(text: string): string {
   // Agent-supplied HTML is sanitised before it is stored, not only when
   // NoteCard renders it: a stored payload would otherwise survive export and
   // reach any other app that renders the exported note.
-  return looksLikeHtml(text) ? DOMPurify.sanitize(text) : plainTextToHtml(text);
+  return looksLikeHtml(text) ? sanitizeNoteHtml(text) : plainTextToHtml(text);
 }
 
 function withTag(tags: string[], tag: string): string[] {
@@ -170,7 +170,17 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
   }, [token]);
 
   const notesRef = useRef(notes);
-  useEffect(() => { notesRef.current = notes; }, [notes]);
+  // Counts commits of `notes`, so the op queue below can wait for a write to
+  // reach notesRef (and Index's handlers) before the next op reads it (C3-34).
+  const notesCommitRef = useRef(0);
+  const notesCommitWaitersRef = useRef<(() => void)[]>([]);
+  useEffect(() => {
+    notesRef.current = notes;
+    notesCommitRef.current += 1;
+    const waiters = notesCommitWaitersRef.current;
+    notesCommitWaitersRef.current = [];
+    waiters.forEach((resolve) => resolve());
+  }, [notes]);
 
   const handleSaveNoteRef = useRef(handleSaveNote);
   const handleRenameTagRef = useRef(handleRenameTag);
@@ -183,7 +193,39 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
     handleSetLabelRef.current = handleSetLabel;
   }, [handleSaveNote, handleRenameTag, handleDeleteTag, handleSetLabel]);
 
-  const recordActivity = useCallback((label: string, undo: () => Promise<void>) => {
+  // The bridge client hands over messages as they arrive, and MCP clients
+  // send tool calls in parallel. Each op reads notesRef once, which only
+  // catches up after React re-renders, so two parallel writes to one note
+  // both used to report success while the second overwrote the first (C3-34).
+  // Every op and every Undo therefore runs one at a time, and an op that
+  // wrote waits for that write to be committed before the next one starts.
+  const opQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  // notesCommitRef's value at the latest write, or null if nothing was written.
+  const lastWriteRef = useRef<number | null>(null);
+  const markWrite = useCallback(() => { lastWriteRef.current = notesCommitRef.current; }, []);
+
+  const waitForNotesCommit = useCallback((after: number) => new Promise<void>((resolve) => {
+    if (notesCommitRef.current > after) return resolve();
+    // A fallback, so a write that never re-renders can't stall the queue.
+    const timer = setTimeout(resolve, 1000);
+    notesCommitWaitersRef.current.push(() => { clearTimeout(timer); resolve(); });
+  }), []);
+
+  const enqueue = useCallback(<T,>(task: () => Promise<T>): Promise<T> => {
+    const run = opQueueRef.current.then(async () => {
+      lastWriteRef.current = null;
+      try {
+        return await task();
+      } finally {
+        if (lastWriteRef.current !== null) await waitForNotesCommit(lastWriteRef.current);
+      }
+    });
+    opQueueRef.current = run.catch(() => undefined);
+    return run;
+  }, [waitForNotesCommit]);
+
+  const recordActivity = useCallback((label: string, rawUndo: () => Promise<void>) => {
+    const undo = () => enqueue(rawUndo);
     const entry: AiActivityEntry = { id: safeRandomUUID(), timestamp: Date.now(), label, undo };
     setActivity((prev) => [entry, ...prev].slice(0, MAX_ACTIVITY));
 
@@ -198,7 +240,7 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
       },
       duration: 10000,
     });
-  }, []);
+  }, [enqueue]);
 
   const undoActivity = useCallback(async (id: string) => {
     const entry = activity.find((e) => e.id === id);
@@ -211,7 +253,10 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
   // --- The 15 ops -------------------------------------------------------
   const runOp = useCallback(async (op: BridgeOp, params: Record<string, unknown>): Promise<unknown> => {
     const currentNotes = notesRef.current;
-    const saveNote = handleSaveNoteRef.current;
+    const saveNote = (note: Note) => {
+      markWrite();
+      return handleSaveNoteRef.current(note);
+    };
 
     const findNote = (id: unknown): Note | undefined => {
       if (typeof id !== "string") return undefined;
@@ -296,8 +341,12 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
         const trimmed = await saveNote(newNote);
         recordActivity(`Claude created "${title}"`, async () => {
           // Undoing a create moves it to the bin, same as any other
-          // delete -- recoverable, never a silent hard-remove.
-          await saveNote({ ...newNote, isDeleted: true, deletedAt: Date.now(), updatedAt: undoUpdatedAt(newNote.id) });
+          // delete -- recoverable, never a silent hard-remove. It bins the
+          // note as it is now, so edits the user made since go with it to
+          // the bin rather than being lost (C3-35).
+          const current = notesRef.current.find((n) => n.id === newNote.id) ?? newNote;
+          await saveNote({ ...current, isDeleted: true, deletedAt: Date.now(), isPinned: false, updatedAt: undoUpdatedAt(newNote.id) });
+          await syncReminderWithBin({ ...current, isDeleted: true });
         });
         return { note: toFull(newNote), trimmed };
       }
@@ -373,7 +422,9 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
           : note.tags.filter((t) => !tagsParam.includes(t));
         const updated: Note = { ...note, tags: newTags, updatedAt: Date.now() };
         await saveNote(updated);
-        recordActivity(`Claude ${op === "add_tags_to_note" ? "tagged" : "untagged"} "${updated.title}"`, async () => { await saveNote({ ...before, updatedAt: undoUpdatedAt(before.id) }); });
+        // Undo puts back the tags only, as the bulk label ops do, so an edit
+        // the user made to the note since is kept (C3-35).
+        recordActivity(`Claude ${op === "add_tags_to_note" ? "tagged" : "untagged"} "${updated.title}"`, async () => { await restoreTags([before]); });
         return toFull(updated);
       }
 
@@ -384,6 +435,7 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
         const affected = currentNotes.filter((n) => n.tags.includes(from)).map((n) => ({ ...n }));
         // Whether `to` was already a label, i.e. this rename merged into it.
         const toExisted = readCustomTags().includes(to) || currentNotes.some((n) => n.tags.includes(to));
+        markWrite();
         await handleRenameTagRef.current(from, to);
         recordActivity(`Claude renamed tag "${from}" to "${to}" on ${affected.length} note${affected.length === 1 ? "" : "s"}`, async () => {
           await restoreTags(affected);
@@ -399,6 +451,7 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
         const tag = String(params.tag ?? "");
         if (!tag) throw { code: "INVALID_PARAMS", message: "tag is required." };
         const affected = currentNotes.filter((n) => n.tags.includes(tag)).map((n) => ({ ...n }));
+        markWrite();
         await handleDeleteTagRef.current(tag);
         recordActivity(`Claude removed tag "${tag}" from ${affected.length} note${affected.length === 1 ? "" : "s"}`, async () => {
           await restoreTags(affected);
@@ -410,7 +463,7 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
       default:
         throw { code: "INVALID_PARAMS", message: `Unknown operation: ${op}` };
     }
-  }, [recordActivity]);
+  }, [recordActivity, markWrite]);
 
   // --- Wiring the client --------------------------------------------------
   const clientRef = useRef<McpBridgeClient | null>(null);
@@ -444,7 +497,7 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
       };
     }
     try {
-      const data = await runOp(request.op, request.params);
+      const data = await enqueue(() => runOp(request.op, request.params));
       return { type: "response", id: request.id, ok: true, data };
     } catch (err: unknown) {
       const e = err as { code?: BridgeErrorCode; message?: string } | null;
@@ -455,7 +508,7 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
         error: { code: e?.code || "INTERNAL", message: e?.message || "Something went wrong." },
       };
     }
-  }, [runOp]);
+  }, [runOp, enqueue]);
 
   useEffect(() => {
     // Native builds have no local MCP server to reach, so don't sit there

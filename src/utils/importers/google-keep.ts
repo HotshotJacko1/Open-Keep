@@ -42,7 +42,9 @@ export class GoogleKeepImporter implements Importer {
   }
 
   handles(file: ImportInputFile): boolean {
-    return file.name.toLowerCase().endsWith(".json");
+    // A Takeout zip also holds other Google products' .json files. Reading
+    // every .json turned each of those into an empty "Untitled" note (C3-38).
+    return file.name.toLowerCase().endsWith(".json") && KEEP_SHAPED_JSON.test(file.content);
   }
 
   async parse(input: ImportInput): Promise<ImportNote[]> {
@@ -53,6 +55,8 @@ export class GoogleKeepImporter implements Importer {
 
       try {
         const keepData = JSON.parse(file.content) as KeepNote;
+        // One note per file; an array or a bare value isn't one (C3-38).
+        if (!keepData || typeof keepData !== 'object' || Array.isArray(keepData)) continue;
 
         // Skip trashed exported notes if they explicitly say trashed, though user might want them? Let's skip trashed by default.
         if (keepData.isTrashed) {

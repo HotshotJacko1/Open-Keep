@@ -30,7 +30,7 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  "fixed z-50 gap-4 bg-background p-6 shadow-lg transition data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:duration-md3-medium4 data-[state=closed]:duration-md3-short4 data-[state=open]:ease-md3-decelerate data-[state=closed]:ease-md3-accelerate",
+  "fixed z-50 gap-4 bg-background p-6 shadow-elevation-1 transition data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:duration-md3-medium4 data-[state=closed]:duration-md3-short4 data-[state=open]:ease-md3-decelerate data-[state=closed]:ease-md3-accelerate",
   {
     variants: {
       side: {
@@ -64,7 +64,7 @@ const SheetContent = React.forwardRef<
       {...props}
     >
       {children}
-      <SheetPrimitive.Close className="touch-target press-feedback absolute right-2 top-[max(env(safe-area-inset-top,0.5rem),0.5rem)] flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground ring-offset-background transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none">
+      <SheetPrimitive.Close className="touch-target press-feedback absolute right-2 top-[max(env(safe-area-inset-top,0.5rem),0.5rem)] flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground ring-offset-background transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </SheetPrimitive.Close>

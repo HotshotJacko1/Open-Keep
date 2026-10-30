@@ -14,7 +14,7 @@ const Switch = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SwitchPrimitives.Root
     className={cn(
-      "group peer inline-flex h-8 w-[52px] shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-200 ease-[cubic-bezier(0.2,0,0,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-[0.38]",
+      "group peer inline-flex h-8 w-[52px] shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-md3-short4 ease-md3-standard focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-[0.38]",
       "data-[state=unchecked]:border-outline data-[state=unchecked]:bg-switch-track",
       "data-[state=checked]:border-transparent data-[state=checked]:bg-brand",
       className,
@@ -24,7 +24,7 @@ const Switch = React.forwardRef<
   >
     <SwitchPrimitives.Thumb
       className={cn(
-        "pointer-events-none relative block rounded-full shadow-sm transition-[width,height,transform,background-color] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
+        "pointer-events-none relative block rounded-full shadow-elevation-1 transition-[width,height,transform,background-color] duration-md3-short4 ease-md3-standard",
         // Handle: 16px off, 24px on, 28px while pressed; centres stay at 16px / 36px of the track.
         "data-[state=unchecked]:h-4 data-[state=unchecked]:w-4 data-[state=unchecked]:translate-x-[6px] group-active:data-[state=unchecked]:h-7 group-active:data-[state=unchecked]:w-7 group-active:data-[state=unchecked]:translate-x-0",
         "data-[state=checked]:h-6 data-[state=checked]:w-6 data-[state=checked]:translate-x-[22px] group-active:data-[state=checked]:h-7 group-active:data-[state=checked]:w-7 group-active:data-[state=checked]:translate-x-5",

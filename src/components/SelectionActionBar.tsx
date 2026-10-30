@@ -178,7 +178,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
                     </Button>
 
                     {isOverflowOpen && (
-                        <div className="absolute right-0 top-full mt-1 w-44 rounded-md border border-border bg-background shadow-lg z-50 py-1 animate-in fade-in slide-in-from-top-1 duration-md3-short3 ease-md3-standard-decelerate">
+                        <div className="absolute right-0 top-full mt-1 w-44 rounded-md border border-border bg-background shadow-elevation-2 z-50 py-1 animate-in fade-in slide-in-from-top-1 duration-md3-short3 ease-md3-standard-decelerate">
                             {!hideArchive && (
                                 <button
                                     className="press-feedback flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted"

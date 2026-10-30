@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
@@ -20,7 +19,7 @@ import androidx.glance.appwidget.appWidgetBackground
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
-import androidx.glance.color.ColorProvider
+import androidx.glance.unit.ColorProvider
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
@@ -69,7 +68,7 @@ class NewNoteGlanceWidget : GlanceAppWidget() {
             modifier = GlanceModifier
                 .fillMaxSize()
                 .appWidgetBackground()
-                .background(ColorProvider(day = Color.White, night = Color(0xFF1C1C1E)))
+                .background(ColorProvider(R.color.widget_background))
                 .cornerRadius(16.dp)
                 .padding(0.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -93,7 +92,7 @@ class NewNoteGlanceWidget : GlanceAppWidget() {
                     text = "New Note",
                     style = TextStyle(
                         fontSize = 11.sp,
-                        color = ColorProvider(day = Color.DarkGray, night = Color.LightGray),
+                        color = ColorProvider(R.color.widget_label),
                         fontWeight = FontWeight.Medium
                     ),
                     modifier = GlanceModifier.padding(top = 4.dp)
@@ -105,7 +104,7 @@ class NewNoteGlanceWidget : GlanceAppWidget() {
                 modifier = GlanceModifier
                     .width(1.dp)
                     .fillMaxHeight()
-                    .background(ColorProvider(day = Color(0xFFE0E0E0), night = Color(0xFF3A3A3C)))
+                    .background(ColorProvider(R.color.widget_divider))
             )
 
             // Right Button
@@ -127,7 +126,7 @@ class NewNoteGlanceWidget : GlanceAppWidget() {
                     text = "New List",
                     style = TextStyle(
                         fontSize = 11.sp,
-                        color = ColorProvider(day = Color.DarkGray, night = Color.LightGray),
+                        color = ColorProvider(R.color.widget_label),
                         fontWeight = FontWeight.Medium
                     ),
                     modifier = GlanceModifier.padding(top = 4.dp)

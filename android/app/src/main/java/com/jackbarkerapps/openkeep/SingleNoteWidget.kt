@@ -6,9 +6,12 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
@@ -28,9 +31,10 @@ import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.lazy.itemsIndexed
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.state.getAppWidgetState
 import androidx.glance.appwidget.updateAll
 import androidx.glance.background
-import androidx.glance.color.ColorProvider
+import androidx.glance.unit.ColorProvider
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
@@ -41,12 +45,14 @@ import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
+import androidx.glance.text.TextDecoration
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.jackbarkerapps.openkeep.data.NoteEntity
 import com.jackbarkerapps.openkeep.data.NoteRepository
 import com.jackbarkerapps.openkeep.security.KeyManager
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class SingleNoteWidget : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = SingleNoteGlanceWidget()
@@ -54,35 +60,45 @@ class SingleNoteWidget : GlanceAppWidgetReceiver() {
 
 class SingleNoteGlanceWidget : GlanceAppWidget() {
 
+    /** A note and the id it was loaded for, kept together so they always match. */
+    private data class LoadedNote(val noteId: String?, val note: NoteEntity?)
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
+        // Load before composing: the content below is composed on the main thread,
+        // where the old blocking read (SQLCipher open + query under runBlocking)
+        // caused a Background ANR (Sentry OPENKEEP-10).
+        val initialNoteId = noteIdFor(context, appWidgetId, getAppWidgetState<Preferences>(context, id))
+        val initial = LoadedNote(initialNoteId, loadNote(context, initialNoteId))
+
         provideContent {
-            val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
-            val prefsState = androidx.glance.currentState<androidx.datastore.preferences.core.Preferences>()
-            var noteId = prefsState[androidx.datastore.preferences.core.stringPreferencesKey("note_id")]
-            if (noteId == null) {
-                val prefs = context.getSharedPreferences("single_note_widget_prefs", Context.MODE_PRIVATE)
-                noteId = prefs.getString("note_id_$appWidgetId", null)
+            val noteId = noteIdFor(context, appWidgetId, androidx.glance.currentState<Preferences>())
+            // Re-pointed at another note while this session runs: load it in the
+            // background, keeping the previous note on screen until it arrives.
+            val loaded by produceState(initial, noteId) {
+                if (value.noteId != noteId) value = LoadedNote(noteId, loadNote(context, noteId))
             }
 
-            var noteEntity: NoteEntity? = null
-            if (noteId != null) {
-                try {
-                    val keyManager = KeyManager(context)
-                    val masterKey = keyManager.getMasterKey()
-                    if (masterKey != null) {
-                        NoteRepository.initializeIfNeeded(context, masterKey)
-                        val dao = NoteRepository.getDatabase().noteDao()
-                        val n = kotlinx.coroutines.runBlocking { dao.getNoteById(noteId) }
-                        if (n != null && !n.deleted) {
-                            noteEntity = n
-                        }
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("SingleNoteWidget", "Failed to load note", e)
-                }
-            }
+            WidgetContent(context, loaded.note, loaded.noteId)
+        }
+    }
 
-            WidgetContent(context, noteEntity, noteId)
+    private fun noteIdFor(context: Context, appWidgetId: Int, state: Preferences): String? =
+        state[stringPreferencesKey("note_id")]
+            ?: context.getSharedPreferences("single_note_widget_prefs", Context.MODE_PRIVATE)
+                .getString("note_id_$appWidgetId", null)
+
+    private suspend fun loadNote(context: Context, noteId: String?): NoteEntity? {
+        if (noteId == null) return null
+        return withContext(Dispatchers.IO) {
+            try {
+                val masterKey = KeyManager(context).getMasterKey() ?: return@withContext null
+                NoteRepository.initializeIfNeeded(context, masterKey)
+                NoteRepository.getDatabase().noteDao().getNoteById(noteId)?.takeIf { !it.deleted }
+            } catch (e: Exception) {
+                android.util.Log.e("SingleNoteWidget", "Failed to load note", e)
+                null
+            }
         }
     }
 
@@ -104,7 +120,7 @@ class SingleNoteGlanceWidget : GlanceAppWidget() {
             modifier = GlanceModifier
                 .fillMaxSize()
                 .appWidgetBackground()
-                .background(ColorProvider(day = Color.White, night = Color(0xFF1C1C1E)))
+                .background(ColorProvider(R.color.widget_background))
                 .cornerRadius(16.dp)
                 .padding(top = 24.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
         ) {
@@ -120,11 +136,11 @@ class SingleNoteGlanceWidget : GlanceAppWidget() {
                 ) {
                     Text(
                         text = if (noteId == null) "Not Configured" else "Note Unavailable",
-                        style = TextStyle(fontSize = 14.sp, color = ColorProvider(day = Color.Black, night = Color.White), fontWeight = FontWeight.Bold)
+                        style = TextStyle(fontSize = 14.sp, color = ColorProvider(R.color.widget_heading), fontWeight = FontWeight.Bold)
                     )
                     Text(
                         text = "Tap to open Open Keep",
-                        style = TextStyle(fontSize = 12.sp, color = ColorProvider(day = Color.Gray, night = Color.LightGray))
+                        style = TextStyle(fontSize = 12.sp, color = ColorProvider(R.color.widget_text_secondary))
                     )
                 }
                 return@Column
@@ -139,7 +155,7 @@ class SingleNoteGlanceWidget : GlanceAppWidget() {
 
             Text(
                 text = title,
-                style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = ColorProvider(day = Color.Black, night = Color.White)),
+                style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = ColorProvider(R.color.widget_heading)),
                 modifier = GlanceModifier.fillMaxWidth().clickable(actionStartActivity(openNoteIntent)).padding(bottom = 8.dp)
             )
 
@@ -173,7 +189,7 @@ class SingleNoteGlanceWidget : GlanceAppWidget() {
     private fun BodyText(text: String) {
         Text(
             text = text,
-            style = TextStyle(fontSize = 14.sp, color = ColorProvider(day = Color.DarkGray, night = Color.LightGray)),
+            style = TextStyle(fontSize = 14.sp, color = ColorProvider(R.color.widget_text_list)),
             modifier = GlanceModifier.padding(vertical = 2.dp)
         )
     }
@@ -186,7 +202,7 @@ class SingleNoteGlanceWidget : GlanceAppWidget() {
         // Sub-items sit one checkbox-width in, as in the app.
         Row(modifier = GlanceModifier.fillMaxWidth().padding(start = if (indented) 32.dp else 0.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Image(
-                provider = ImageProvider(if (isChecked) android.R.drawable.checkbox_on_background else android.R.drawable.checkbox_off_background),
+                provider = ImageProvider(if (isChecked) R.drawable.ic_widget_checkbox_checked else R.drawable.ic_widget_checkbox_unchecked),
                 contentDescription = null,
                 modifier = GlanceModifier.size(24.dp).clickable(
                     actionRunCallback<ToggleCheckboxAction>(
@@ -197,7 +213,7 @@ class SingleNoteGlanceWidget : GlanceAppWidget() {
             Spacer(modifier = GlanceModifier.width(8.dp))
             Text(
                 text = text,
-                style = TextStyle(fontSize = 14.sp, color = ColorProvider(day = if (isChecked) Color.Gray else Color.DarkGray, night = if (isChecked) Color(0xFF8E8E93) else Color.LightGray))
+                style = TextStyle(fontSize = 14.sp, color = ColorProvider(if (isChecked) R.color.widget_text_checked else R.color.widget_text_list), textDecoration = if (isChecked) TextDecoration.LineThrough else TextDecoration.None)
             )
         }
     }

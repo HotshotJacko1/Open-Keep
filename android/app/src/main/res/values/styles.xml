@@ -16,6 +16,18 @@
     </style>
 
 
+    <!-- Widget setup screens: the app's page colour, light or dark with the phone.
+         Colours live in values/widget_colors.xml and values-night/widget_colors.xml. -->
+    <style name="Theme.OpenKeep.WidgetConfigure" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/widget_background</item>
+        <item name="android:statusBarColor">@color/widget_background</item>
+        <item name="android:navigationBarColor">@color/widget_background</item>
+        <item name="colorAccent">@color/widget_config_accent</item>
+        <item name="colorControlActivated">@color/widget_config_accent</item>
+        <item name="android:textColorPrimary">@color/widget_heading</item>
+        <item name="android:textColorSecondary">@color/widget_text_secondary</item>
+    </style>
+
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
     </style>

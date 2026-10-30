@@ -32,18 +32,18 @@ struct NewNoteWidgetEntryView: View {
                 VStack(spacing: 4) {
                     Image(systemName: "plus")
                         .font(.system(size: 24, weight: .medium))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(WidgetPalette.icon)
                     Text("New Note")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(WidgetPalette.textSecondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
             // Divider
             Rectangle()
-                .fill(Color(.separator))
-                .frame(width: 0.5)
+                .fill(WidgetPalette.divider)
+                .frame(width: 1)
                 .padding(.vertical, 16)
 
             // New List Note
@@ -51,17 +51,17 @@ struct NewNoteWidgetEntryView: View {
                 VStack(spacing: 4) {
                     Image(systemName: "checkmark.square")
                         .font(.system(size: 24, weight: .medium))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(WidgetPalette.icon)
                     Text("New List")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(WidgetPalette.textSecondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .padding(8)
         .containerBackground(for: .widget) {
-            Color(.systemBackground)
+            WidgetPalette.background
         }
     }
 }

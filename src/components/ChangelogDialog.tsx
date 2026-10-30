@@ -39,27 +39,21 @@ const ChangelogDialog: React.FC = () => {
       </DialogTrigger>
       <DialogContent 
         aria-describedby={undefined}
-        className="fixed inset-0 w-screen h-[100dvh] max-w-none max-h-none m-0 rounded-none bg-background text-primary-foreground border-0 p-0 flex flex-col translate-x-0 translate-y-0 origin-center"
-        style={{
-          '--tw-enter-translate-x': '0',
-          '--tw-enter-translate-y': '0',
-          '--tw-exit-translate-x': '0',
-          '--tw-exit-translate-y': '0',
-        } as React.CSSProperties}
+        className="w-full h-full max-w-full sm:max-w-[500px] sm:h-auto sm:max-h-[85vh] !rounded-none sm:!rounded-dialog bg-background sm:bg-surface-container-high text-text-primary border-0 sm:border p-0 pb-[max(env(safe-area-inset-bottom),1.5rem)] flex flex-col overflow-hidden"
       >
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full min-h-0">
           <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left px-6 pt-[max(env(safe-area-inset-top),1.5rem)] pb-4 border-b">
             <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="touch-target shrink-0 mt-0 h-8 w-8">
               <ArrowLeft className="h-5 w-5 text-secondary" />
               <span className="sr-only">Back</span>
             </Button>
-            <DialogTitle className="text-xl font-bold">What's New</DialogTitle>
+            <DialogTitle className="">What's New</DialogTitle>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto px-6 py-4">
             <div className="prose dark:prose-invert max-w-none 
-              prose-headings:font-bold prose-headings:text-primary-foreground
-              prose-p:text-primary-foreground/90
-              prose-li:text-primary-foreground/90">
+              prose-headings:font-bold prose-headings:text-text-primary
+              prose-p:text-text-primary
+              prose-li:text-text-primary">
               <ReactMarkdown>{changelogContent}</ReactMarkdown>
             </div>
           </div>

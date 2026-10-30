@@ -64,6 +64,29 @@ export const plainTextToHtml = (text: string): string =>
     .map((line) => `<p>${escapeHtml(line)}</p>`)
     .join('');
 
+/**
+ * The other way, for turning a text note into a list: paragraph, break and div
+ * boundaries become line breaks and everything else is reduced to its text.
+ * Parsed in an inert document, not a div's innerHTML: the content can come
+ * from a cloud file or an import, and a detached div still loads <img> and
+ * runs its onerror (C2-24).
+ */
+export const htmlToPlainText = (html: string): string => {
+  if (!html.includes('<')) return html;
+  const withBreaks = html
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/div>/gi, '\n');
+  return new DOMParser().parseFromString(withBreaks, 'text/html').body.textContent || '';
+};
+
+/**
+ * The '# heading' written for a title. A heading is one line, so a title
+ * holding a newline (pasted, or set by the AI bridge) is joined with spaces;
+ * the frontmatter keeps the real title (C3-36).
+ */
+const headingForTitle = (title: string): string => title.replace(/\s*\r?\n\s*/g, ' ').trim();
+
 export const serializeNoteToMarkdown = (note: Note): string => {
   const frontmatter = [
     '---',
@@ -81,7 +104,7 @@ export const serializeNoteToMarkdown = (note: Note): string => {
 
   // The '# title' heading is kept for readability in other markdown apps, and
   // so files exported before frontmatter existed keep importing identically.
-  return `${frontmatter}# ${note.title}\n\n${note.content}`;
+  return `${frontmatter}# ${headingForTitle(note.title || '')}\n\n${note.content}`;
 };
 
 export const parseNoteMarkdown = (raw: string, fallbackTitle: string): ParsedNoteMarkdown => {
@@ -140,14 +163,30 @@ export const parseNoteMarkdown = (raw: string, fallbackTitle: string): ParsedNot
   let title = readString('title');
 
   // A leading '# Heading' is how we write the title, so strip it rather than
-  // repeat it in the body.
+  // repeat it in the body. With a frontmatter title, only a heading that IS
+  // that title goes: a hand-written file's own first heading is content (C3-36).
   const lines = body.split('\n');
   const firstContentIndex = lines.findIndex((line) => line.trim().length > 0);
   if (firstContentIndex !== -1 && lines[firstContentIndex].startsWith('# ')) {
     const heading = lines[firstContentIndex].substring(2).trim();
-    if (!title) title = heading;
-    lines.splice(firstContentIndex, 1);
-    body = lines.join('\n').trimStart();
+    let headingLines = 1;
+    if (!title) {
+      title = heading;
+    } else {
+      // Exports before C3-36 wrote a multi-line title as is, so their heading
+      // runs over as many lines as the title has.
+      const titleLines = `# ${title}`.split(/\r?\n/).map((line) => line.trim());
+      const fileLines = lines.slice(firstContentIndex, firstContentIndex + titleLines.length).map((line) => line.trim());
+      if (titleLines.length > 1 && titleLines.every((line, i) => line === fileLines[i])) {
+        headingLines = titleLines.length;
+      } else if (heading !== headingForTitle(title)) {
+        headingLines = 0;
+      }
+    }
+    if (headingLines > 0) {
+      lines.splice(firstContentIndex, headingLines);
+      body = lines.join('\n').trimStart();
+    }
   }
 
   const rawType = readString('type');

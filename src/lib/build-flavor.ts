@@ -21,7 +21,7 @@ export const APP_FLAVOR = import.meta.env.VITE_APP_FLAVOR || "play";
 export const isGoogleDriveSyncAvailable = APP_FLAVOR !== "fdroid";
 
 // Shown next to the greyed-out Google Drive option in the F-Droid build.
-// TODO: confirm/replace the GitHub link once full-build APKs are actually
-// published as GitHub releases -- there isn't one today (checked 2026-09-22).
+// GitHub releases carry the full build as OpenKeep-<version>-android-full.apk
+// (.github/workflows/release.yml).
 export const FULL_BUILD_PLAY_URL = "https://play.google.com/store/apps/details?id=com.jackbarkerapps.openkeep";
 export const FULL_BUILD_GITHUB_URL = "https://github.com/HotshotJacko1/Open-Keep/releases";

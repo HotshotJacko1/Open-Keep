@@ -1,9 +1,28 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { Capacitor, SystemBars, SystemBarsStyle } from "@capacitor/core";
 
 const THEMES = ["dark", "light", "system"] as const;
 
 type Theme = (typeof THEMES)[number];
+
+// The app draws edge to edge, so the status and navigation bars sit on top of its
+// background. SystemBars' default style follows the phone's theme, not the app's:
+// set to Dark on a phone in light mode, the bars would get dark icons on a dark
+// background. Set the style from the theme the app actually shows instead.
+const applyTheme = (resolved: "light" | "dark") => {
+  const root = window.document.documentElement;
+  root.classList.remove("light", "dark");
+  root.classList.add(resolved);
+
+  if (Capacitor.isNativePlatform()) {
+    SystemBars.setStyle({
+      style: resolved === "dark" ? SystemBarsStyle.Dark : SystemBarsStyle.Light,
+    }).catch(() => {
+      // Best-effort: wrong icon colours must not break the theme switch.
+    });
+  }
+};
 
 const isTheme = (value: unknown): value is Theme =>
   typeof value === "string" && (THEMES as readonly string[]).includes(value);
@@ -48,17 +67,10 @@ export function ThemeProvider({
   );
 
   useEffect(() => {
-    const root = window.document.documentElement;
-
-    root.classList.remove("light", "dark");
-
     if (theme === "system") {
       // Follow OS light/dark switches while the app is open, not just at mount.
       const query = window.matchMedia("(prefers-color-scheme: dark)");
-      const applySystemTheme = () => {
-        root.classList.remove("light", "dark");
-        root.classList.add(query.matches ? "dark" : "light");
-      };
+      const applySystemTheme = () => applyTheme(query.matches ? "dark" : "light");
 
       applySystemTheme();
       // Safari < 14 only has the deprecated addListener/removeListener.
@@ -70,7 +82,7 @@ export function ThemeProvider({
       return () => query.removeListener(applySystemTheme);
     }
 
-    root.classList.add(theme);
+    applyTheme(theme);
   }, [theme]);
 
   const value = {

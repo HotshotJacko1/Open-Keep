@@ -8,7 +8,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@android:color/white"
+    android:background="@color/widget_background"
     android:padding="12dp">
 
     <!-- Header -->
@@ -25,7 +25,7 @@
             android:layout_weight="1"
             android:text="All notes"
             android:textSize="16sp"
-            android:textColor="@android:color/black"
+            android:textColor="@color/widget_heading"
             android:fontFamily="sans-serif-medium"
             android:maxLines="1"
             android:ellipsize="end" />
@@ -35,13 +35,13 @@
             android:layout_height="wrap_content"
             android:text="3"
             android:textSize="11sp"
-            android:textColor="#80868B" />
+            android:textColor="@color/widget_text_count" />
     </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#E0E0E0"
+        android:background="@color/widget_divider"
         android:layout_marginBottom="8dp" />
 
     <!-- Card 1: plain text note -->
@@ -49,7 +49,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:background="@drawable/widget_preview_note_card"
+        android:background="@drawable/widget_note_card"
         android:padding="10dp"
         android:layout_marginBottom="8dp">
 
@@ -58,7 +58,7 @@
             android:layout_height="wrap_content"
             android:text="Meeting notes"
             android:textSize="14sp"
-            android:textColor="#202124"
+            android:textColor="@color/widget_text_primary"
             android:fontFamily="sans-serif-medium"
             android:maxLines="1"
             android:ellipsize="end" />
@@ -69,7 +69,7 @@
             android:layout_marginTop="2dp"
             android:text="Discuss project timeline"
             android:textSize="12sp"
-            android:textColor="#5F6368"
+            android:textColor="@color/widget_text_secondary"
             android:maxLines="1"
             android:ellipsize="end" />
     </LinearLayout>
@@ -79,7 +79,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:background="@drawable/widget_preview_note_card"
+        android:background="@drawable/widget_note_card"
         android:padding="10dp"
         android:layout_marginBottom="8dp">
 
@@ -88,7 +88,7 @@
             android:layout_height="wrap_content"
             android:text="Groceries"
             android:textSize="14sp"
-            android:textColor="#202124"
+            android:textColor="@color/widget_text_primary"
             android:fontFamily="sans-serif-medium"
             android:maxLines="1"
             android:ellipsize="end" />
@@ -104,7 +104,7 @@
                 android:layout_width="18dp"
                 android:layout_height="18dp"
                 android:layout_marginEnd="8dp"
-                android:src="@drawable/ic_widget_preview_checkbox_unchecked"
+                android:src="@drawable/ic_widget_checkbox_unchecked"
                 android:contentDescription="@null" />
 
             <TextView
@@ -113,7 +113,7 @@
                 android:layout_weight="1"
                 android:text="Milk"
                 android:textSize="12sp"
-                android:textColor="#3C4043"
+                android:textColor="@color/widget_text_list"
                 android:maxLines="1"
                 android:ellipsize="end" />
         </LinearLayout>
@@ -129,7 +129,7 @@
                 android:layout_width="18dp"
                 android:layout_height="18dp"
                 android:layout_marginEnd="8dp"
-                android:src="@drawable/ic_widget_preview_checkbox_unchecked"
+                android:src="@drawable/ic_widget_checkbox_unchecked"
                 android:contentDescription="@null" />
 
             <TextView
@@ -138,7 +138,7 @@
                 android:layout_weight="1"
                 android:text="Eggs"
                 android:textSize="12sp"
-                android:textColor="#3C4043"
+                android:textColor="@color/widget_text_list"
                 android:maxLines="1"
                 android:ellipsize="end" />
         </LinearLayout>
@@ -154,16 +154,16 @@
                 android:layout_width="18dp"
                 android:layout_height="18dp"
                 android:layout_marginEnd="8dp"
-                android:src="@drawable/ic_widget_preview_checkbox_checked"
+                android:src="@drawable/ic_widget_checkbox_checked"
                 android:contentDescription="@null" />
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Bread"
+                android:text="@string/widget_preview_checked_bread"
                 android:textSize="12sp"
-                android:textColor="#9AA0A6"
+                android:textColor="@color/widget_text_checked"
                 android:maxLines="1"
                 android:ellipsize="end" />
         </LinearLayout>
@@ -174,7 +174,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:background="@drawable/widget_preview_note_card"
+        android:background="@drawable/widget_note_card"
         android:padding="10dp">
 
         <TextView
@@ -182,7 +182,7 @@
             android:layout_height="wrap_content"
             android:text="Book recommendations"
             android:textSize="14sp"
-            android:textColor="#202124"
+            android:textColor="@color/widget_text_primary"
             android:fontFamily="sans-serif-medium"
             android:maxLines="1"
             android:ellipsize="end" />
@@ -193,7 +193,7 @@
             android:layout_marginTop="2dp"
             android:text="The Bible, Atomic Habits"
             android:textSize="12sp"
-            android:textColor="#5F6368"
+            android:textColor="@color/widget_text_secondary"
             android:maxLines="1"
             android:ellipsize="end" />
     </LinearLayout>

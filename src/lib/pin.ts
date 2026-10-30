@@ -8,11 +8,19 @@
 // - App Lock PIN (encryption off): only a salted PBKDF2 verifier is kept. It gates
 //   the UI and nothing else. The notes aren't protected by it, so a verifier that
 //   is brute-forceable offline gives away nothing that isn't already readable.
+//   "Forgot PIN?" therefore deletes this device's notes, as it does with
+//   encryption on; otherwise anyone holding the device could remove it (C2-32).
 // - Session PIN: kept in memory after the user types it (unlock, enable, change),
 //   so cloud sync can wrap and check the cloud key without asking again.
 //
 // Up to 5.0.5 the raw PIN sat in localStorage under "app-passcode" and
 // "app-lock-passcode". migrateLegacyPins() converts and removes those.
+//
+// The one exception is biometric unlock, which keeps the encryption PIN in the
+// plugin's Keystore/Keychain credential. Anything that turns biometrics off goes
+// through disableBiometrics(), so that copy goes too (C2-34).
+
+import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 
 export const ENCRYPTION_ENABLED_KEY = "app-encryption-enabled";
 export const APP_LOCK_ENABLED_KEY = "app-lock-enabled";
@@ -166,6 +174,28 @@ export const setCloudKeyPushPending = (pending: boolean, fromPin?: string): void
 // ── Reset & migration ─────────────────────────────────────────────
 
 /** Forget every PIN-related setting on this device (for "Reset & Delete All"). */
+/**
+ * Turns biometric unlock off and deletes the PIN it kept (C2-34). Leaving the
+ * credential behind kept an old PIN that can still unwrap the earlier cloud key
+ * revisions providers keep as file history.
+ */
+export const disableBiometrics = async (): Promise<void> => {
+    localStorage.removeItem(BIOMETRICS_ENABLED_KEY);
+    await deleteBiometricCredential();
+};
+
+/**
+ * Deletes the stored PIN but leaves biometric unlock on. For App Lock without
+ * encryption, which unlocks on the biometric check alone and never reads it.
+ */
+export const deleteBiometricCredential = async (): Promise<void> => {
+    try {
+        await NativeBiometric.deleteCredentials({ server: "open-keep" });
+    } catch {
+        // No credentials stored, or no biometrics on this platform.
+    }
+};
+
 export const clearAllPinState = (): void => {
     [
         ENCRYPTION_ENABLED_KEY,
@@ -178,6 +208,8 @@ export const clearAllPinState = (): void => {
         LEGACY_APP_LOCK_PIN_KEY,
     ].forEach((key) => localStorage.removeItem(key));
     sessionPin = null;
+    // The native call is sent now; a reload straight after doesn't cancel it.
+    void disableBiometrics();
     window.dispatchEvent(new Event(APP_LOCK_CHANGED_EVENT));
 };
 

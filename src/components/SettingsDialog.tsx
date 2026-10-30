@@ -48,6 +48,7 @@ import { saveAs } from "file-saver";
 import { showSuccess, showError } from "@/utils/toast";
 import { Capacitor } from "@capacitor/core";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
+import { clearExportCache, exportCachePath } from "@/lib/export-cache";
 import { Share } from "@capacitor/share";
 import { ImportManager } from "@/utils/import-manager";
 import { addNotesToZip } from "@/utils/note-export";
@@ -193,7 +194,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
         } else if (file.name.endsWith('.zip')) {
           const zip = await JSZip.loadAsync(file);
           const entries = Object.values(zip.files).filter(
-            (zipEntry) => !zipEntry.dir && (zipEntry.name.endsWith('.md') || zipEntry.name.endsWith('.json'))
+            (zipEntry) => !zipEntry.dir
+              && (zipEntry.name.endsWith('.md') || zipEntry.name.endsWith('.json'))
+              // macOS metadata copies, not notes (C3-37)
+              && !/(^|\/)(__MACOSX\/|\._)/.test(zipEntry.name)
           );
           if (inputFiles.length + entries.length > IMPORT_MAX_FILES) {
             throw new Error(`Too many files to import (limit ${IMPORT_MAX_FILES.toLocaleString()}).`);
@@ -286,8 +290,9 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
       if (Capacitor.isNativePlatform()) {
         const contentBase64 = await zip.generateAsync({ type: "base64" });
 
+        await clearExportCache();
         const result = await Filesystem.writeFile({
-          path: filename,
+          path: exportCachePath(filename),
           data: contentBase64,
           directory: Directory.Cache,
           recursive: true
@@ -358,7 +363,7 @@ PIN code: ${pinCode || 'Not set'}`;
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent
           aria-describedby={undefined}
-          className="w-full h-full max-w-full sm:max-w-[425px] sm:h-auto sm:max-h-[85vh] sm:rounded-lg !rounded-none sm:!rounded-lg overflow-y-auto bg-background text-primary-foreground border-0 sm:border pt-[max(env(safe-area-inset-top),1.5rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)] px-6"
+          className="w-full h-full max-w-full sm:max-w-[425px] sm:h-auto sm:max-h-[85vh] sm:rounded-dialog !rounded-none sm:!rounded-dialog flex flex-col overflow-hidden bg-background sm:bg-surface-container-high text-text-primary border-0 sm:border pt-[max(env(safe-area-inset-top),1.5rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)] px-6"
         >
           <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
             <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">
@@ -367,7 +372,7 @@ PIN code: ${pinCode || 'Not set'}`;
             </Button>
             <DialogTitle>Settings</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 min-h-0 overflow-y-auto -mx-6 px-6">
             <div className="flex flex-col gap-2">
               <Label htmlFor="theme">Theme</Label>
               <ToggleGroup
@@ -598,8 +603,8 @@ PIN code: ${pinCode || 'Not set'}`;
             )}
 
             <div className="flex items-center justify-between mt-2">
-              <Label className="text-sm text-primary-foreground font-medium">App Version</Label>
-              <span className="text-xs text-primary-foreground max-w-[60%] truncate">
+              <Label className="text-sm text-text-primary font-medium">App Version</Label>
+              <span className="text-xs text-text-primary max-w-[60%] truncate">
                 {appVersion}
               </span>
             </div>
@@ -607,8 +612,8 @@ PIN code: ${pinCode || 'Not set'}`;
             {/* Supabase User ID */}
             {user?.id && (
               <div className="flex items-center justify-between mt-2">
-                <Label className="text-sm text-primary-foreground font-medium">User ID</Label>
-                <span className="text-xs text-primary-foreground max-w-[60%] truncate">
+                <Label className="text-sm text-text-primary font-medium">User ID</Label>
+                <span className="text-xs text-text-primary max-w-[60%] truncate">
                   {user.id}
                 </span>
               </div>

@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@android:color/white"
+    android:background="@color/widget_background"
     android:padding="12dp">
 
     <!-- Header: Filter Name -->
@@ -22,7 +22,7 @@
             android:layout_weight="1"
             android:text="Note Collection"
             android:textSize="16sp"
-            android:textColor="@android:color/black"
+            android:textColor="@color/widget_heading"
             android:fontFamily="sans-serif-medium"
             android:maxLines="1"
             android:ellipsize="end" />
@@ -32,14 +32,14 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textSize="11sp"
-            android:textColor="#80868B" />
+            android:textColor="@color/widget_text_count" />
     </LinearLayout>
 
     <!-- Divider line -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#E0E0E0" />
+        android:background="@color/widget_divider" />
 
     <!-- Scrollable Notes List via RemoteViewsService -->
     <ListView
@@ -61,7 +61,7 @@
         android:gravity="top|start"
         android:text="Meeting Notes\nDiscuss project timeline\n\nGroceries\n- [ ] Milk\n- [ ] Eggs\n- [x] Bread"
         android:textSize="14sp"
-        android:textColor="@android:color/darker_gray"
+        android:textColor="@color/widget_text_secondary"
         android:visibility="visible" />
 
     <!-- Locked state -->
@@ -73,7 +73,7 @@
         android:gravity="center"
         android:text="Open Keep to unlock"
         android:textSize="13sp"
-        android:textColor="#80868B"
+        android:textColor="@color/widget_text_count"
         android:visibility="gone" />
 
 </LinearLayout>

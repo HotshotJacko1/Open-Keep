@@ -16,6 +16,8 @@ import { syncImageEncryption } from "@/lib/image-storage";
 import {
     BIOMETRICS_ENABLED_KEY,
     clearAppLockPin,
+    deleteBiometricCredential,
+    disableBiometrics,
     isAppLockEnabled,
     setAppLockEnabled,
     setAppLockPin,
@@ -71,14 +73,12 @@ export const disableEncryption = async (currentPin: string): Promise<void> => {
 
     if (isAppLockEnabled()) {
         await setAppLockPin(currentPin);
+        // App Lock alone unlocks on the biometric check and never reads the
+        // stored PIN, so it's dead weight from here on (C2-34).
+        await deleteBiometricCredential();
     } else {
         setAppLockEnabled(false);
-        localStorage.removeItem(BIOMETRICS_ENABLED_KEY);
-        try {
-            await NativeBiometric.deleteCredentials({ server: "open-keep" });
-        } catch {
-            // No credentials stored.
-        }
+        await disableBiometrics();
     }
 
     // Flag last: see the ordering note at the top.

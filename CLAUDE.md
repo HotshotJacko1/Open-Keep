@@ -8,7 +8,7 @@ Open Keep — an open-source, privacy-focused, cross-platform (web/iOS/Android v
 
 ## Commands
 
-Package manager is **pnpm** (`packageManager: pnpm@10.34.5`). Node version is pinned in `.nvmrc` (22.22.2).
+Package manager is **pnpm** (`packageManager: pnpm@10.34.5`). Node version is pinned in `.nvmrc` (24.21.0). It must match the Node that F-Droid installs from Debian forky, or the F-Droid reproducible-build check fails (see `metadata/com.jackbarkerapps.openkeep.yml` in fdroiddata).
 
 ```bash
 pnpm install
@@ -16,17 +16,17 @@ pnpm dev            # vite dev server on port 8080
 pnpm build           # production build: prebuild (scripts/sync-version.cjs), then tsc -b, then vite build
 pnpm typecheck       # tsc -b only (app + vite config projects)
 pnpm build:dev        # development-mode build
-pnpm lint            # eslint .
+pnpm lint            # version check (sync-version.cjs --check: iOS MARKETING_VERSION must match build.gradle), then eslint .
 pnpm preview          # preview a production build
 ```
 
-The main app's only unit tests cover sync: the merge rules (`src/lib/sync-merge.test.ts`) and the shared sync pipeline's conflict-resolution and write-back paths (`src/lib/cloud-sync-runner.test.ts`, with the database and providers mocked). Run them with `pnpm test` (Vitest). The **mcp-server** sub-package has its own tests:
+The main app's unit tests run with `pnpm test` (Vitest). They cover the sync merge rules (`src/lib/sync-merge.test.ts`), the shared sync pipeline's conflict-resolution and write-back paths (`src/lib/cloud-sync-runner.test.ts`, with the database and providers mocked), App Lock relocking (`src/lib/app-relock.test.ts`), and helpers in `src/utils/` (markdown, text direction, note import/export). Codemagic and the release workflow both run them. The **mcp-server** sub-package has its own tests:
 
 ```bash
 cd mcp-server
 npm install
 npm run build         # tsc -p tsconfig.json
-npm test              # build, then run test/mock-roundtrip.mjs (28 assertions, end-to-end bridge protocol)
+npm test              # build, then run test/mock-roundtrip.mjs (end-to-end bridge protocol; prints a pass/fail count)
 npm run pack:mcpb      # bundle the Claude Desktop extension into build/open-keep.mcpb
 ```
 
@@ -39,11 +39,11 @@ npx cap sync ios
 npx cap sync android
 ```
 
-iOS builds are done via Codemagic (`codemagic.yaml`), triggered on push to `main`; it runs `pnpm install --frozen-lockfile` (via Corepack) then `pnpm build` then `pnpm exec cap sync ios` then an Xcode archive/IPA build.
+iOS builds are done via Codemagic (`codemagic.yaml`), triggered on push to `main`; it runs `pnpm install --frozen-lockfile` (via Corepack) then `pnpm lint` then `pnpm test` then `pnpm build` then `pnpm exec cap sync ios` then an Xcode archive/IPA build.
 
 ### App versioning
 
-The **single source of truth for app version is `android/app/build.gradle`'s `versionName`**. `scripts/sync-version.cjs` runs as a `prebuild` step and copies that value into iOS's `MARKETING_VERSION` (`ios/App/App.xcodeproj/project.pbxproj`) and into `vite.config.ts`'s `__APP_VERSION__` define. Bump the version by editing `build.gradle` only — do not hand-edit the iOS project version.
+The **single source of truth for app version is `android/app/build.gradle`'s `versionName`**. `scripts/sync-version.cjs` runs as a `prebuild` step and copies that value into iOS's `MARKETING_VERSION` (`ios/App/App.xcodeproj/project.pbxproj`); `vite.config.ts` reads `build.gradle` itself for the `__APP_VERSION__` define. `pnpm lint` fails if the two have drifted. Bump the version by editing `build.gradle` only — do not hand-edit the iOS project version.
 
 ## Architecture
 
@@ -54,7 +54,7 @@ All note persistence goes through [src/lib/note-storage.ts](src/lib/note-storage
 - **Native (iOS/Android)**: calls through a Capacitor plugin (`registerPlugin<NoteStoragePlugin>("NoteStorage")`) implemented natively in [android/app/src/main/java/com/jackbarkerapps/openkeep/NoteStoragePlugin.kt](android/app/src/main/java/com/jackbarkerapps/openkeep/NoteStoragePlugin.kt) and [ios/App/App/NoteStoragePlugin.swift](ios/App/App/NoteStoragePlugin.swift), backed by an on-disk SQLCipher-encrypted SQLite database (pulled in via Swift Package Manager from `sqlcipher/SQLCipher.swift`, declared in `ios/App/App.xcodeproj/project.pbxproj`). The PIN/passcode is the encryption key.
 - **Web**: notes live in `localStorage` (`open-keep-notes` key) and are encrypted/decrypted via the WebCrypto API in [src/lib/web-crypto.ts](src/lib/web-crypto.ts), mirroring the native plugin's method signatures (`initializeDatabaseWeb`, `encryptDataWeb`, etc.).
 
-Both backends expose the same async API surface (`loadNotes`, `saveNote`, `deleteNote`, `initializeDatabase`, `checkDatabaseStatus`, `lockDatabase`, `changeEncryptionKey`, `exportMasterKey`/`importMasterKey` for cross-device key transfer, `wipeDatabaseButKeepKeys`, `clearAllData`). Callers (UI code) should generally go through this module rather than branching on platform themselves.
+Both backends expose the same async API surface (`loadNotes`, `saveNote`, `deleteNote`, `initializeDatabase`, `checkDatabaseStatus`, `changeEncryptionKey`, `exportMasterKey`/`importMasterKey` for cross-device key transfer, `wipeDatabaseButKeepKeys`, `clearAllData`). Callers (UI code) should generally go through this module rather than branching on platform themselves.
 
 Legacy data migration: old "list"-type notes (with an `items` array) are converted on load into markdown checklists (`- [ ] ...`); see `parseNote` in `note-storage.ts`.
 
@@ -96,4 +96,4 @@ Supabase is used minimally and not for note storage: anonymous auth for usage co
 
 ### Importers/exporters
 
-[src/utils/import-manager.ts](src/utils/import-manager.ts) dispatches to format-specific importers in `src/utils/importers/` (`google-keep.ts`, `markdown.ts`). `src/components/GoogleKeepMigrationGuide.tsx` / `InitialAskToMigrate.tsx` drive the Google Keep migration UX referenced in the README's "DeGoogled" positioning.
+[src/utils/import-manager.ts](src/utils/import-manager.ts) dispatches to format-specific importers in `src/utils/importers/` (`google-keep.ts`, `markdown.ts`). `src/components/GoogleKeepMigrationGuide.tsx` is the Google Keep migration guide referenced in the README's "DeGoogled" positioning, opened from Settings → "Google Keep Import Guide".

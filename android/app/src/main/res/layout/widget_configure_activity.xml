@@ -1,35 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+    Single Note widget setup screen. The page colour comes from Theme.OpenKeep.WidgetConfigure.
+    fitsSystemWindows replaces a view's own padding with the system bar insets, so it sits
+    on this outer frame and the page margins go on the LinearLayout inside.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp"
-    android:background="@android:color/white"
     android:fitsSystemWindows="true">
 
-    <TextView
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Choose a note to display"
-        android:textSize="18sp"
-        android:textColor="@android:color/black"
-        android:fontFamily="sans-serif-medium"
-        android:paddingBottom="12dp" />
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="20dp">
 
-    <TextView
-        android:id="@+id/config_empty_text"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Loading notes..."
-        android:textSize="14sp"
-        android:textColor="@android:color/darker_gray"
-        android:gravity="center"
-        android:padding="24dp" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Choose a note to display"
+            android:textSize="22sp"
+            android:textColor="@color/widget_heading"
+            android:fontFamily="sans-serif-medium"
+            android:paddingBottom="16dp" />
 
-    <ListView
-        android:id="@+id/config_notes_list"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
+        <TextView
+            android:id="@+id/config_empty_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Loading notes..."
+            android:textSize="14sp"
+            android:textColor="@color/widget_text_secondary"
+            android:gravity="center"
+            android:padding="24dp" />
 
-</LinearLayout>
+        <ListView
+            android:id="@+id/config_notes_list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:listSelector="@android:color/transparent"
+            android:clipToPadding="false"
+            android:paddingBottom="16dp"
+            android:scrollbarStyle="outsideOverlay" />
+
+    </LinearLayout>
+</FrameLayout>

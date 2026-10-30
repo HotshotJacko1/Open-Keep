@@ -19,9 +19,9 @@ interface AddNoteOptionsProps {
 // of the FAB one after another, nearest first. `fill-mode-backwards` keeps an
 // item hidden during its delay instead of flashing in at its final position.
 const menuItemClass =
-  "press-feedback h-14 w-fit gap-3 rounded-full px-6 text-base font-medium cursor-pointer shadow-md " +
+  "press-feedback h-14 w-fit gap-3 rounded-full px-6 text-title-md cursor-pointer shadow-elevation-3 " +
   "bg-brand-container text-brand-container-foreground focus:bg-brand-container focus:text-brand-container-foreground " +
-  "focus-visible:ring-2 focus-visible:ring-ring " +
+  "focus-visible:ring-[3px] focus-visible:ring-ring " +
   "animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 fill-mode-backwards duration-md3-short4 ease-md3-decelerate";
 
 const AddNoteOptions: React.FC<AddNoteOptionsProps> = ({
@@ -40,7 +40,7 @@ const AddNoteOptions: React.FC<AddNoteOptionsProps> = ({
           // stronger brand colour, per the M3 FAB menu pattern.
           className={cn(
             "fixed bottom-[calc(2rem+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))] right-8 z-50 h-14 w-14",
-            "shadow-lg hover:shadow-xl",
+            "shadow-elevation-3 hover:shadow-elevation-4",
             "transition-[background-color,color,box-shadow,border-radius] duration-md3-medium2 ease-md3-standard",
             open
               ? "rounded-[28px] bg-brand text-brand-foreground hover:bg-brand"

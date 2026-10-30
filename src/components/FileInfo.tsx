@@ -67,7 +67,7 @@ const FileInfo: React.FC<FileInfoProps> = ({ isOpen, onClose, note }) => {
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-sm">
+            <DialogContent className="w-[calc(100%-2rem)] sm:max-w-sm rounded-dialog">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-text-primary dark:text-text-primary">
                         <Info className="h-5 w-5 text-text-primary dark:text-text-primary" />

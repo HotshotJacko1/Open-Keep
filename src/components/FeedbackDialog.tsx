@@ -63,10 +63,10 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
       <DialogContent
-        className="sm:max-w-md bg-background text-text-primary dark:text-text-primary border"
+        className="w-[calc(100%-2rem)] sm:max-w-md rounded-dialog text-text-primary dark:text-text-primary border"
       >
         <DialogHeader className="flex flex-row items-center justify-between">
-          <DialogTitle className="text-xl font-semibold">
+          <DialogTitle className="">
             {isSubmitted ? "Thank you!" : "Would you recommend the app?"}
           </DialogTitle>
           <Button variant="ghost" size="icon" onClick={handleClose} className="touch-target h-8 w-8">

@@ -56,7 +56,7 @@ private func fetchDistinctLabels() -> [String] {
 
 struct SelectCollectionFilterIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Note Collection"
-    static var description = IntentDescription("Choose which notes to display on the home screen")
+    static var description = IntentDescription("Choose notes to display")
 
     @Parameter(title: "Show", default: .all)
     var filterType: CollectionFilterType
@@ -319,7 +319,7 @@ struct NoteCollectionWidgetEntryView: View {
             }
         }
         .containerBackground(for: .widget) {
-            Color(.systemBackground)
+            WidgetPalette.background
         }
     }
 
@@ -328,10 +328,10 @@ struct NoteCollectionWidgetEntryView: View {
             VStack(spacing: 8) {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 28))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(WidgetPalette.icon)
                 Text("Open Keep to unlock")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(WidgetPalette.textSecondary)
                     .multilineTextAlignment(.center)
             }
             .padding()
@@ -344,10 +344,10 @@ struct NoteCollectionWidgetEntryView: View {
         let content = VStack(spacing: 8) {
             Image(systemName: "note.text")
                 .font(.system(size: 28))
-                .foregroundColor(.secondary)
+                .foregroundColor(WidgetPalette.icon)
             Text(message)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(WidgetPalette.textSecondary)
                 .multilineTextAlignment(.center)
         }
         .padding()
@@ -361,30 +361,25 @@ struct NoteCollectionWidgetEntryView: View {
     }
 
     private var noteListView: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Image(systemName: "note.text")
-                    .font(.caption)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
                 Text(entry.filterName)
-                    .font(.caption.weight(.semibold))
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(WidgetPalette.heading)
+                    .lineLimit(1)
                 Spacer()
-                Text("\(entry.notes.count) notes")
+                Text(entry.notes.count == 1 ? "1 note" : "\(entry.notes.count) notes")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(WidgetPalette.textSecondary)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-
-            Divider()
 
             let maxVisible: Int = (family == .systemLarge || family == .systemExtraLarge) ? 8 : 4
             let visibleNotes = entry.notes.prefix(maxVisible)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 6) {
                     ForEach(visibleNotes) { note in
                         NoteRowView(note: note)
-                        Divider().padding(.leading, 16)
                     }
                 }
             }
@@ -394,6 +389,9 @@ struct NoteCollectionWidgetEntryView: View {
 
 struct NoteRowView: View {
     let note: WidgetNote
+    // iOS 18's tinted home screen draws everything in one tint by opacity, so a
+    // solid card fill would cover its own text. Outside full colour, keep only the outline.
+    @Environment(\.widgetRenderingMode) private var renderingMode
 
     var body: some View {
         Link(destination: URL(string: "openkeep://open-note/\(note.id)")!) {
@@ -402,10 +400,11 @@ struct NoteRowView: View {
                     if note.isPinned {
                         Image(systemName: "pin.fill")
                             .font(.system(size: 8))
-                            .foregroundColor(.orange)
+                            .foregroundColor(WidgetPalette.highlight)
                     }
-                    Text(note.title.isEmpty ? "Untitled" : note.title)
+                    Text(WidgetText.displayTitle(title: note.title, content: note.content))
                         .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(WidgetPalette.textPrimary)
                         .lineLimit(1)
                 }
 
@@ -416,47 +415,60 @@ struct NoteRowView: View {
                     if note.checkboxes.count > 3 {
                         Text("+\(note.checkboxes.count - 3) more items")
                             .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                            .padding(.leading, 4)
+                            .foregroundColor(WidgetPalette.textSecondary)
                     }
                 } else {
-                    let preview = note.content
-                        .split(separator: "\n")
-                        .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty })
-                        .map(String.init) ?? ""
+                    // Text notes are stored as editor HTML: show the text, not the tags.
+                    // An untitled note's first line is already its title.
+                    let lines = WidgetText.plainLines(note.content)
+                    let untitled = note.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    let preview = (untitled ? Array(lines.dropFirst()) : lines)
+                        .prefix(3)
+                        .joined(separator: "\n")
                     if !preview.isEmpty {
                         Text(preview)
                             .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(WidgetPalette.textSecondary)
                             .lineLimit(3)
                     }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 10)
             .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // A note card as the app draws it: card colour, outline, 12pt corners.
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(renderingMode == .fullColor ? WidgetPalette.card : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(WidgetPalette.cardStroke, lineWidth: 1)
+            )
         }
     }
 
     @ViewBuilder
     private func checkboxRow(_ checkbox: CheckboxItem) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
             Button(intent: ToggleCollectionCheckboxIntent(
                 noteId: note.id,
                 lineIndex: checkbox.lineIndex
             )) {
-                Image(systemName: checkbox.isChecked ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 11))
-                    .foregroundColor(checkbox.isChecked ? .green : .secondary)
+                // As in the app: an outlined square, or a green tick with no box.
+                Image(systemName: checkbox.isChecked ? "checkmark" : "square")
+                    .font(.system(size: 11, weight: checkbox.isChecked ? .bold : .regular))
+                    .foregroundColor(checkbox.isChecked ? WidgetPalette.check : WidgetPalette.checkbox)
+                    .frame(width: 14)
             }
             .buttonStyle(.plain)
 
             Text(checkbox.text)
                 .font(.system(size: 11))
-                .foregroundColor(checkbox.isChecked ? .secondary : .primary)
+                .foregroundColor(checkbox.isChecked ? WidgetPalette.textChecked : WidgetPalette.textList)
                 .strikethrough(checkbox.isChecked)
                 .lineLimit(1)
         }
-        .padding(.leading, 4)
     }
 }
 
@@ -474,7 +486,7 @@ struct NoteCollectionWidgetIOS: Widget {
             NoteCollectionWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Note Collection")
-        .description("Browse your notes from the home screen")
+        .description("View a set of notes")
         .supportedFamilies([.systemMedium, .systemLarge])
     }
 }

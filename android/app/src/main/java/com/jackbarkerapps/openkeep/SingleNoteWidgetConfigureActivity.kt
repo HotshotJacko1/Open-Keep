@@ -30,6 +30,7 @@ class SingleNoteWidgetConfigureActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.widget_configure_activity)
+        WidgetConfigStyle.applySystemBars(this)
 
         // Find the widget id from the intent
         appWidgetId = intent?.getIntExtra(
@@ -83,7 +84,7 @@ class SingleNoteWidgetConfigureActivity : AppCompatActivity() {
 
                         val adapter = object : ArrayAdapter<NoteEntity>(
                             this@SingleNoteWidgetConfigureActivity,
-                            android.R.layout.simple_list_item_2,
+                            R.layout.widget_configure_note_item,
                             android.R.id.text1,
                             allNotes
                         ) {
@@ -103,7 +104,9 @@ class SingleNoteWidgetConfigureActivity : AppCompatActivity() {
                                             ?: "Untitled"
                                     }
                                     text1.text = title
-                                    text2.text = buildPreview(note)
+                                    val preview = buildPreview(note)
+                                    text2.text = preview
+                                    text2.visibility = if (preview.isBlank()) View.GONE else View.VISIBLE
                                 }
                                 return view
                             }

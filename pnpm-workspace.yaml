@@ -1,5 +1,7 @@
 packages:
   - .
+# Only packages in the lockfile that need their install script. Anything else
+# stays blocked (pnpm 10 default) until it is reviewed and added here.
 allowBuilds:
   # dyad-default-allow-builds begin
   # dyad-default-allow-builds-schema=v1
@@ -87,9 +89,6 @@ allowBuilds:
   "@sap/hana-theme-vscode": true
   "@scarf/scarf": true
   "@sematext/gc-stats": true
-  "@sentry/capacitor": true
-  # dyad-default-allow-builds end
-  "@sentry/cli": true
   "@sentry/profiling-node": true
   "@serialport/bindings": true
   "@serialport/bindings-cpp": true
@@ -101,7 +100,6 @@ allowBuilds:
   "@splunk/otel": true
   "@strapi/strapi": true
   "@sveltejs/kit": true
-  "@swc/core": true
   "@syncfusion/ej2-angular-base": true
   "@taquito/taquito": true
   "@temporalio/core-bridge": true
@@ -376,6 +374,10 @@ allowBuilds:
   zeromq: true
   zlib-sync: true
   zopflipng-bin: true
+  # dyad-default-allow-builds end
+  "@sentry/capacitor": true
+  "@sentry/cli": true
+  "@swc/core": true
 minimumReleaseAge: 1440
 patchedDependencies:
   '@capgo/capacitor-social-login@8.3.22': patches/@capgo__capacitor-social-login@8.3.22.patch

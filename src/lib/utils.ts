@@ -2,10 +2,23 @@
 import { clsx, type ClassValue } from "clsx";
 import { extendTailwindMerge } from "tailwind-merge";
 
-// Teach tailwind-merge the custom radius names from tailwind.config.ts, so
-// e.g. `rounded-card` correctly overrides a primitive's `rounded-lg`.
+// Teach tailwind-merge the custom names from tailwind.config.ts, so e.g.
+// `rounded-card` overrides a primitive's `rounded-lg`. The type-scale and
+// elevation names matter most: unregistered, `text-body-md` would be read as a
+// text *colour* and silently strip a real colour class like `text-foreground`.
+const TYPE_SCALE = [
+  "display-sm", "headline-lg", "headline-md", "headline-sm",
+  "title-lg", "title-md", "title-sm", "body-lg", "body-md", "body-sm",
+  "label-lg", "label-md", "label-sm",
+];
 const twMerge = extendTailwindMerge({
-  extend: { theme: { borderRadius: ["card", "fab", "drawer", "dialog", "sheet"] } },
+  extend: {
+    theme: { borderRadius: ["card", "fab", "drawer", "dialog", "sheet"] },
+    classGroups: {
+      "font-size": [{ text: TYPE_SCALE }],
+      shadow: [{ shadow: ["elevation-0", "elevation-1", "elevation-2", "elevation-3", "elevation-4", "elevation-5"] }],
+    },
+  },
 });
 
 export function cn(...inputs: ClassValue[]) {

@@ -69,7 +69,7 @@ const EnableEncryptionDialog: React.FC<EnableEncryptionDialogProps> = ({ isOpen,
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent
                 aria-describedby={undefined}
-                className="sm:max-w-[425px] bg-background text-primary-foreground"
+                className="w-[calc(100%-2rem)] sm:max-w-[425px] rounded-dialog text-text-primary"
             >
                 <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
                     {!isSuccessView && (

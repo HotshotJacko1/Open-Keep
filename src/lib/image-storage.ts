@@ -224,6 +224,15 @@ export const getImageSrc = async (path: string): Promise<string> => {
   return `data:image/jpeg;base64,${await readImageBase64(path)}`;
 };
 
+/** Delete every stored image, for a reset that deletes the notes they belong to. */
+export const deleteAllImages = async (): Promise<void> => {
+  try {
+    await Filesystem.rmdir({ path: IMAGE_DIR, directory: Directory.Data, recursive: true });
+  } catch {
+    // No images stored.
+  }
+};
+
 /** Delete an image file from the device filesystem */
 export const deleteImage = async (path: string): Promise<void> => {
   if (!isValidImagePath(path)) {

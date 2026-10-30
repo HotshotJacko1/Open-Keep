@@ -52,7 +52,7 @@ const NoteLabels: React.FC<NoteLabelsProps> = ({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="w-[calc(100%-2rem)] sm:max-w-[340px] max-h-[75vh] p-0 gap-0 flex flex-col overflow-hidden rounded-lg text-text-primary dark:text-text-primary">
+            <DialogContent className="w-[calc(100%-2rem)] sm:max-w-[340px] max-h-[75vh] p-0 gap-0 flex flex-col overflow-hidden rounded-dialog text-text-primary dark:text-text-primary">
                 <DialogTitle className="sr-only">Label note</DialogTitle>
 
                 {/* Header: back arrow + inline label input, Keep-style */}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Checked items in the widget picker previews. The app strikes checked items
+    through, and a layout can only do that through styled string resources.
+-->
+<resources>
+    <string name="widget_preview_checked_bread" translatable="false"><strike>Bread</strike></string>
+    <string name="widget_preview_checked_coffee" translatable="false"><strike>Coffee beans</strike></string>
+    <string name="widget_preview_checked_olive_oil" translatable="false"><strike>Olive oil</strike></string>
+</resources>

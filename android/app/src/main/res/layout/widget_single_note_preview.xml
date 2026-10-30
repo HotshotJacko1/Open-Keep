@@ -8,7 +8,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@android:color/white"
+    android:background="@color/widget_background"
     android:padding="12dp">
 
     <TextView
@@ -16,7 +16,7 @@
         android:layout_height="wrap_content"
         android:text="Shopping list"
         android:textSize="16sp"
-        android:textColor="@android:color/black"
+        android:textColor="@color/widget_heading"
         android:fontFamily="sans-serif-medium"
         android:maxLines="1"
         android:ellipsize="end"
@@ -25,7 +25,7 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#E0E0E0"
+        android:background="@color/widget_divider"
         android:layout_marginBottom="8dp" />
 
     <LinearLayout
@@ -40,7 +40,7 @@
             android:layout_width="20dp"
             android:layout_height="20dp"
             android:layout_marginEnd="10dp"
-            android:src="@drawable/ic_widget_preview_checkbox_unchecked"
+            android:src="@drawable/ic_widget_checkbox_unchecked"
             android:contentDescription="@null" />
 
         <TextView
@@ -49,7 +49,7 @@
             android:layout_weight="1"
             android:text="Oat milk"
             android:textSize="14sp"
-            android:textColor="#202124"
+            android:textColor="@color/widget_text_primary"
             android:maxLines="1"
             android:ellipsize="end" />
     </LinearLayout>
@@ -66,7 +66,7 @@
             android:layout_width="20dp"
             android:layout_height="20dp"
             android:layout_marginEnd="10dp"
-            android:src="@drawable/ic_widget_preview_checkbox_unchecked"
+            android:src="@drawable/ic_widget_checkbox_unchecked"
             android:contentDescription="@null" />
 
         <TextView
@@ -75,7 +75,7 @@
             android:layout_weight="1"
             android:text="Sourdough loaf"
             android:textSize="14sp"
-            android:textColor="#202124"
+            android:textColor="@color/widget_text_primary"
             android:maxLines="1"
             android:ellipsize="end" />
     </LinearLayout>
@@ -92,16 +92,16 @@
             android:layout_width="20dp"
             android:layout_height="20dp"
             android:layout_marginEnd="10dp"
-            android:src="@drawable/ic_widget_preview_checkbox_checked"
+            android:src="@drawable/ic_widget_checkbox_checked"
             android:contentDescription="@null" />
 
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Coffee beans"
+            android:text="@string/widget_preview_checked_coffee"
             android:textSize="14sp"
-            android:textColor="#9AA0A6"
+            android:textColor="@color/widget_text_checked"
             android:maxLines="1"
             android:ellipsize="end" />
     </LinearLayout>
@@ -118,16 +118,16 @@
             android:layout_width="20dp"
             android:layout_height="20dp"
             android:layout_marginEnd="10dp"
-            android:src="@drawable/ic_widget_preview_checkbox_checked"
+            android:src="@drawable/ic_widget_checkbox_checked"
             android:contentDescription="@null" />
 
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Olive oil"
+            android:text="@string/widget_preview_checked_olive_oil"
             android:textSize="14sp"
-            android:textColor="#9AA0A6"
+            android:textColor="@color/widget_text_checked"
             android:maxLines="1"
             android:ellipsize="end" />
     </LinearLayout>

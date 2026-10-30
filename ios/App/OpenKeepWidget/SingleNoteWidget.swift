@@ -115,15 +115,13 @@ private func fetchAllNotes() -> [(id: String, title: String, preview: String)] {
         let title = stringColumn(stmt, index: 1)
         let content = stringColumn(stmt, index: 2)
 
-        let fallbackTitle = content.components(separatedBy: "\n")
-            .first?
-            .trimmingCharacters(in: .whitespaces) ?? "Untitled"
-        let displayTitle = title.isEmpty ? String(fallbackTitle.prefix(60)) : title
-        let preview = content.components(separatedBy: "\n")
-            .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty })?
-            .trimmingCharacters(in: .whitespaces).prefix(80) ?? ""
-
-        notes.append((id: id, title: String(displayTitle), preview: String(preview)))
+        // Same title and preview as Android's setup screen: plain text, with
+        // checklist items shown as ☐ / ☑ rather than raw "- [ ]" markdown or HTML.
+        notes.append((
+            id: id,
+            title: WidgetText.pickerTitle(title: title, content: content),
+            preview: WidgetText.pickerPreview(content)
+        ))
     }
 
     return notes
@@ -239,7 +237,7 @@ struct NoteQuery: EntityQuery {
 
 struct SelectNoteIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Select Note"
-    static let description = IntentDescription("Choose which note to display on the widget")
+    static let description = IntentDescription("Choose a note to display")
 
     @Parameter(title: "Note")
     var note: NoteEntity?
@@ -352,17 +350,7 @@ struct SingleNoteWidgetProvider: AppIntentTimelineProvider {
 // MARK: - Content parsing
 
 private func displayTitle(title: String, content: String) -> String {
-    if !title.trimmingCharacters(in: .whitespaces).isEmpty {
-        return title
-    }
-    let firstLine = content
-        .components(separatedBy: "\n")
-        .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty })?
-        .trimmingCharacters(in: .whitespaces) ?? ""
-    if firstLine.isEmpty {
-        return "Untitled"
-    }
-    return String(firstLine.prefix(60))
+    WidgetText.displayTitle(title: title, content: content)
 }
 
 private enum NoteLineContent: Identifiable {
@@ -398,7 +386,10 @@ private func parseNoteLines(from content: String) -> [NoteLineContent] {
                 indentation: indent
             ))
         } else if !trimmed.isEmpty {
-            result.append(.text(trimmed))
+            // Text notes are stored as editor HTML: show the text, not the tags.
+            for paragraph in WidgetText.plainLines(trimmed) {
+                result.append(.text(paragraph))
+            }
         }
     }
 
@@ -428,7 +419,7 @@ struct SingleNoteWidgetEntryView: View {
             }
         }
         .containerBackground(for: .widget) {
-            Color(.systemBackground)
+            WidgetPalette.background
         }
     }
 
@@ -438,13 +429,13 @@ struct SingleNoteWidgetEntryView: View {
             VStack(spacing: 8) {
                 Image(systemName: "note.text")
                     .font(.system(size: 28))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(WidgetPalette.icon)
                 Text("Not Configured")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.primary)
+                    .foregroundColor(WidgetPalette.heading)
                 Text("Tap to open Open Keep")
                     .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(WidgetPalette.textSecondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -456,13 +447,13 @@ struct SingleNoteWidgetEntryView: View {
             VStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 24))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(WidgetPalette.icon)
                 Text("Note Unavailable")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.primary)
+                    .foregroundColor(WidgetPalette.heading)
                 Text("Tap to open Open Keep")
                     .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(WidgetPalette.textSecondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -479,44 +470,47 @@ struct SingleNoteWidgetEntryView: View {
                 Text(entry.title)
                     .font(.system(size: 16, weight: .bold))
                     .lineLimit(1)
-                    .foregroundColor(.primary)
+                    .foregroundColor(WidgetPalette.heading)
 
                 Spacer()
 
                 if hasChecklist {
                     Image(systemName: "checkmark.square")
                         .font(.system(size: 12))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(WidgetPalette.icon)
                 }
             }
 
             Rectangle()
-                .fill(Color(.separator))
-                .frame(height: 0.5)
+                .fill(WidgetPalette.divider)
+                .frame(height: 1)
 
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(lines) { line in
+                    // Position as the id: two identical paragraphs would share a content id.
+                    ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                         switch line {
                         case .text(let text):
                             Text(text)
                                 .font(.system(size: 13))
-                                .foregroundColor(.primary)
+                                .foregroundColor(WidgetPalette.textList)
                                 .padding(.vertical, 2)
 
                         case .checkbox(let lineIndex, let text, let isChecked, let indentation):
                             HStack(spacing: 6) {
                                 Button(intent: ToggleCheckboxIntent(noteId: noteId, lineIndex: lineIndex)) {
-                                    Image(systemName: isChecked ? "checkmark.square.fill" : "square")
-                                        .font(.system(size: 16))
-                                        .foregroundColor(isChecked ? .green : .secondary)
+                                    // As in the app: an outlined square, or a green tick with no box.
+                                    Image(systemName: isChecked ? "checkmark" : "square")
+                                        .font(.system(size: 16, weight: isChecked ? .bold : .regular))
+                                        .foregroundColor(isChecked ? WidgetPalette.check : WidgetPalette.checkbox)
+                                        .frame(width: 20)
                                 }
                                 .buttonStyle(.plain)
 
                                 Text(text)
                                     .font(.system(size: 13))
                                     .strikethrough(isChecked)
-                                    .foregroundColor(isChecked ? .secondary : .primary)
+                                    .foregroundColor(isChecked ? WidgetPalette.textChecked : WidgetPalette.textList)
                             }
                             .padding(.leading, CGFloat(indentation * 16))
                             .padding(.vertical, 2)

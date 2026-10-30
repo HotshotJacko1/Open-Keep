@@ -9,7 +9,7 @@ import NotFound from "./pages/NotFound";
 
 import LockScreen from "./components/LockScreen";
 import { Button } from "@/components/ui/button";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { checkDatabaseStatus, initializeDatabase, clearAllData, setSecureWindow, verifyEncryptionPin } from "./lib/note-storage";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
@@ -30,6 +30,7 @@ import {
 import { upgradeLegacyNativeKey } from "./lib/encryption-pin";
 import { syncImageEncryption } from "./lib/image-storage";
 import { shouldRelock } from "./lib/app-relock";
+import { clearExportCache } from "./lib/export-cache";
 
 const queryClient = new QueryClient();
 
@@ -58,6 +59,15 @@ const App = () => {
   // Capture widget deep links even while the lock screen is visible.
   useEffect(() => {
     ensureWidgetDeepLinkCapture();
+  }, []);
+
+  // Delete the last session's export copies (C2-36). Waits for the notes to be
+  // on screen (Index fires the event), so it doesn't queue native plugin calls
+  // ahead of the first database read.
+  useEffect(() => {
+    const clear = () => { void clearExportCache(); };
+    window.addEventListener("open-keep-notes-shown", clear, { once: true });
+    return () => window.removeEventListener("open-keep-notes-shown", clear);
   }, []);
 
   // App Lock also applies when coming back to a running app (C3-27): Android keeps
@@ -94,6 +104,28 @@ const App = () => {
     return () => window.removeEventListener(APP_LOCK_CHANGED_EVENT, apply);
   }, []);
 
+  // With no App Lock and no encryption there is no PIN to ask for, so the lock screen
+  // is a dead end: every entry is "Incorrect passcode" and the notes look gone. Reopen
+  // the database with the empty PIN instead (what the lock screen's own transparent
+  // unlock does, and it re-stores the auto-unlock key). Once per launch: a database
+  // that still can't be read ends on the Database Error screen rather than looping.
+  const reopenedWithoutPin = useRef(false);
+  const reopenWithoutPin = useCallback(async () => {
+    if (reopenedWithoutPin.current) {
+      setAppState('setup');
+      return;
+    }
+    reopenedWithoutPin.current = true;
+    setAppState('loading');   // unmounts Index, so it reads the notes again on 'ready'
+    try {
+      await initializeDatabase("");
+      setAppState('ready');
+    } catch (e) {
+      console.error("Reopening the database without a PIN failed", e);
+      setAppState('setup');
+    }
+  }, []);
+
   // Native key verification now happens on the first real read, not in checkStatus --
   // checkStatus reports whether an auto-unlock key is PRESENT, not whether it has been
   // proven. If that first read fails (wrong key, corrupt DB), Index.tsx fires this and
@@ -101,11 +133,15 @@ const App = () => {
   useEffect(() => {
     const handleUnverified = () => {
       setRelocked(false);
+      if (!isEncryptionEnabled() && !isAppLockEnabled()) {
+        void reopenWithoutPin();
+        return;
+      }
       setAppState('locked');
     };
     window.addEventListener("open-keep-db-unverified", handleUnverified);
     return () => window.removeEventListener("open-keep-db-unverified", handleUnverified);
-  }, []);
+  }, [reopenWithoutPin]);
 
   // Once the key is loaded, bring stored images in line with the encryption flag.
   // A no-op unless the flag changed or older plain images predate C1-16.
@@ -186,8 +222,11 @@ const App = () => {
           // Force locked if either native says so, or app-lock toggle is enabled.
           // An encrypted native DB may still auto-unlock: its key is held in the
           // Keystore/Keychain, so App Lock alone decides whether to ask.
-          if (status.isLocked || isLockEnabled) {
+          if (isLockEnabled || (status.isLocked && encryptionOn)) {
             setAppState('locked');
+          } else if (status.isLocked) {
+            // The auto-unlock key couldn't be read, but there's no PIN to ask for.
+            await reopenWithoutPin();
           } else {
             setAppState('ready');
           }
@@ -223,7 +262,7 @@ const App = () => {
     };
 
     init();
-  }, [isNative]);
+  }, [isNative, reopenWithoutPin]);
 
 
 
@@ -269,9 +308,10 @@ const App = () => {
     return true;
   };
 
+  // After a "Forgot PIN" reset, boot again from clean state. 'setup' is now the
+  // Database Error screen, which made a successful reset look like a crash (C3-32).
   const handleReset = () => {
-    setRelocked(false);
-    setAppState('setup');
+    window.location.reload();
   };
 
   const handleHardReset = async () => {
@@ -284,10 +324,6 @@ const App = () => {
         console.error("Failed to clear data", e);
       }
     }
-  };
-
-  const handleSetupComplete = () => {
-    setAppState('ready');
   };
 
   const handleFeedbackSubmit = async (feedback: "happy" | "sad", comments: string) => {

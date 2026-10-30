@@ -5,7 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), but this project does not adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) because there is no public API.
 
 ## [Unreleased]
-- N/A
+
+### Fixed
+- Biometric unlock can be retried when encryption is on.
+- Desktop: a new note no longer sometimes saves twice.
+- Resetting a forgotten PIN no longer shows a database error.
+- Sync conflict: "Keep Local" waits for this conflict's note count.
+- Android: no longer asks for a PIN you never set.
+- Opening a note on slower phones no longer crashes.
+- Export All no longer drops notes with matching names.
+- Exported titles with line breaks import back correctly.
+- Imports skip macOS zip clutter and non-Keep Takeout files.
+- Parallel AI edits to one note no longer clash.
+- Undoing an AI label change keeps your later edits.
+- Dropbox and OneDrive sign-in work in GitHub and F-Droid builds.
+- Web: a stale page after an update reloads itself.
+- Status bar icons now match the app's light/dark theme.
+- iOS widgets show note text, not raw formatting.
+
+### Changed
+- Clearer wording when turning encryption off.
+- Forgetting your App Lock PIN now resets this device's notes.
+- Notes written by AI tools can't load internet content.
+- Turning biometrics off deletes its stored PIN.
+- Exported files are cleared from the app's cache.
+- Unexpected errors show a Reload screen instead of blank.
+- Widgets and setup screens match the app, including dark mode.
 
 ## [5.3.1] - 2026-10-13
 

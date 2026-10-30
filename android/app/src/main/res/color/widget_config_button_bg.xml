@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Save button fill on the widget setup screens; faded while the options load. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:alpha="0.38" android:color="@color/widget_config_button" android:state_enabled="false" />
+    <item android:color="@color/widget_config_button" />
+</selector>

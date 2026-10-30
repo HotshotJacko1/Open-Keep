@@ -223,6 +223,10 @@ const nativeGoogleSignInAndExchange = async (logoutFirst: boolean, forcePrompt: 
             filterByAuthorizedAccounts: !forcePrompt,
             autoSelectEnabled: !forcePrompt,
             forcePrompt,
+            // Android only. Google issues a refresh token on an app's first
+            // consent and never again unless asked (forceCodeForRefreshToken);
+            // forcePrompt alone just reopens the account picker.
+            forceRefreshToken: !getStoredRefreshToken(),
         },
     });
 
@@ -270,7 +274,8 @@ const nativeGoogleEnsureDriveToken = async (isExplicitLogin = false): Promise<st
         // 3. Sign-in restricted to already-authorized accounts. For a returning
         // user this resolves without any visible prompt. If we have no
         // refresh token stored at all, force the consent screen this time
-        // (forcePrompt) so Google actually issues one -- otherwise a
+        // (forcePrompt, plus forceRefreshToken on Android) so Google actually
+        // issues one -- otherwise a
         // "silent" auto-select sign-in commonly hands back an access token
         // with no refresh token, and we're right back here next time it
         // expires.

@@ -20,6 +20,7 @@ import { RELOCK_AFTER_MS } from "@/lib/app-relock";
 import { verifyEncryptionPin } from "@/lib/encryption-pin";
 import {
     BIOMETRICS_ENABLED_KEY,
+    disableBiometrics,
     getSessionPin,
     hasAppLockPin,
     isAppLockEnabled,
@@ -173,7 +174,7 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
                 setIsBiometricsEnabled(false);
             }
         } else {
-            localStorage.removeItem(BIOMETRICS_ENABLED_KEY);
+            await disableBiometrics();
             setIsBiometricsEnabled(false);
             showSuccess("Biometrics disabled");
         }
@@ -217,7 +218,7 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
 
             // Also disable biometrics if launch lock is disabled
             if (isBiometricsEnabled) {
-                localStorage.removeItem(BIOMETRICS_ENABLED_KEY);
+                void disableBiometrics();
                 setIsBiometricsEnabled(false);
             }
             setIsLaunchLockEnabled(false);
@@ -242,7 +243,7 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                         <p className="text-sm text-muted-foreground">
-                            Choose a 4-6 digit PIN to lock the app on launch.
+                            Choose a 4-6 digit PIN to lock the app on launch. It can't be recovered: if you forget it, resetting the app deletes the notes on this device.
                         </p>
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="new-pin">Enter PIN</Label>
@@ -454,7 +455,7 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[425px] bg-background text-primary-foreground">
+            <DialogContent className="w-[calc(100%-2rem)] sm:max-w-[425px] rounded-dialog text-text-primary">
                 {renderContent()}
             </DialogContent>
         </Dialog>

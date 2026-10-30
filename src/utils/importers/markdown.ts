@@ -1,19 +1,22 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
-import DOMPurify from "dompurify";
 import { Importer, ImportInput, ImportInputFile, ImportNote } from "../../types/import";
 import { isChecklist } from "../markdown";
 import { looksLikeHtml, parseNoteMarkdown, plainTextToHtml } from "../note-markdown-format";
 import { normalizeNoteColor } from "../../lib/note-colors";
+import { sanitizeNoteHtml } from "../../lib/note-html-sanitizer";
 
 export class MarkdownImporter implements Importer {
   name = "Markdown";
 
   detect(input: ImportInput): boolean {
-    return input.files.some(f => f.name.toLowerCase().endsWith(".md"));
+    return input.files.some(f => this.handles(f));
   }
 
   handles(file: ImportInputFile): boolean {
-    return file.name.toLowerCase().endsWith(".md");
+    // "._note.md" is the AppleDouble metadata macOS adds to a zip it makes
+    // (under __MACOSX/), not a note (C3-37).
+    const name = file.name.split('/').pop() ?? file.name;
+    return name.toLowerCase().endsWith(".md") && !name.startsWith("._");
   }
 
   async parse(input: ImportInput): Promise<ImportNote[]> {
@@ -40,7 +43,7 @@ export class MarkdownImporter implements Importer {
       // exports of text notes) is kept, but sanitised before it is stored, as
       // the MCP bridge does: an imported file is untrusted (C3-31).
       if (type === 'text' && content.trim().length > 0) {
-        content = looksLikeHtml(content) ? DOMPurify.sanitize(content) : plainTextToHtml(content);
+        content = looksLikeHtml(content) ? sanitizeNoteHtml(content) : plainTextToHtml(content);
       }
 
       const now = Date.now();

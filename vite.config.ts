@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig, loadEnv } from "vite";
 import dyadComponentTagger from "@dyad-sh/react-vite-component-tagger";
 import react from "@vitejs/plugin-react-swc";
@@ -83,6 +84,11 @@ export default defineConfig(({ mode }) => {
       alias: {
         "@": path.resolve(import.meta.dirname, "./src"),
       },
+    },
+    test: {
+      // Claude worktrees under .claude/ hold full copies of src/, tests
+      // included; vitest's default exclude would run those too (C4-18).
+      exclude: ["**/node_modules/**", "**/.git/**", ".claude/**", "dist/**"],
     },
   };
 });

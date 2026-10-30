@@ -14,6 +14,5 @@
 Available packages and libraries:
 
 - The lucide-react package is installed for icons.
-- You ALREADY have ALL the shadcn/ui components and their dependencies installed. So you don't need to install them again.
-- You have ALL the necessary Radix UI components installed.
+- Only these shadcn/ui components exist, in `src/components/ui/`: alert-dialog, button, card, checkbox, dialog, dropdown-menu, input, label, popover, scroll-area, sheet, skeleton, sonner, switch, textarea, toggle, toggle-group, tooltip. Check that folder before importing one. Any other component (select, tabs, accordion, ...) has to be added first, with its Radix dependency.
 - Use prebuilt components from the shadcn/ui library after importing them. Note that these files shouldn't be edited, so make new components if you need to change them.

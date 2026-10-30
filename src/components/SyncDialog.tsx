@@ -41,10 +41,17 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
   const [providedPin, setProvidedPin] = useState("");
   const [localNotesCount, setLocalNotesCount] = useState<number | null>(null);
 
+  // The count belongs to one conflict. Clear it first, so "Keep Local" stays off
+  // until this conflict's count has loaded rather than trusting the last one's (C2-38).
   React.useEffect(() => {
-    if (conflictData) {
-      loadNotes().then(notes => setLocalNotesCount(notes.length)).catch(() => setLocalNotesCount(0));
-    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets per-conflict state (intentional)
+    setLocalNotesCount(null);
+    if (!conflictData) return;
+    let cancelled = false;
+    loadNotes()
+      .then(notes => { if (!cancelled) setLocalNotesCount(notes.length); })
+      .catch(() => { if (!cancelled) setLocalNotesCount(0); });
+    return () => { cancelled = true; };
   }, [conflictData]);
 
   React.useEffect(() => {
@@ -180,7 +187,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-full h-full max-w-full sm:max-w-[425px] sm:h-auto sm:max-h-[85vh] sm:rounded-lg !rounded-none sm:!rounded-lg overflow-y-auto bg-background text-primary-foreground border-0 sm:border pt-[max(env(safe-area-inset-top,3.5rem),3.5rem)] sm:pt-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] px-6">
+      <DialogContent className="w-full h-full max-w-full sm:max-w-[425px] sm:h-auto sm:max-h-[85vh] sm:rounded-dialog !rounded-none sm:!rounded-dialog flex flex-col overflow-hidden bg-background sm:bg-surface-container-high text-text-primary border-0 sm:border pt-[max(env(safe-area-inset-top,3.5rem),3.5rem)] sm:pt-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] px-6">
         <DialogHeader className="flex flex-row items-start gap-2 space-y-0 text-left">
           <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">
               <ArrowLeft className="h-5 w-5 text-secondary" />
@@ -193,13 +200,13 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
             </DialogDescription>
           </div>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-4 py-4 min-h-0 overflow-y-auto -mx-6 px-6">
           <div className="flex flex-col gap-4">
             <Label>Cloud Sync</Label>
 
 
 
-            <p className="text-sm text-primary-foreground">
+            <p className="text-sm text-text-primary">
               Sync your notes to a cloud provider to keep them backed up and accessible.
             </p>
 
@@ -225,7 +232,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                     <Button className="w-full justify-start" variant="outline" type="button" disabled>
                       <FolderSync className="mr-2 h-4 w-4" /> Sync with Google Drive
                     </Button>
-                    <p className="text-xs text-primary-foreground/70 px-1">
+                    <p className="text-xs text-muted-foreground px-1">
                       Google Drive sync is available in the full build at{" "}
                       <a href={FULL_BUILD_PLAY_URL} target="_blank" rel="noreferrer" className="underline">
                         Google Play
@@ -248,9 +255,9 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
               <div className="flex flex-col gap-4 py-2 border rounded-md p-4 bg-muted/50">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-5 w-5 text-warning" />
-                  <h3 className="font-semibold text-lg text-primary-foreground">Enter your PIN to sync</h3>
+                  <h3 className="font-semibold text-lg text-text-primary">Enter your PIN to sync</h3>
                 </div>
-                <p className="text-sm text-primary-foreground/90 leading-relaxed">
+                <p className="text-sm text-muted-foreground leading-relaxed">
                   Your notes are encrypted, and the key stored in {activeService.name} has changed since this device last checked it. Enter this device's encryption PIN to keep syncing.
                 </p>
                 <input
@@ -278,12 +285,12 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
               <div className="flex flex-col gap-4 py-2 border rounded-md p-4 bg-muted/50">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-5 w-5 text-warning" />
-                  <h3 className="font-semibold text-lg text-primary-foreground">Encryption was turned off on another device</h3>
+                  <h3 className="font-semibold text-lg text-text-primary">Encryption was turned off on another device</h3>
                 </div>
-                <p className="text-sm text-primary-foreground/90 leading-relaxed">
+                <p className="text-sm text-muted-foreground leading-relaxed">
                   The copy in {activeService.name} is no longer protected by a PIN. Encryption applies to all your synced devices together, so choose one setting for all of them:
                 </p>
-                <ul className="text-sm text-primary-foreground/90 list-disc pl-5 space-y-1">
+                <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
                   <li><strong>Turn off here too:</strong> this device stops using a PIN, like the other one.</li>
                   <li><strong>Turn back on for all devices:</strong> the cloud copy is protected with this device's PIN again. Your other devices will ask for it on their next sync.</li>
                 </ul>
@@ -317,9 +324,9 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
               <div className="flex flex-col gap-4 py-2 border rounded-md p-4 bg-muted/50">
                 <div className="flex items-center gap-2 text-destructive">
                   <AlertCircle className="h-5 w-5" />
-                  <h3 className="font-semibold text-lg text-primary-foreground">Sync Conflict Detected</h3>
+                  <h3 className="font-semibold text-lg text-text-primary">Sync Conflict Detected</h3>
                 </div>
-                <p className="text-sm text-primary-foreground/90 leading-relaxed">
+                <p className="text-sm text-muted-foreground leading-relaxed">
                   Cloud data was found. Which version would you like to keep?
                   Choosing <strong>Cloud</strong> will replace your local notes with the cloud backup.
                   Choosing <strong>Local</strong> will overwrite the cloud with your device's notes.
@@ -329,14 +336,14 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                     </span>
                   )}
                 </p>
-                <p className="text-sm font-medium text-primary-foreground">How would you like to resolve this?</p>
+                <p className="text-sm font-medium text-text-primary">How would you like to resolve this?</p>
                 
                 {conflictData.reason === "key_mismatch" && (
                   <div className="flex flex-col gap-2 mt-2 p-3 bg-warning/10 border border-warning/50 rounded-md">
                     <Label className="text-warning">🔐 Cloud notes are encrypted</Label>
                     <p className="text-xs text-warning/90 mb-1">
                       {isEncryptionEnabled()
-                        ? "Enter the App Lock PIN you set on your other device to decrypt and restore your notes."
+                        ? "Enter the encryption PIN from your other device to decrypt and restore your notes."
                         : "These notes are protected by a PIN set on another device. Enter that PIN to keep syncing. This turns encryption on here too, with the same PIN. To keep this device without a PIN, disconnect sync here instead."}
                     </p>
                     <input 
@@ -388,7 +395,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col gap-3 border rounded-md p-4 bg-muted/50 text-primary-foreground">
+              <div className="flex flex-col gap-3 border rounded-md p-4 bg-muted/50 text-text-primary">
                 <div className="flex flex-col gap-1">
                   <span className="text-sm font-medium">Connected to {activeService.name}</span>
                   <span className="text-sm break-all">{activeService.userEmail || "Connected"}</span>
@@ -396,7 +403,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
 
                 <div className="flex flex-col gap-1">
                   <span className="text-sm font-medium">Last Synced</span>
-                  <span className="text-sm text-primary-foreground">
+                  <span className="text-sm text-text-primary">
                     {activeService.lastSynced || "Never"}
                   </span>
                 </div>
@@ -407,7 +414,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                     onClick={handleSync}
                     disabled={isAnySyncing}
                     className={cn(
-                      "flex-1 text-primary-foreground transition-colors duration-md3-short4 ease-md3-standard",
+                      "flex-1 text-text-primary transition-colors duration-md3-short4 ease-md3-standard",
                       justSynced && "bg-success hover:bg-success border-success text-success-foreground"
                     )}
                   >

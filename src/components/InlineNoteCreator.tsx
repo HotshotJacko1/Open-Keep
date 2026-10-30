@@ -3,7 +3,6 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Note } from "@/types/note";
 import { cn, safeRandomUUID } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
   TooltipContent,
@@ -26,11 +25,7 @@ import {
   Bold,
   Italic,
   Underline,
-  Plus,
   X,
-  GripVertical,
-  ChevronDown,
-  ChevronRight,
   ImageIcon,
 } from "lucide-react";
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -44,9 +39,20 @@ import {
 } from "@/lib/editor-extensions";
 import NoteColorPicker from "@/components/NoteColorPicker";
 import ReminderSheet from "@/components/ReminderSheet";
-import { getTextDirection } from "@/utils/text-direction";
-import { useFlipNextChange } from "@/hooks/use-flip-layout";
 import NoteLabels from "@/components/NoteLabels";
+import { ChecklistEditor } from "@/components/ChecklistEditor";
+import {
+  isTopLevel,
+  parseChecklist,
+  serializeChecklist,
+  convertTextToList,
+  convertListToText,
+  ChecklistItem,
+} from "@/utils/markdown";
+import {
+  htmlToPlainText,
+  plainTextToHtml,
+} from "@/utils/note-markdown-format";
 import {
   DEFAULT_NOTE_COLOR,
   getNoteTintVars,
@@ -59,13 +65,7 @@ import {
 } from "@/utils/reminder";
 import { saveImage, getImageSrc, deleteImage } from "@/lib/image-storage";
 import { expectExternalActivity } from "@/lib/app-relock";
-import { TITLE_MAX, BODY_MAX, LIST_ITEM_MAX } from "@/lib/note-limits";
-
-interface InlineChecklistItem {
-  id: string;
-  content: string;
-  checked: boolean;
-}
+import { TITLE_MAX, BODY_MAX } from "@/lib/note-limits";
 
 interface InlineNoteCreatorProps {
   onSaveNote: (note: Note) => Promise<boolean> | void;
@@ -74,24 +74,27 @@ interface InlineNoteCreatorProps {
   onCreateTag?: (tag: string) => void;
 }
 
-// Turn the editor's HTML back into plain lines: paragraph, break and div
-// boundaries are the line breaks, the rest is text content.
-const htmlToLines = (html: string): string[] => {
-  if (!html.includes("<")) return html.split("\n");
-  const withBreaks = html
-    .replace(/<\/p>/gi, "\n")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/div>/gi, "\n");
-  const tmp = document.createElement("div");
-  tmp.innerHTML = withBreaks;
-  const text = tmp.textContent || tmp.innerText || "";
-  return text.split("\n");
-};
+const newEmptyItem = (): ChecklistItem => ({
+  id: safeRandomUUID(),
+  content: "",
+  checked: false,
+  indentation: "",
+});
 
-const escapeHtml = (text: string): string => {
-  const tmp = document.createElement("div");
-  tmp.textContent = text;
-  return tmp.innerHTML;
+// Empty items are left out of the saved note. Sub-items of an empty top-level
+// item become top-level, as they do when that item is deleted with Backspace.
+const withoutEmptyItems = (items: ChecklistItem[]): ChecklistItem[] => {
+  const kept: ChecklistItem[] = [];
+  let parentDropped = false;
+  for (const item of items) {
+    if (isTopLevel(item)) parentDropped = false;
+    if (item.content.trim() === "") {
+      if (isTopLevel(item)) parentDropped = true;
+      continue;
+    }
+    kept.push(parentDropped ? { ...item, indentation: "" } : item);
+  }
+  return kept;
 };
 
 export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
@@ -115,11 +118,14 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
   const [recurrence, setRecurrence] = useState<Note["recurrence"]>(undefined);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
-  // Checklist Items
-  const [items, setItems] = useState<InlineChecklistItem[]>([
-    { id: safeRandomUUID(), content: "", checked: false },
-  ]);
+  // Checklist Items. A new list starts with one empty item, as in NoteEditor.
+  const [items, setItems] = useState<ChecklistItem[]>(() => [newEmptyItem()]);
+  // Non-item lines before the first item. Always empty here (nothing typed in
+  // this creator produces them), but ChecklistEditor keeps them up to date.
+  const leadingLinesRef = useRef<string[]>([]);
   const [showCompleted, setShowCompleted] = useState(true);
+  // The item to focus when the list appears: set when opened with "New list".
+  const [listFocusId, setListFocusId] = useState<string | undefined>(undefined);
 
   // Dialog & Popover visibility flags (to avoid closing inline creator on outside click)
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
@@ -130,10 +136,6 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
-  const itemInputRefs = useRef<Record<string, HTMLInputElement>>({});
-  // Ticking an item slides it down to the completed section.
-  const listRef = useRef<HTMLDivElement>(null);
-  const captureListLayout = useFlipNextChange(listRef);
 
   // Body editor. Mirrors NoteEditor's configuration so notes created here and
   // notes edited there are the same HTML format — see @/lib/editor-extensions.
@@ -210,14 +212,23 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
     return !isBodyEmpty();
   }, [title, isBodyEmpty, images, isListMode, items]);
 
+  // Set while a save-and-close is in flight or done, and cleared when the creator
+  // is opened again (handleExpand). A second outside click or Escape before the
+  // collapse has rendered still runs the old handler, with the old title and
+  // body, and would save the note a second time under a new id (C2-39).
+  const savingRef = useRef(false);
+
   const handleSaveAndClose = useCallback(async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+
     if (hasContent()) {
       let contentString: string;
       if (isListMode) {
-        const nonEmptyItems = items.filter((i) => i.content.trim().length > 0);
-        contentString = nonEmptyItems
-          .map((i) => `- [${i.checked ? "x" : " "}] ${i.content.trim()}`)
-          .join("\n");
+        contentString = serializeChecklist(
+          withoutEmptyItems(items),
+          leadingLinesRef.current
+        );
       } else {
         contentString = body.trim();
       }
@@ -238,17 +249,29 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
         updatedAt: Date.now(),
       };
 
-      await onSaveNote(newNote);
+      try {
+        await onSaveNote(newNote);
+      } catch (e) {
+        // Nothing was saved and the form stays open, so let it be tried again.
+        savingRef.current = false;
+        throw e;
+      }
 
       if (reminder) {
-        await scheduleReminderNotification(newNote);
+        try {
+          await scheduleReminderNotification(newNote);
+        } catch (e) {
+          // The note is saved; a reminder failure mustn't leave the form open
+          // with saving blocked by the guard above.
+          console.error("Failed to schedule reminder:", e);
+        }
       }
     }
 
     // Reset state
     setTitle("");
     setBody("");
-    editor?.commands.setContent("");
+    if (editor && !editor.isDestroyed) editor.commands.setContent("");
     setShowFormatting(false);
     setIsPinned(false);
     setIsArchived(false);
@@ -257,7 +280,9 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
     setReminder(undefined);
     setRecurrence(undefined);
     setSelectedTags(defaultTag ? [defaultTag] : []);
-    setItems([{ id: safeRandomUUID(), content: "", checked: false }]);
+    setItems([newEmptyItem()]);
+    leadingLinesRef.current = [];
+    setListFocusId(undefined);
     setIsListMode(false);
     setIsExpanded(false);
   }, [
@@ -326,20 +351,16 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
   ]);
 
   const handleExpand = (listMode: boolean) => {
+    savingRef.current = false; // a fresh, empty form: saving is allowed again
     setIsListMode(listMode);
+    // The list focuses this item itself when it appears.
+    setListFocusId(listMode ? items[0]?.id : undefined);
     setIsExpanded(true);
-    setTimeout(() => {
-      if (listMode) {
-        const firstId = items[0]?.id;
-        if (firstId && itemInputRefs.current[firstId]) {
-          itemInputRefs.current[firstId]?.focus();
-        } else {
-          titleInputRef.current?.focus();
-        }
-      } else {
-        editor?.commands.focus("end");
-      }
-    }, 50);
+    if (!listMode) {
+      setTimeout(() => {
+        if (editor && !editor.isDestroyed) editor.commands.focus("end");
+      }, 50);
+    }
   };
 
   // Image Upload Handlers
@@ -365,106 +386,27 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
     }
   };
 
-  // Checklist Helpers
-  const handleUpdateItemContent = (id: string, content: string) => {
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, content } : item))
-    );
-  };
-
-  const handleToggleItemChecked = (id: string) => {
-    captureListLayout();
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, checked: !item.checked } : item
-      )
-    );
-  };
-
-  const handleRemoveItem = (id: string) => {
-    setItems((prev) => {
-      if (prev.length <= 1) {
-        return [{ id: safeRandomUUID(), content: "", checked: false }];
-      }
-      return prev.filter((item) => item.id !== id);
-    });
-  };
-
-  const handleItemKeyDown = (
-    e: React.KeyboardEvent<HTMLInputElement>,
-    id: string,
-    index: number
-  ) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const newId = safeRandomUUID();
-      setItems((prev) => {
-        const newItems = [...prev];
-        newItems.splice(index + 1, 0, {
-          id: newId,
-          content: "",
-          checked: false,
-        });
-        return newItems;
-      });
-      setTimeout(() => {
-        itemInputRefs.current[newId]?.focus();
-      }, 20);
-    } else if (e.key === "Backspace") {
-      const currentItem = items[index];
-      if (currentItem && currentItem.content === "" && items.length > 1) {
-        e.preventDefault();
-        handleRemoveItem(id);
-        const prevItem = items[index - 1] || items[index + 1];
-        if (prevItem) {
-          setTimeout(() => {
-            itemInputRefs.current[prevItem.id]?.focus();
-          }, 20);
-        }
-      }
-    }
-  };
-
-  const handleAddNewItem = () => {
-    const newId = safeRandomUUID();
-    setItems((prev) => [
-      ...prev,
-      { id: newId, content: "", checked: false },
-    ]);
-    setTimeout(() => {
-      itemInputRefs.current[newId]?.focus();
-    }, 20);
-  };
-
-  const uncompletedItems = items.filter((i) => !i.checked);
-  const completedItems = items.filter((i) => i.checked);
-
+  // Same conversions as NoteEditor's handleToggleMode.
   const handleToggleListMode = () => {
     if (!isListMode) {
-      // Convert body text to checklist items. The body is HTML, so paragraph
-      // and break boundaries become the line breaks — same approach as
-      // NoteEditor's handleToggleMode.
-      const lines = htmlToLines(body).filter((l) => l.trim().length > 0);
-      if (lines.length > 0) {
-        setItems(
-          lines.map((l) => ({
-            id: safeRandomUUID(),
-            content: l,
-            checked: false,
-          }))
-        );
-      }
+      // Each paragraph of the body becomes an item.
+      const { items: parsed, leading } = parseChecklist(
+        convertTextToList(htmlToPlainText(body))
+      );
+      leadingLinesRef.current = leading;
+      setItems(parsed.map((i) => ({ ...i, id: safeRandomUUID() })));
+      setListFocusId(undefined);
       setIsListMode(true);
       setShowFormatting(false);
     } else {
-      // Convert checklist items to body text
-      const plain = items
-        .map((i) => i.content)
-        .filter((c) => c.trim().length > 0);
-      // Wrap each line in <p> so TipTap keeps the line breaks.
-      const html = plain.map((l) => `<p>${escapeHtml(l)}</p>`).join("");
+      // Each item becomes a paragraph. Item text is plain, so it's escaped.
+      const html = plainTextToHtml(
+        convertListToText(
+          serializeChecklist(withoutEmptyItems(items), leadingLinesRef.current)
+        )
+      );
       setBody(html);
-      editor?.commands.setContent(html);
+      if (editor && !editor.isDestroyed) editor.commands.setContent(html);
       setIsListMode(false);
     }
   };
@@ -477,8 +419,8 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
         onClick={() => handleExpand(false)}
         className={cn(
           "press-feedback w-full max-w-[600px] mx-auto mb-6 cursor-text",
-          "bg-card text-card-foreground border border-outline-variant shadow-md rounded-card",
-          "px-4 py-2.5 flex items-center justify-between gap-3 transition-shadow hover:shadow-lg"
+          "bg-card text-card-foreground border border-outline-variant shadow-elevation-1 rounded-card",
+          "px-4 py-2.5 flex items-center justify-between gap-3 transition-shadow hover:shadow-elevation-2"
         )}
       >
         <span className="text-muted-foreground font-medium text-sm sm:text-base select-none">
@@ -518,7 +460,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
       className={cn(
         "note-creator w-full max-w-[600px] mx-auto mb-6",
         isNoteTinted(color) && "note-tinted",
-        "bg-card text-card-foreground border border-outline-variant shadow-lg rounded-card flex flex-col transition-colors duration-150 overflow-hidden"
+        "bg-card text-card-foreground border border-outline-variant shadow-elevation-2 rounded-card flex flex-col transition-colors duration-md3-short3 overflow-hidden"
       )}
     >
       {/* Hidden File Input for Images */}
@@ -639,110 +581,17 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
         {!isListMode ? (
           <EditorContent editor={editor} className="w-full" />
         ) : (
-          <div ref={listRef} className="flex flex-col gap-1">
-            {/* Uncompleted Items */}
-            {uncompletedItems.map((item, index) => (
-              <div
-                key={item.id}
-                data-flip-id={item.id}
-                dir={getTextDirection(item.content)}
-                className="group flex items-center gap-2 py-1"
-              >
-                <GripVertical className="h-4 w-4 text-muted-foreground/60 shrink-0 cursor-grab" />
-                <Checkbox
-                  checked={item.checked}
-                  onCheckedChange={() => handleToggleItemChecked(item.id)}
-                  className="h-4 w-4 shrink-0 rounded border-muted-foreground"
-                />
-                <input
-                  ref={(el) => {
-                    if (el) itemInputRefs.current[item.id] = el;
-                    else delete itemInputRefs.current[item.id];
-                  }}
-                  type="text"
-                  value={item.content}
-                  maxLength={LIST_ITEM_MAX}
-                  onChange={(e) =>
-                    handleUpdateItemContent(item.id, e.target.value)
-                  }
-                  onKeyDown={(e) => handleItemKeyDown(e, item.id, index)}
-                  placeholder="List item"
-                  className="bg-transparent border-none outline-none focus:outline-none focus-visible:ring-0 text-text-primary dark:text-text-primary placeholder:text-muted-foreground text-sm sm:text-base flex-1 min-w-0"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleRemoveItem(item.id)}
-                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-text-primary p-1 transition-opacity"
-                >
-                  <X className="h-4 w-4" />
-                  <span className="sr-only">Delete item</span>
-                </button>
-              </div>
-            ))}
-
-            {/* + List item Prompt */}
-            <div
-              data-flip-id="add-item"
-              onClick={handleAddNewItem}
-              className="flex items-center gap-2 py-1 text-muted-foreground hover:text-text-primary cursor-pointer select-none"
-            >
-              <Plus className="h-4 w-4 ml-6 shrink-0" />
-              <span className="text-sm sm:text-base">List item</span>
-            </div>
-
-            {/* Completed Items Section */}
-            {completedItems.length > 0 && (
-              <div className="pt-2 border-t border-border/50 flex flex-col">
-                <button
-                  type="button"
-                  data-flip-id="completed-header"
-                  onClick={() => setShowCompleted(!showCompleted)}
-                  className="self-start flex items-center gap-2 text-xs sm:text-sm text-muted-foreground hover:text-text-primary font-medium mb-1"
-                >
-                  {showCompleted ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
-                  <span>
-                    {completedItems.length}{" "}
-                    {completedItems.length === 1
-                      ? "completed item"
-                      : "completed items"}
-                  </span>
-                </button>
-
-                {showCompleted &&
-                  completedItems.map((item) => (
-                    <div
-                      key={item.id}
-                      data-flip-id={item.id}
-                      dir={getTextDirection(item.content)}
-                      className="group flex items-center gap-2 py-1 ps-6"
-                    >
-                      <Checkbox
-                        checked={item.checked}
-                        onCheckedChange={() =>
-                        handleToggleItemChecked(item.id)
-                        }
-                        className="h-4 w-4 shrink-0 rounded border-muted-foreground"
-                      />
-                      <span className="text-sm sm:text-base text-muted-foreground line-through flex-1 min-w-0 break-words">
-                        {item.content || "Empty item"}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveItem(item.id)}
-                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-text-primary p-1 transition-opacity"
-                      >
-                        <X className="h-4 w-4" />
-                        <span className="sr-only">Delete item</span>
-                      </button>
-                    </div>
-                  ))}
-              </div>
-            )}
-          </div>
+          <ChecklistEditor
+            // -mx-4 cancels this row's side padding so the 48px grip and remove
+            // buttons sit at the edges, as in NoteEditor.
+            className="-mx-4"
+            items={items}
+            onItemsChange={setItems}
+            leadingLinesRef={leadingLinesRef}
+            showChecked={showCompleted}
+            onShowCheckedChange={setShowCompleted}
+            initialFocusItemId={listFocusId}
+          />
         )}
       </div>
 
@@ -836,7 +685,7 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
             <PopoverContent
               side="top"
               align="start"
-              className="w-auto p-2 bg-popover text-popover-foreground border-border shadow-md"
+              className="w-auto p-2 bg-popover text-popover-foreground border-border shadow-elevation-2"
             >
               <NoteColorPicker
                 value={color}

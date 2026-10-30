@@ -19,11 +19,11 @@ interface WelcomeMessageProps {
 const WelcomeMessage: React.FC<WelcomeMessageProps> = ({ isOpen, onClose }) => {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-[425px] max-h-[85dvh] overflow-y-auto px-6 pt-[max(env(safe-area-inset-top),1.5rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)]">
+      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-[425px] max-h-[85dvh] overflow-y-auto rounded-dialog">
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
             <AlertCircle className="h-5 w-5 text-info" />
-            <DialogTitle className="text-text-primary dark:text-text-primary text-xl">
+            <DialogTitle className="text-text-primary dark:text-text-primary">
               Local Storage Only
             </DialogTitle>
           </div>
@@ -35,8 +35,8 @@ const WelcomeMessage: React.FC<WelcomeMessageProps> = ({ isOpen, onClose }) => {
             </div>
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter className="pt-4">
-          <Button className="w-full" onClick={onClose}>
+        <DialogFooter className="flex-row justify-end pt-4">
+          <Button variant="text" onClick={onClose}>
             Got it
           </Button>
         </DialogFooter>

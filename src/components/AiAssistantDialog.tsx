@@ -85,7 +85,7 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
+      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md max-h-[85vh] flex flex-col rounded-dialog">
         <DialogHeader className="flex flex-row items-start gap-2 space-y-0 text-left">
           <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">
             <ArrowLeft className="h-5 w-5 text-secondary" />
