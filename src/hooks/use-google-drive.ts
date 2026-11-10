@@ -198,6 +198,19 @@ const initNativeGoogleAuth = async () => {
     });
 };
 
+// Rejection code from our social-login patch when neither the account sheet
+// nor Google's full sign-in screen could offer a Google account.
+const NO_GOOGLE_ACCOUNT_CODE = "NO_GOOGLE_ACCOUNT";
+
+const nativeSignInErrorMessage = (error: unknown): string => {
+    const code = (error as { code?: unknown } | null)?.code;
+    const message = error instanceof Error ? error.message : "";
+    if (code === NO_GOOGLE_ACCOUNT_CODE || /no credentials available/i.test(message)) {
+        return "No Google account found. Add one in your phone's Settings > Accounts, update Google Play services, then try again.";
+    }
+    return message || "Google Sign-In Failed";
+};
+
 /**
  * Interactive sign-in followed by an auth-code exchange. With
  * filterByAuthorizedAccounts + autoSelectEnabled this usually completes with
@@ -419,7 +432,7 @@ export const useGoogleDrive = () => {
             } catch (error) {
                 console.error("Native Login Failed:", error);
                 console.error("Stringified error:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
-                showError((error as Error).message || "Google Sign-In Failed");
+                showError(nativeSignInErrorMessage(error));
             }
         } else {
             try {

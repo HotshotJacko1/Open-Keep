@@ -155,7 +155,7 @@ const App = () => {
       if (!session?.user) return;
       try {
         const { data: entitlementData } = await supabase
-          .from('user_entitlements')
+          .from('open_keep_user_entitlements')
           .select('times_logged_in')
           .eq('user_id', session.user.id)
           .maybeSingle();
@@ -164,7 +164,7 @@ const App = () => {
         const newCount = currentCount + 1;
 
         const { error: upsertError } = await supabase
-          .from('user_entitlements')
+          .from('open_keep_user_entitlements')
           .upsert({
             user_id: session.user.id,
             times_logged_in: newCount,
@@ -176,7 +176,7 @@ const App = () => {
         }
 
         const { data: statusData } = await supabase
-          .from('user_status')
+          .from('open_keep_user_status')
           .select('ready_to_ask_for_feedback')
           .eq('user_id', session.user.id)
           .maybeSingle();
@@ -331,14 +331,14 @@ const App = () => {
     if (!session?.user) return;
 
     const { data: entitlementData } = await supabase
-      .from('user_entitlements')
+      .from('open_keep_user_entitlements')
       .select('times_logged_in')
       .eq('user_id', session.user.id)
       .maybeSingle();
 
     const currentCount = entitlementData?.times_logged_in || 0;
 
-    await supabase.from('user_entitlements').upsert({
+    await supabase.from('open_keep_user_entitlements').upsert({
       user_id: session.user.id,
       feedback: feedback,
       feedback_comments: comments,
@@ -355,14 +355,14 @@ const App = () => {
     if (!session?.user) return;
 
     const { data: entitlementData } = await supabase
-      .from('user_entitlements')
+      .from('open_keep_user_entitlements')
       .select('times_logged_in')
       .eq('user_id', session.user.id)
       .maybeSingle();
 
     const currentCount = entitlementData?.times_logged_in || 0;
 
-    await supabase.from('user_entitlements').upsert({
+    await supabase.from('open_keep_user_entitlements').upsert({
       user_id: session.user.id,
       feedback_date: new Date().toISOString().split('T')[0],
       times_logged_in_when_feedback_requested: currentCount

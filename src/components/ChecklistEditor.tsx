@@ -185,6 +185,8 @@ interface SortableListItemProps {
     onIndent?: (id: string) => void;
     onOutdent?: (id: string) => void;
     onBackspace?: (id: string, cursorPosition?: number, currentContent?: string) => void;
+    /** Delete pressed at the end of the item: pull the next item up into this one. */
+    onDeleteAtEnd?: (id: string, currentContent: string) => void;
     onMultilineText?: (id: string, fullText: string, caret: number) => void;
     /** Whether to draw the item indented (see groupChecklistForDisplay). Defaults to its stored indentation. */
     displayIndented?: boolean;
@@ -201,6 +203,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
     onIndent,
     onOutdent,
     onBackspace,
+    onDeleteAtEnd,
     onMultilineText,
     displayIndented,
     autoFocus,
@@ -342,7 +345,7 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
                     onKeyDown={(e) => {
                         // readOnly stops typing but not these handlers, which insert,
                         // merge and indent items. Arrow-key navigation stays (C2-25).
-                        if (disabled && (e.key === "Enter" || e.key === "Backspace" || e.key === "Tab")) return;
+                        if (disabled && (e.key === "Enter" || e.key === "Backspace" || e.key === "Delete" || e.key === "Tab")) return;
                         if (e.key === "Enter") {
                             e.preventDefault();
                             onEnter(item.id, e.currentTarget.selectionStart ?? undefined);
@@ -351,6 +354,13 @@ const SortableListItem: React.FC<SortableListItemProps> = ({
                             if (isAtStart || e.currentTarget.value === "") {
                                 e.preventDefault();
                                 if (onBackspace) onBackspace(item.id, e.currentTarget.selectionStart ?? 0, e.currentTarget.value);
+                            }
+                        } else if (e.key === "Delete") {
+                            const len = e.currentTarget.value.length;
+                            const isAtEnd = e.currentTarget.selectionStart === len && e.currentTarget.selectionEnd === len;
+                            if (isAtEnd && onDeleteAtEnd) {
+                                e.preventDefault();
+                                onDeleteAtEnd(item.id, e.currentTarget.value);
                             }
                         } else if (e.key === "Tab") {
                             e.preventDefault();
@@ -409,6 +419,7 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
     onIndent,
     onOutdent,
     onBackspace,
+    onDeleteAtEnd,
     onMultilineText,
     displayIndented,
     autoFocus,
@@ -514,7 +525,7 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
                     onKeyDown={(e) => {
                         // readOnly stops typing but not these handlers, which insert,
                         // merge and indent items. Arrow-key navigation stays (C2-25).
-                        if (disabled && (e.key === "Enter" || e.key === "Backspace" || e.key === "Tab")) return;
+                        if (disabled && (e.key === "Enter" || e.key === "Backspace" || e.key === "Delete" || e.key === "Tab")) return;
                         if (e.key === "Enter") {
                             e.preventDefault();
                             onEnter(item.id, e.currentTarget.selectionStart ?? undefined);
@@ -523,6 +534,13 @@ const CheckedListItem: React.FC<SortableListItemProps> = ({
                             if (isAtStart || e.currentTarget.value === "") {
                                 e.preventDefault();
                                 if (onBackspace) onBackspace(item.id, e.currentTarget.selectionStart ?? 0, e.currentTarget.value);
+                            }
+                        } else if (e.key === "Delete") {
+                            const len = e.currentTarget.value.length;
+                            const isAtEnd = e.currentTarget.selectionStart === len && e.currentTarget.selectionEnd === len;
+                            if (isAtEnd && onDeleteAtEnd) {
+                                e.preventDefault();
+                                onDeleteAtEnd(item.id, e.currentTarget.value);
                             }
                         } else if (e.key === "Tab") {
                             e.preventDefault();
@@ -867,6 +885,34 @@ export const ChecklistEditor: React.FC<ChecklistEditorProps> = ({
         }, 0);
     };
 
+    // Delete at the end of an item pulls the item shown directly below (same
+    // section) up into it, the mirror of Backspace at the start.
+    const handleDeleteAtEndItem = (id: string, currentContent: string) => {
+        const item = checklistItems.find(i => i.id === id);
+        if (!item) return;
+        const section = visibleItemsInSection(checklistItems, item.checked);
+        const pos = section.findIndex(i => i.id === id);
+        if (pos === -1 || pos >= section.length - 1) return;
+        const nextItem = section[pos + 1];
+
+        const combinedContent = currentContent + nextItem.content;
+        if (combinedContent.length > LIST_ITEM_MAX) {
+            toast.error(`Maximum ${LIST_ITEM_MAX} characters per item`);
+            return;
+        }
+        const mergePos = currentContent.length;
+        const removed = removeChecklistItems(checklistItems, leadingLinesRef.current, new Set([nextItem.id]));
+        leadingLinesRef.current = removed.leading;
+        updateItems(removed.items.map(i => i.id === id ? { ...i, content: combinedContent } : i));
+        setTimeout(() => {
+            const el = document.getElementById(`list-item-${id}`) as HTMLTextAreaElement;
+            if (el) {
+                el.focus();
+                el.setSelectionRange(mergePos, mergePos);
+            }
+        }, 0);
+    };
+
     const handleAddItem = () => {
         if (checklistItems.length >= LIST_ITEMS_MAX) {
             toast.error(`Maximum ${LIST_ITEMS_MAX} items per checklist`);
@@ -1044,6 +1090,7 @@ export const ChecklistEditor: React.FC<ChecklistEditorProps> = ({
                                 onIndent={handleIndent}
                                 onOutdent={handleOutdent}
                                 onBackspace={handleBackspaceItem}
+                                onDeleteAtEnd={handleDeleteAtEndItem}
                                 onMultilineText={handleMultilineItemText}
                                 autoFocus={row.item.id === focusItemId}
                                 disabled={disabled}
@@ -1120,6 +1167,7 @@ export const ChecklistEditor: React.FC<ChecklistEditorProps> = ({
                                         onIndent={handleIndent}
                                         onOutdent={handleOutdent}
                                         onBackspace={handleBackspaceItem}
+                                        onDeleteAtEnd={handleDeleteAtEndItem}
                                         onMultilineText={handleMultilineItemText}
                                         autoFocus={row.item.id === focusItemId}
                                         disabled={disabled}

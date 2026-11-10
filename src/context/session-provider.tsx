@@ -26,7 +26,7 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
           if (isSigningIn) return;
           isSigningIn = true;
           // Attempt anonymous sign-in
-          // The user_entitlements row is upserted by App.tsx once the session is set.
+          // The open_keep_user_entitlements row is upserted by App.tsx once the session is set.
           supabase.auth.signInAnonymously().then(({ data, error }) => {
             isSigningIn = false;
             if (!error && data.session) {

@@ -102,7 +102,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
     const fetchPin = async () => {
       if (user?.id) {
         const { data, error } = await supabase
-          .from('user_entitlements')
+          .from('open_keep_user_entitlements')
           .select('pin_code')
           .eq('user_id', user.id)
           .single();

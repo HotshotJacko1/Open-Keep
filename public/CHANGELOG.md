@@ -7,6 +7,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 - N/A
 
+## [5.4.1] - 2026-11-10
+
+### Added
+- Paste an image into a note to attach it.
+- Checklists: Delete key at item end joins the next item.
+
+### Fixed
+- Android: pasting an image no longer crashes the app.
+- Android: Google Drive sign-in lets you add a Google account.
+
 ## [5.4.0] - 2026-11-03
 
 ### Changed

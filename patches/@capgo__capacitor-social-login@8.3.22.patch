@@ -1,8 +1,17 @@
 diff --git a/android/src/main/java/ee/forgr/capacitor/social/login/GoogleProvider.java b/android/src/main/java/ee/forgr/capacitor/social/login/GoogleProvider.java
-index 4e8b554273a248e8e3e26c032f507e126907c054..dcbc3d771d992dba905ca36f0b3501dba19cd937 100644
+index 4e8b554273a248e8e3e26c032f507e126907c054..5da98be5a60b22e71582769439ebfe18d4f1b1f4 100644
 --- a/android/src/main/java/ee/forgr/capacitor/social/login/GoogleProvider.java
 +++ b/android/src/main/java/ee/forgr/capacitor/social/login/GoogleProvider.java
-@@ -303,14 +303,12 @@ public class GoogleProvider implements SocialProvider {
+@@ -56,6 +56,8 @@ public class GoogleProvider implements SocialProvider {
+ 
+     private static final String LOG_TAG = "GoogleProvider";
+     private static final String USER_CANCELLED_CODE = "USER_CANCELLED";
++    private static final String NO_GOOGLE_ACCOUNT_CODE = "NO_GOOGLE_ACCOUNT";
++    private static final String SIGN_IN_WITH_GOOGLE_SCREEN = "signInWithGoogleScreen";
+     private static final String SHARED_PREFERENCE_NAME = "GOOGLE_LOGIN_F13oz0I_SHARED_PERF";
+     private static final String GOOGLE_DATA_PREFERENCE = "GOOGLE_LOGIN_GOOGLE_DATA_9158025e-947d-4211-ba51-40451630cc47";
+     private static final Integer FUTURE_LIST_LENGTH = 128;
+@@ -303,17 +305,18 @@ public class GoogleProvider implements SocialProvider {
  
          String nonce = config.optString("nonce");
          JSONObject options = call.getObject("options", new JSObject());
@@ -10,6 +19,7 @@ index 4e8b554273a248e8e3e26c032f507e126907c054..dcbc3d771d992dba905ca36f0b3501db
          boolean forcePrompt = false;
          boolean filterByAuthorizedAccounts = false;
          boolean autoSelectEnabled = false;
++        boolean signInWithGoogleScreen = false;
  
          try {
              if (options != null) {
@@ -17,7 +27,12 @@ index 4e8b554273a248e8e3e26c032f507e126907c054..dcbc3d771d992dba905ca36f0b3501db
                  filterByAuthorizedAccounts = options.has("filterByAuthorizedAccounts") && options.getBoolean("filterByAuthorizedAccounts");
                  autoSelectEnabled = options.has("autoSelectEnabled") && options.getBoolean("autoSelectEnabled");
                  forcePrompt = options.has("forcePrompt") && options.getBoolean("forcePrompt");
-@@ -346,48 +344,39 @@ public class GoogleProvider implements SocialProvider {
++                // Set by handleSignInError's NoCredentialException fallback.
++                signInWithGoogleScreen = options.has(SIGN_IN_WITH_GOOGLE_SCREEN) && options.getBoolean(SIGN_IN_WITH_GOOGLE_SCREEN);
+             }
+         } catch (JSONException e) {
+             Log.e(LOG_TAG, "Error parsing options", e);
+@@ -346,48 +349,46 @@ public class GoogleProvider implements SocialProvider {
          // Build credential request
          GetCredentialRequest.Builder requestBuilder = new GetCredentialRequest.Builder();
  
@@ -35,7 +50,12 @@ index 4e8b554273a248e8e3e26c032f507e126907c054..dcbc3d771d992dba905ca36f0b3501db
 +        }
  
 +        androidx.credentials.CredentialOption googleIdOption;
-+        if (this.hostedDomain != null && !this.hostedDomain.isEmpty()) {
++        boolean hasHostedDomain = this.hostedDomain != null && !this.hostedDomain.isEmpty();
++        if (hasHostedDomain || signInWithGoogleScreen) {
++            // Google's full "Sign in with Google" screen. Unlike the account
++            // sheet below, it lets the user add a Google account that isn't on
++            // the device yet, but it ignores filterByAuthorizedAccounts and
++            // autoSelectEnabled, so it is only used as a fallback.
 +            GetSignInWithGoogleOption.Builder googleIdOptionBuilder = new GetSignInWithGoogleOption.Builder(this.clientId);
              if (!nonce.isEmpty()) {
                  googleIdOptionBuilder.setNonce(nonce);
@@ -46,11 +66,12 @@ index 4e8b554273a248e8e3e26c032f507e126907c054..dcbc3d771d992dba905ca36f0b3501db
 -
 -            if (autoSelectEnabled) {
 -                googleIdOptionBuilder.setAutoSelectEnabled(true);
--            }
++            if (hasHostedDomain) {
++                googleIdOptionBuilder.setHostedDomainFilter(this.hostedDomain);
+             }
 -
 -            GetGoogleIdOption googleIdOptionFiltered = googleIdOptionBuilder.build();
 -            requestBuilder.addCredentialOption(googleIdOptionFiltered);
-+            googleIdOptionBuilder.setHostedDomainFilter(this.hostedDomain);
 +            googleIdOption = googleIdOptionBuilder.build();
          } else {
 -            // For standard UI, we don't use these options
@@ -83,7 +104,7 @@ index 4e8b554273a248e8e3e26c032f507e126907c054..dcbc3d771d992dba905ca36f0b3501db
              filteredRequest,
              null,
              executor,
-@@ -467,7 +456,7 @@ public class GoogleProvider implements SocialProvider {
+@@ -467,7 +468,7 @@ public class GoogleProvider implements SocialProvider {
  
              AuthorizationRequest authorizationRequest = authorizationRequestBuilder.build();
  
@@ -92,7 +113,36 @@ index 4e8b554273a248e8e3e26c032f507e126907c054..dcbc3d771d992dba905ca36f0b3501db
                  .authorize(authorizationRequest)
                  .addOnSuccessListener((authorizationResult) -> {
                      if (authorizationResult.hasResolution()) {
-@@ -695,7 +684,11 @@ public class GoogleProvider implements SocialProvider {
+@@ -668,6 +669,28 @@ public class GoogleProvider implements SocialProvider {
+                 // Ignore, use default
+             }
+ 
++            // The account sheet only lists Google accounts already on the device
++            // and has no "add account" option. When an interactive request finds
++            // none, retry once with Google's full sign-in screen, which does.
++            boolean forcePromptValue = options.optBoolean("forcePrompt", false);
++            boolean alreadyOnSignInScreen = options.optBoolean(SIGN_IN_WITH_GOOGLE_SCREEN, false);
++            if ((forcePromptValue || !filterByAuthorizedAccountsValue) && !alreadyOnSignInScreen) {
++                Log.i(LOG_TAG, "No Google account in the account sheet. Retrying with the full Sign in with Google screen.");
++                try {
++                    options.put(SIGN_IN_WITH_GOOGLE_SCREEN, true);
++                    call.getData().put("options", options);
++                } catch (JSONException ex) {
++                    call.reject("Google Sign-In failed: " + ex.getMessage());
++                    return;
++                }
++                login(call, config);
++                return;
++            }
++            if (alreadyOnSignInScreen) {
++                call.reject("Google Sign-In failed: no Google account available", NO_GOOGLE_ACCOUNT_CODE, e);
++                return;
++            }
++
+             if (isBottomUi) {
+                 Log.e(
+                     LOG_TAG,
+@@ -695,7 +718,11 @@ public class GoogleProvider implements SocialProvider {
                  }
              }
          } else {

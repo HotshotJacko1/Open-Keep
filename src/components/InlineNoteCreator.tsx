@@ -65,7 +65,9 @@ import {
 } from "@/utils/reminder";
 import { saveImage, getImageSrc, deleteImage } from "@/lib/image-storage";
 import { expectExternalActivity } from "@/lib/app-relock";
-import { TITLE_MAX, BODY_MAX } from "@/lib/note-limits";
+import { TITLE_MAX, BODY_MAX, IMAGES_PER_NOTE_MAX } from "@/lib/note-limits";
+import { handleImagePaste, PASTE_DENIED_MESSAGE, type PastedImages } from "@/lib/clipboard-images";
+import { toast } from "sonner";
 
 interface InlineNoteCreatorProps {
   onSaveNote: (note: Note) => Promise<boolean> | void;
@@ -139,6 +141,8 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
 
   // Body editor. Mirrors NoteEditor's configuration so notes created here and
   // notes edited there are the same HTML format — see @/lib/editor-extensions.
+  const pastedImagesRef = useRef<(pasted: PastedImages) => void>(() => {});
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ link: false }),
@@ -153,6 +157,9 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
         class:
           "auto-dir prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[40px] text-foreground",
       },
+      // A pasted image becomes an attachment (see clipboard-images.ts).
+      handlePaste: (_view, event) =>
+        handleImagePaste(event, (pasted) => pastedImagesRef.current(pasted)),
     },
     onUpdate: ({ editor }) => {
       setBody(editor.getHTML());
@@ -376,6 +383,26 @@ export const InlineNoteCreator: React.FC<InlineNoteCreatorProps> = ({
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
+
+  const handlePastedImages = async ({ files, denied }: PastedImages) => {
+    if (files.length === 0) {
+      if (denied) toast.error(PASTE_DENIED_MESSAGE);
+      return;
+    }
+    const room = IMAGES_PER_NOTE_MAX - images.length;
+    if (files.length > room) toast.error(`Maximum ${IMAGES_PER_NOTE_MAX} images per note`);
+    for (const file of files.slice(0, Math.max(room, 0))) {
+      try {
+        const imgPath = await saveImage(file);
+        setImages((prev) => [...prev, imgPath]);
+      } catch (err) {
+        console.error("Failed to save pasted image:", err);
+        toast.error("Failed to add image");
+      }
+    }
+  };
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: the editor's paste handler is created once
+  pastedImagesRef.current = handlePastedImages;
 
   const handleRemoveImage = async (path: string) => {
     setImages((prev) => prev.filter((p) => p !== path));

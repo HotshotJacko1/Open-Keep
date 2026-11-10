@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   '@capgo/capacitor-social-login@8.3.22':
-    hash: 50ac2382110b651e8147d21da5051537b869f78d5edd0d7d0e6c463936d073e6
+    hash: 8b6b4d20d824b6fb4389846e20bcf113390e8739522adf1687f60e5ad29d2a96
     path: patches/@capgo__capacitor-social-login@8.3.22.patch
 
 importers:
@@ -54,7 +54,7 @@ importers:
         version: 8.7.0(@capacitor/core@8.5.2)
       '@capgo/capacitor-social-login':
         specifier: ^8.3.22
-        version: 8.3.22(patch_hash=50ac2382110b651e8147d21da5051537b869f78d5edd0d7d0e6c463936d073e6)(@capacitor/core@8.5.2)
+        version: 8.3.22(patch_hash=8b6b4d20d824b6fb4389846e20bcf113390e8739522adf1687f60e5ad29d2a96)(@capacitor/core@8.5.2)
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -3630,7 +3630,7 @@ snapshots:
     dependencies:
       '@capacitor/core': 8.5.2
 
-  '@capgo/capacitor-social-login@8.3.22(patch_hash=50ac2382110b651e8147d21da5051537b869f78d5edd0d7d0e6c463936d073e6)(@capacitor/core@8.5.2)':
+  '@capgo/capacitor-social-login@8.3.22(patch_hash=8b6b4d20d824b6fb4389846e20bcf113390e8739522adf1687f60e5ad29d2a96)(@capacitor/core@8.5.2)':
     dependencies:
       '@capacitor/core': 8.5.2
       tslib: 2.8.1

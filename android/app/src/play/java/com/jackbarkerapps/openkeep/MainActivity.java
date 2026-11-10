@@ -15,6 +15,7 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
     @Override
     public void onCreate(android.os.Bundle savedInstanceState) {
         registerPlugin(NoteStoragePlugin.class);
+        registerPlugin(ClipboardImagePlugin.class);
         super.onCreate(savedInstanceState);
     }
 

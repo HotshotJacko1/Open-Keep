@@ -60,7 +60,8 @@ import Placeholder from '@tiptap/extension-placeholder'
 import CharacterCount from '@tiptap/extension-character-count'
 import { CustomLink, HardBreakOnEnter, LINK_OPTIONS } from "@/lib/editor-extensions"
 import { LinkHighlightedTextarea } from "@/components/LinkHighlightedTextarea"
-import { TITLE_MAX, BODY_MAX } from "../lib/note-limits"
+import { TITLE_MAX, BODY_MAX, IMAGES_PER_NOTE_MAX } from "../lib/note-limits"
+import { handleImagePaste, PASTE_DENIED_MESSAGE, type PastedImages } from "@/lib/clipboard-images"
 import { plainTextToHtml, htmlToPlainText, serializeNoteToMarkdown } from "@/utils/note-markdown-format";
 import { useBackToClose } from "@/hooks/use-back-to-close";
 
@@ -220,6 +221,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const loadedEditorRef = useRef<Editor | null>(null);
     const editorContentRef = useRef("");
 
+    const pastedImagesRef = useRef<(pasted: PastedImages) => void>(() => {});
+
     const editor = useEditor({
         extensions: [
             // link: false — StarterKit bundles @tiptap/extension-link, and
@@ -245,6 +248,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 // pushed body text above the 20px title on wide screens.
                 class: 'auto-dir prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[40px] text-foreground',
             },
+            // A pasted image becomes an attachment (see clipboard-images.ts).
+            handlePaste: (_view, event) => handleImagePaste(event, (pasted) => pastedImagesRef.current(pasted)),
         },
         onUpdate: ({ editor }) => {
             const html = editor.getHTML();
@@ -679,6 +684,29 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     // Loaded (or failed) images only; ones still decrypting appear when ready.
     const shownImages = images.filter((path) => imageSrcs[path] !== undefined);
 
+    // Shared by the image picker and pasting an image into the body.
+    const addImageFiles = async (files: File[]) => {
+        const room = IMAGES_PER_NOTE_MAX - images.length;
+        if (files.length > room) toast.error(`Maximum ${IMAGES_PER_NOTE_MAX} images per note`);
+        for (const file of files.slice(0, Math.max(room, 0))) {
+            try {
+                const path = await saveImage(file);
+                const src = await getImageSrc(path);
+                setImages(prev => [...prev, path]);
+                setImageSrcs(prev => ({ ...prev, [path]: src }));
+            } catch {
+                toast.error('Failed to add image');
+            }
+        }
+    };
+
+    const handlePastedImages = ({ files, denied }: PastedImages) => {
+        if (files.length > 0) void addImageFiles(files);
+        else if (denied) toast.error(PASTE_DENIED_MESSAGE);
+    };
+    // eslint-disable-next-line react-hooks/refs -- latest-value ref: the editor's paste handler is created once
+    pastedImagesRef.current = handlePastedImages;
+
     const removeImage = async (path: string) => {
         await deleteImage(path);
         setImages(prev => prev.filter(p => p !== path));
@@ -997,18 +1025,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                             onChange={async (e) => {
                                 const file = e.target.files?.[0];
                                 if (!file) return;
-                                if (images.length >= 5) {
-                                    toast.error('Maximum 5 images per note');
-                                    return;
-                                }
-                                try {
-                                    const path = await saveImage(file);
-                                    const src = await getImageSrc(path);
-                                    setImages(prev => [...prev, path]);
-                                    setImageSrcs(prev => ({ ...prev, [path]: src }));
-                                } catch (err) {
-                                    toast.error('Failed to add image');
-                                }
+                                await addImageFiles([file]);
                                 e.target.value = '';
                             }}
                         />
