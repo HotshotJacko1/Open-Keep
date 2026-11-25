@@ -2,6 +2,7 @@
 import { clearGoogleDriveSession, deleteRemoteData as deleteGoogleDriveData } from "@/lib/google-drive";
 import { clearDropboxTokens, deleteRemoteData as deleteDropboxData } from "@/lib/dropbox";
 import { clearGoogleDriveScopeBlock } from "@/lib/google-drive-auth-state";
+import { clearWebDavConfig, deleteRemoteData as deleteWebDavData } from "@/lib/webdav";
 
 // Imported on demand so the OneDrive client (MSAL) stays out of the startup bundle.
 const deleteOneDriveData = async () => (await import("@/lib/one-drive")).deleteRemoteData();
@@ -16,6 +17,7 @@ export const deleteAllRemoteData = async (): Promise<void> => {
         ["Google Drive", deleteGoogleDriveData],
         ["Dropbox", deleteDropboxData],
         ["OneDrive", deleteOneDriveData],
+        ["WebDAV", deleteWebDavData],
     ] as const;
 
     const results = await Promise.allSettled(providers.map(([, remove]) => remove()));
@@ -38,6 +40,7 @@ export const signOutOfCloudProviders = async (): Promise<void> => {
     clearGoogleDriveSession();
     clearGoogleDriveScopeBlock();
     clearDropboxTokens();
+    clearWebDavConfig(true);
     try {
         const oneDrive = await import("@/lib/one-drive");
         await oneDrive.initOneDrive();
@@ -51,5 +54,6 @@ export const signOutOfCloudProviders = async (): Promise<void> => {
         "dropbox-last-synced",
         "onedrive-user-email",
         "onedrive-last-synced",
+        "webdav-last-synced",
     ].forEach((key) => localStorage.removeItem(key));
 };

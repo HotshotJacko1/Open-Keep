@@ -60,7 +60,7 @@ export const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
     if (selectedCount === 0) return null;
 
     return (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border px-2 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] flex items-center justify-between animate-in slide-in-from-top duration-md3-short4 ease-md3-decelerate">
+        <div className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border px-2 pb-2 pt-[calc(0.5rem+var(--safe-area-inset-top,env(safe-area-inset-top,0px)))] flex items-center justify-between animate-in slide-in-from-top duration-md3-short4 ease-md3-decelerate">
             <div className="flex items-center gap-4">
                 <Button variant="ghost" size="icon" onClick={onClearSelection}>
                     <X className="h-5 w-5 text-primary-foreground" />

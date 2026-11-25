@@ -108,7 +108,7 @@ const ReminderSheet: React.FC<ReminderSheetProps> = ({
           // shadow from peeking above the screen edge and its buttons out of the
           // tab order while closed.
           "transition-[transform,visibility]",
-          "pb-[env(safe-area-inset-bottom)]",
+          "pb-[var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px))]",
           isOpen
             ? "visible translate-y-0 pointer-events-auto duration-md3-medium2 ease-md3-decelerate"
             : "invisible translate-y-full pointer-events-none duration-md3-short4 ease-md3-accelerate"

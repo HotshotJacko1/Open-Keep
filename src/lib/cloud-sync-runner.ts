@@ -67,6 +67,8 @@ export interface CloudSyncAdapter {
      * account is signed in but hasn't granted the access the app needs).
      */
     classifyError: (error: unknown) => "auth" | "permission" | null;
+    /** A specific message for an error that would otherwise show `failureMessage`; null to keep that. */
+    describeError?: (error: unknown) => string | null;
     /** Recovery for an auth failure; the default just asks the user to reconnect. */
     onAuthError?: (silent: boolean) => SyncResult;
     /** Called after a successful sync with the timestamp stored under lastSyncedKey. */
@@ -112,7 +114,7 @@ const keepLocalPendingKey = (provider: CloudSyncProvider): string => `${provider
 
 /** Forget an unfinished "Keep local" (disconnect, reset). No `provider`: all of them. */
 export const clearKeepLocalPending = (provider?: CloudSyncProvider): void => {
-    const providers: CloudSyncProvider[] = provider ? [provider] : ["google-drive", "onedrive", "dropbox"];
+    const providers: CloudSyncProvider[] = provider ? [provider] : ["google-drive", "onedrive", "dropbox", "webdav"];
     for (const p of providers) localStorage.removeItem(keepLocalPendingKey(p));
 };
 
@@ -452,7 +454,7 @@ export const runCloudSync = async (
             }
             return { status: "error", message };
         }
-        if (!silent) showError(adapter.failureMessage);
+        if (!silent) showError(adapter.describeError?.(error) ?? adapter.failureMessage);
         return { status: "error", message };
     } finally {
         setCloudSyncState(adapter.provider, false);

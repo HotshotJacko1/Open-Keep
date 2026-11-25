@@ -12,11 +12,24 @@ import { Sparkles, ArrowLeft } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useBackToClose } from "@/hooks/use-back-to-close";
 
-const ChangelogDialog: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
+interface ChangelogDialogProps {
+  /** Controlled open state; omit to let the built-in "What's New" button drive it. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Show the "What's New" trigger button (default true). */
+  showTrigger?: boolean;
+}
+
+const ChangelogDialog: React.FC<ChangelogDialogProps> = ({ open, onOpenChange, showTrigger = true }) => {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = open ?? internalOpen;
+  const setIsOpen = (next: boolean) => {
+    if (open === undefined) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
   const [changelogContent, setChangelogContent] = useState<string>('Loading...');
 
-  useBackToClose("changelog", isOpen, () => setIsOpen(false));
+  useBackToClose(showTrigger ? "changelog" : "changelog-update", isOpen, () => setIsOpen(false));
 
   useEffect(() => {
     if (isOpen) {
@@ -32,17 +45,19 @@ const ChangelogDialog: React.FC = () => {
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="w-full justify-start">
-          <Sparkles className="h-4 w-4 mr-2" /> What's New
-        </Button>
-      </DialogTrigger>
+      {showTrigger && (
+        <DialogTrigger asChild>
+          <Button variant="outline" className="w-full justify-start">
+            <Sparkles className="h-4 w-4 mr-2" /> What's New
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent 
         aria-describedby={undefined}
-        className="w-full h-full max-w-full sm:max-w-[500px] sm:h-auto sm:max-h-[85vh] !rounded-none sm:!rounded-dialog bg-background sm:bg-surface-container-high text-text-primary border-0 sm:border p-0 pb-[max(env(safe-area-inset-bottom),1.5rem)] flex flex-col overflow-hidden"
+        className="w-full h-full max-w-full sm:max-w-[500px] sm:h-auto sm:max-h-[85vh] !rounded-none sm:!rounded-dialog bg-background sm:bg-surface-container-high text-text-primary border-0 sm:border p-0 pb-[max(var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)),1.5rem)] flex flex-col overflow-hidden"
       >
         <div className="flex flex-col h-full min-h-0">
-          <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left px-6 pt-[max(env(safe-area-inset-top),1.5rem)] pb-4 border-b">
+          <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left px-6 pt-[max(var(--safe-area-inset-top,env(safe-area-inset-top,0px)),1.5rem)] pb-4 border-b">
             <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="touch-target shrink-0 mt-0 h-8 w-8">
               <ArrowLeft className="h-5 w-5 text-secondary" />
               <span className="sr-only">Back</span>

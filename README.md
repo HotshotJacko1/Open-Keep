@@ -12,7 +12,8 @@ Write notes using clean and powerful Markdown (.md), protect sensitive content w
 Key Features:
 
 - DeGoogled – No reliance on Google services
-- Cloud sync (Dropbox, Google Drive, OneDrive)
+- Cloud sync (Dropbox, Google Drive, OneDrive, WebDAV such as Nextcloud)
+- Self-hostable web app – see [SELF_HOSTING.md](SELF_HOSTING.md)
 - Markdown Support (.md) – Write and edit notes in a standard, portable format
 - Password Protection – Secure your notes with passcode/biometrics
 - Import & Export Notes – Easily move your data in or out at any time
@@ -28,7 +29,7 @@ Your notes. Your storage. Your control.
 - No personal data collection, no logins
 - I cannot see your notes
 - Notes can be kept locally on device, or optionally synced to the cloud.
-- Supabase anonymous auth is used purely to 1) count how many users are using the app, and 2) to ask users for feedback occasionally.
+- Supabase anonymous auth is used purely to 1) count how many users are using the app, and 2) to ask users for feedback occasionally. The self-hosted version doesn't use it.
 
 ## Licence
 

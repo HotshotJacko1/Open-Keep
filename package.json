@@ -13,7 +13,8 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "lint": "node scripts/sync-version.cjs --check && eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "webdav:dev": "node scripts/webdav-dev-server.mjs"
   },
   "dependencies": {
     "@azure/msal-browser": "^4.27.0",

@@ -50,3 +50,6 @@ android/app/release-signing.jks
 /SQLCipher_Framework/
 /SQLCipher.xcframework.zip
 *.mp4
+
+# Local WebDAV test server data (scripts/webdav-dev-server.mjs)
+.webdav-dev-data/

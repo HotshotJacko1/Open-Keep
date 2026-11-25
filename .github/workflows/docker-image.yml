@@ -1,0 +1,111 @@
+name: Docker image
+
+# Builds the self-hosted web app image (Dockerfile, SELF_HOSTING.md), checks
+# that it starts, serves the app and forwards /webdav/, and on a version tag
+# publishes it to ghcr.io/<owner>/open-keep for linux/amd64 and linux/arm64.
+#
+# Run it by hand (Actions -> Docker image -> Run workflow) to test a branch.
+# A manual run only publishes when "publish" is ticked, tagged with the commit.
+#
+# Separate from release.yml on purpose: that workflow's F-Droid build must stay
+# byte-for-byte reproducible, so nothing here touches it.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish the image (tagged with the commit) once the checks pass"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build for checking
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: open-keep:check
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Check the image
+        run: |
+          set -euo pipefail
+          # The repo's test WebDAV server (user test, password test) stands in for Nextcloud.
+          docker network create okcheck
+          docker run -d --name dav --network okcheck -v "$PWD/scripts:/scripts:ro" \
+            node:24-alpine node /scripts/webdav-dev-server.mjs --dir /tmp/dav
+          sleep 2
+          docker run -d --name app --network okcheck -p 8080:8080 \
+            -e OPENKEEP_WEBDAV_UPSTREAM=http://dav:8765 -e OPENKEEP_WEBDAV_FOLDER=Notes open-keep:check
+          for i in $(seq 1 30); do curl -fs http://localhost:8080/ >/dev/null && break; sleep 1; done
+          docker logs app
+
+          status() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+
+          echo "App page, and the fallback for other paths"
+          curl -fsS http://localhost:8080/ | grep -q "<title>Open Keep</title>"
+          curl -fsS http://localhost:8080/any/path | grep -q "<title>Open Keep</title>"
+
+          echo "Settings from the environment"
+          curl -fsS http://localhost:8080/config.js | tee /dev/stderr | grep -q '"webdavFolder": "Notes"'
+
+          echo "/webdav/ forwarding: create a folder, write and read back a file, refuse a wrong password"
+          test "$(status -u test:test -X MKCOL http://localhost:8080/webdav/Notes/)" = 201
+          test "$(status -u test:test -T README.md http://localhost:8080/webdav/Notes/check.txt)" = 201
+          curl -fsS -u test:test http://localhost:8080/webdav/Notes/check.txt | cmp - README.md
+          test "$(status -u test:wrong http://localhost:8080/webdav/Notes/check.txt)" = 401
+
+          echo "A bad setting stops the container instead of starting half-configured"
+          if docker run --rm -e "OPENKEEP_WEBDAV_UPSTREAM=https://x.com; }" open-keep:check nginx -v; then
+            echo "expected a failure"; exit 1
+          fi
+
+      - name: Image name
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.publish
+        # Registry names must be lowercase.
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/open-keep" >> "$GITHUB_ENV"
+
+      - uses: docker/login-action@v3
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.publish
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.publish
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          # v5.4.1 -> 5.4.1 and latest. Not type=semver: app versions can have
+          # four parts (5.4.0.1), which aren't semver.
+          tags: |
+            type=match,pattern=v(.*),group=1
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=sha,enable=${{ !startsWith(github.ref, 'refs/tags/v') }}
+
+      - name: Publish
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.publish
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha

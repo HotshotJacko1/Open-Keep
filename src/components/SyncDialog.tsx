@@ -13,7 +13,9 @@ import { cn } from "@/lib/utils";
 import { useGoogleDrive } from "@/hooks/use-google-drive";
 import { useOneDrive } from "@/hooks/use-one-drive";
 import { useDropbox } from "@/hooks/use-dropbox";
-import { FULL_BUILD_PLAY_URL, FULL_BUILD_GITHUB_URL } from "@/lib/build-flavor";
+import { useWebDav, type WebDavConnectInput } from "@/hooks/use-webdav";
+import WebDavConnectForm from "@/components/WebDavConnectForm";
+import { FULL_BUILD_PLAY_URL, FULL_BUILD_GITHUB_URL, areOAuthSyncProvidersAvailable, isSelfHosted } from "@/lib/build-flavor";
 
 import { Loader2, FolderSync, ArrowLeft, AlertCircle, Check } from "lucide-react";
 import { showSuccess, showError } from "@/utils/toast";
@@ -30,12 +32,15 @@ interface SyncDialogProps {
 type SyncService =
   | ReturnType<typeof useGoogleDrive>
   | ReturnType<typeof useOneDrive>
-  | ReturnType<typeof useDropbox>;
+  | ReturnType<typeof useDropbox>
+  | ReturnType<typeof useWebDav>;
 
 const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
   const googleDrive = useGoogleDrive();
   const oneDrive = useOneDrive();
   const dropbox = useDropbox();
+  const webDav = useWebDav();
+  const [showWebDavForm, setShowWebDavForm] = useState(false);
 
   const [conflictData, setConflictData] = useState<{ activeService: SyncService, cloudPayload: string, reason?: SyncConflictReason } | null>(null);
   const [providedPin, setProvidedPin] = useState("");
@@ -60,6 +65,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
       let activeSvc;
       if (service === 'onedrive') activeSvc = { ...oneDrive, name: "OneDrive" };
       else if (service === 'dropbox') activeSvc = { ...dropbox, name: "Dropbox" };
+      else if (service === 'webdav') activeSvc = { ...webDav, name: "WebDAV" };
       else activeSvc = { ...googleDrive, name: "Google Drive" };
       
       setConflictData({ activeService: activeSvc, cloudPayload: payload, reason });
@@ -67,7 +73,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
 
     window.addEventListener('open-sync-conflict', handleGlobalConflict);
     return () => window.removeEventListener('open-sync-conflict', handleGlobalConflict);
-  }, [oneDrive, dropbox, googleDrive]);
+  }, [oneDrive, dropbox, googleDrive, webDav]);
   useBackToClose("sync", isOpen, onClose, () => {
       // Back from the conflict view returns to the main sync view.
       if (!conflictData) return false;
@@ -80,10 +86,20 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
     if (googleDrive.isConnected) return { ...googleDrive, name: "Google Drive" };
     if (oneDrive.isConnected) return { ...oneDrive, name: "OneDrive" };
     if (dropbox.isConnected) return { ...dropbox, name: "Dropbox" };
+    if (webDav.isConnected) return { ...webDav, name: "WebDAV" };
     return null;
-  }, [googleDrive.isConnected, oneDrive.isConnected, dropbox.isConnected, googleDrive, oneDrive, dropbox]);
+  }, [googleDrive.isConnected, oneDrive.isConnected, dropbox.isConnected, webDav.isConnected, googleDrive, oneDrive, dropbox, webDav]);
 
-  const isAnySyncing = googleDrive.isSyncing || oneDrive.isSyncing || dropbox.isSyncing;
+  const isAnySyncing = googleDrive.isSyncing || oneDrive.isSyncing || dropbox.isSyncing || webDav.isSyncing;
+
+  const connectWebDav = async (input: WebDavConnectInput) => {
+    const result = await webDav.connect(input);
+    if (result.status === "error") return;
+    setShowWebDavForm(false);
+    if (result.status === "conflict") {
+      setConflictData({ activeService: webDav, cloudPayload: result.cloudPayload, reason: result.reason });
+    }
+  };
 
   const [justSynced, setJustSynced] = useState(false);
   const justSyncedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -187,7 +203,7 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-full h-full max-w-full sm:max-w-[425px] sm:h-auto sm:max-h-[85vh] sm:rounded-dialog !rounded-none sm:!rounded-dialog flex flex-col overflow-hidden bg-background sm:bg-surface-container-high text-text-primary border-0 sm:border pt-[max(env(safe-area-inset-top,3.5rem),3.5rem)] sm:pt-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] px-6">
+      <DialogContent className="w-full h-full max-w-full sm:max-w-[425px] sm:h-auto sm:max-h-[85vh] sm:rounded-dialog !rounded-none sm:!rounded-dialog flex flex-col overflow-hidden bg-background sm:bg-surface-container-high text-text-primary border-0 sm:border pt-[max(var(--safe-area-inset-top,env(safe-area-inset-top,0px)),3.5rem)] sm:pt-6 pb-[max(var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)),1.5rem)] px-6">
         <DialogHeader className="flex flex-row items-start gap-2 space-y-0 text-left">
           <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">
               <ArrowLeft className="h-5 w-5 text-secondary" />
@@ -210,9 +226,12 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
               Sync your notes to a cloud provider to keep them backed up and accessible.
             </p>
 
-            {!activeService ? (
+            {!activeService && showWebDavForm ? (
+              <WebDavConnectForm onConnect={connectWebDav} onCancel={() => setShowWebDavForm(false)} />
+            ) : !activeService ? (
               <div className="flex flex-col gap-2">
-                {googleDrive.isAvailable ? (
+                {/* Self-hosted: WebDAV only (see lib/build-flavor.ts). */}
+                {isSelfHosted ? null : googleDrive.isAvailable ? (
                   <Button
                     onClick={async () => {
                       showSuccess("Initiating Google Login...");
@@ -244,11 +263,18 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                     </p>
                   </div>
                 )}
-                <Button onClick={() => oneDrive.login()} className="w-full justify-start" variant="outline" type="button">
-                  <FolderSync className="mr-2 h-4 w-4" /> Sync with OneDrive
-                </Button>
-                <Button onClick={() => dropbox.login()} className="w-full justify-start" variant="outline" type="button">
-                  <FolderSync className="mr-2 h-4 w-4" /> Sync with Dropbox
+                {areOAuthSyncProvidersAvailable && (
+                  <>
+                    <Button onClick={() => oneDrive.login()} className="w-full justify-start" variant="outline" type="button">
+                      <FolderSync className="mr-2 h-4 w-4" /> Sync with OneDrive
+                    </Button>
+                    <Button onClick={() => dropbox.login()} className="w-full justify-start" variant="outline" type="button">
+                      <FolderSync className="mr-2 h-4 w-4" /> Sync with Dropbox
+                    </Button>
+                  </>
+                )}
+                <Button onClick={() => setShowWebDavForm(true)} className="w-full justify-start" variant="outline" type="button">
+                  <FolderSync className="mr-2 h-4 w-4" /> Sync with WebDAV (Nextcloud, etc.)
                 </Button>
               </div>
             ) : conflictData?.reason === "pin_required" ? (

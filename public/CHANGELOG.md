@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), but this project does not adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) because there is no public API.
 
 ## [Unreleased]
-- N/A
+- Windows app.
+
+## [5.5.0] - 2026-11-28
+
+### Added
+- WebDAV sync, for Nextcloud and other self-hosted storage.
+- Run the web app on your own server (Docker).
+- After an update, a card offers What's New.
+
+### Fixed
+- Android: screens no longer overlap the status and navigation bars.
 
 ## [5.4.1] - 2026-11-10
 

@@ -363,7 +363,7 @@ PIN code: ${pinCode || 'Not set'}`;
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent
           aria-describedby={undefined}
-          className="w-full h-full max-w-full sm:max-w-[425px] sm:h-auto sm:max-h-[85vh] sm:rounded-dialog !rounded-none sm:!rounded-dialog flex flex-col overflow-hidden bg-background sm:bg-surface-container-high text-text-primary border-0 sm:border pt-[max(env(safe-area-inset-top),1.5rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)] px-6"
+          className="w-full h-full max-w-full sm:max-w-[425px] sm:h-auto sm:max-h-[85vh] sm:rounded-dialog !rounded-none sm:!rounded-dialog flex flex-col overflow-hidden bg-background sm:bg-surface-container-high text-text-primary border-0 sm:border pt-[max(var(--safe-area-inset-top,env(safe-area-inset-top,0px)),1.5rem)] pb-[max(var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)),1.5rem)] px-6"
         >
           <DialogHeader className="flex flex-row items-center gap-2 space-y-0 text-left">
             <Button variant="ghost" size="icon" onClick={onClose} className="touch-target shrink-0 mt-0 h-8 w-8">

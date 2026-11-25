@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { isUsageReportingEnabled } from '@/lib/build-flavor';
 
 interface SessionContextType {
   session: Session | null;
@@ -17,6 +18,10 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Self-hosted: no session at all, so nothing that depends on one (usage
+    // counting, the feedback prompt, Settings' PIN code and user ID) runs.
+    if (!isUsageReportingEnabled) return;
+
     const bootstrapSession = () => {
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session) {

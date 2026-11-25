@@ -1,7 +1,7 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import { useEffect, useState } from "react";
 
-export type CloudSyncProvider = "google-drive" | "onedrive" | "dropbox";
+export type CloudSyncProvider = "google-drive" | "onedrive" | "dropbox" | "webdav";
 
 const SYNC_STATE_EVENT = "cloud-sync-state-changed";
 
@@ -9,6 +9,7 @@ const syncStateByProvider: Record<CloudSyncProvider, boolean> = {
     "google-drive": false,
     onedrive: false,
     dropbox: false,
+    webdav: false,
 };
 
 /** Update syncing state for a provider; broadcast to every hook instance. */

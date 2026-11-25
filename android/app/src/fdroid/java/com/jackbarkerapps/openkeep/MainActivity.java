@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(android.os.Bundle savedInstanceState) {
         registerPlugin(NoteStoragePlugin.class);
         registerPlugin(ClipboardImagePlugin.class);
+        registerPlugin(WebDavFolderPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

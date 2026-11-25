@@ -68,8 +68,10 @@ const startErrorReporting = () => {
       tracesSampleRate: 0.1,
       // Deliberately excludes the Supabase domain: Sentry's trace headers
       // (baggage/traceparent) trigger a CORS preflight that edge functions
-      // reject, which blocked the google-token-exchange call.
-      tracePropagationTargets: ["localhost"],
+      // reject, which blocked the google-token-exchange call. Only the app's
+      // own origin, not all of "localhost": a WebDAV server on another local
+      // port would refuse the headers in the same way.
+      tracePropagationTargets: [window.location.origin],
       ...replayOptions,
       // Send console logs to Sentry
       enableLogs: false,

@@ -7,6 +7,7 @@ import { Capacitor } from "@capacitor/core";
 import NoteCard from "@/components/NoteCard";
 import { useGoogleDrive, isGoogleDriveAuthBusy, isGoogleDriveScopeBlocked } from "@/hooks/use-google-drive";
 import { useOneDrive } from "@/hooks/use-one-drive";
+import { useWebDav } from "@/hooks/use-webdav";
 import { useDropbox } from "@/hooks/use-dropbox";
 import { Loader2 } from "lucide-react";
 import SidebarNav from "@/components/SidebarNav";
@@ -36,6 +37,7 @@ import { App as CapacitorApp } from "@capacitor/app";
 import { useWidgetDeepLink } from "@/hooks/use-widget-deep-link";
 import { useMcpBridge } from "@/hooks/use-mcp-bridge";
 import { recordTagChange, recordTombstone } from "@/lib/tombstones";
+import UpdateNotice from "@/components/UpdateNotice";
 
 // How long a note sits in the Bin (isDeleted) before it's hard-removed, either
 // by the auto-cleanup sweep below or by a manual "Delete Forever". Manual
@@ -175,13 +177,15 @@ const Index = () => {
   const googleDrive = useGoogleDrive();
   const oneDrive = useOneDrive();
   const dropbox = useDropbox();
+  const webDav = useWebDav();
 
   const activeService = useMemo(() => {
     if (googleDrive.isConnected) return { ...googleDrive, name: "Google Drive" };
     if (oneDrive.isConnected) return { ...oneDrive, name: "OneDrive" };
     if (dropbox.isConnected) return { ...dropbox, name: "Dropbox" };
+    if (webDav.isConnected) return { ...webDav, name: "WebDAV" };
     return null;
-  }, [googleDrive.isConnected, oneDrive.isConnected, dropbox.isConnected, googleDrive, oneDrive, dropbox]);
+  }, [googleDrive.isConnected, oneDrive.isConnected, dropbox.isConnected, webDav.isConnected, googleDrive, oneDrive, dropbox, webDav]);
 
   // Pull to Refresh State
   const [pullStartPoint, setPullStartPoint] = useState(0);
@@ -1460,6 +1464,7 @@ const Index = () => {
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto px-2 pt-4 sm:px-6 sm:pt-6 md:px-8 md:pt-8 pb-[calc(7rem+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))]"
       >
+        <UpdateNotice />
         {dbUnavailable && isWebReadFailed() && (
           <div className="bg-destructive/15 border border-destructive/30 rounded-lg p-4 mb-4 text-sm text-destructive">
             <p className="font-semibold mb-1">Local notes storage is unreadable</p>
@@ -1718,7 +1723,7 @@ const Index = () => {
               <Menu className="h-6 w-6 text-muted-foreground" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-64 p-0 bg-sidebar dark:bg-sidebar text-sidebar-foreground border-r-sidebar-border pt-[env(safe-area-inset-top)] flex flex-col" aria-describedby={undefined}>
+          <SheetContent side="left" className="w-64 p-0 bg-sidebar dark:bg-sidebar text-sidebar-foreground border-r-sidebar-border pt-[var(--safe-area-inset-top,env(safe-area-inset-top,0px))] flex flex-col" aria-describedby={undefined}>
             <SheetTitle className="sr-only">Navigation menu</SheetTitle>
             <div className="p-4 text-2xl font-bold text-sidebar-primary flex items-center shrink-0">
               <Lightbulb className="mr-2 h-6 w-6 text-highlight" fill="currentColor" />

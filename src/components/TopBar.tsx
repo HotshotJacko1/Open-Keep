@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { useGoogleDrive } from "@/hooks/use-google-drive";
 import { useOneDrive } from "@/hooks/use-one-drive";
+import { useWebDav } from "@/hooks/use-webdav";
 import { useDropbox } from "@/hooks/use-dropbox";
 
 type SortMode = "recent" | "alphabetical";
@@ -43,13 +44,15 @@ const TopBar: React.FC<TopBarProps> = ({
     const googleDrive = useGoogleDrive();
     const oneDrive = useOneDrive();
     const dropbox = useDropbox();
+    const webDav = useWebDav();
 
     const activeService = React.useMemo(() => {
         if (googleDrive.isConnected) return { ...googleDrive, name: "Google Drive" };
         if (oneDrive.isConnected) return { ...oneDrive, name: "OneDrive" };
         if (dropbox.isConnected) return { ...dropbox, name: "Dropbox" };
+        if (webDav.isConnected) return { ...webDav, name: "WebDAV" };
         return null;
-    }, [googleDrive.isConnected, oneDrive.isConnected, dropbox.isConnected, googleDrive, oneDrive, dropbox]);
+    }, [googleDrive.isConnected, oneDrive.isConnected, dropbox.isConnected, webDav.isConnected, googleDrive, oneDrive, dropbox, webDav]);
 
     const [justSynced, setJustSynced] = React.useState(false);
     const justSyncedTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -86,7 +89,7 @@ const TopBar: React.FC<TopBarProps> = ({
     const showSyncButton = isWeb && activeService;
 
     return (
-        <div className={cn("flex items-center gap-2 px-4 py-2 pt-[calc(0.5rem+env(safe-area-inset-top))] border-b bg-background sticky top-0 z-50", className)}>
+        <div className={cn("flex items-center gap-2 px-4 py-2 pt-[calc(0.5rem+var(--safe-area-inset-top,env(safe-area-inset-top,0px)))] border-b bg-background sticky top-0 z-50", className)}>
             <div className="flex items-center gap-2 min-w-max">
                 {startAdornment}
             </div>

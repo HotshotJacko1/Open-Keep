@@ -1,0 +1,23 @@
+# Only what the web build needs goes into the Docker build (see Dockerfile).
+**/node_modules
+dist
+.git
+.github
+.claude
+.dyad
+.vscode
+.idea
+# Local secrets (.env.local holds the Sentry token) and per-machine settings.
+.env*
+*.log
+.webdav-dev-data
+
+# Native projects: the web build only reads the app version from build.gradle.
+android
+!android/app/build.gradle
+ios
+SQLCipher_Framework
+SQLCipher.xcframework.zip
+fastlane
+supabase
+mcp-server

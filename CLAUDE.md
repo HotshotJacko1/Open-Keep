@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Open Keep — an open-source, privacy-focused, cross-platform (web/iOS/Android via Capacitor) note-taking app with local AES-256 encryption, optional cloud sync (Dropbox, Google Drive, OneDrive), and a local MCP bridge that lets AI tools read/write notes. AGPL-3.0.
+Open Keep — an open-source, privacy-focused, cross-platform (web/iOS/Android via Capacitor) note-taking app with local AES-256 encryption, optional cloud sync (Dropbox, Google Drive, OneDrive, WebDAV), and a local MCP bridge that lets AI tools read/write notes. AGPL-3.0.
 
 ## Commands
 
@@ -64,9 +64,15 @@ Legacy data migration: old "list"-type notes (with an `items` array) are convert
 
 ### Cloud sync and multi-device key conflicts
 
-Cloud sync (Dropbox/Google Drive/OneDrive, under `src/lib/dropbox*.ts`, `src/lib/google-drive.ts`, `src/lib/one-drive*.ts`) does not store notes in plaintext in the cloud — a "cloud master key" (the local encryption key, wrapped) is synced alongside the notes so another device can decrypt them. [src/lib/cloud-sync-resolver.ts](src/lib/cloud-sync-resolver.ts) and [src/lib/cloud-sync-state.ts](src/lib/cloud-sync-state.ts) handle the conflict case where a device's local PIN doesn't match the cloud-stored key: the user is prompted for the *other* device's PIN, and the resolution can keep local data, replace with cloud data, or merge (`forceResolution: "local" | "cloud" | "merge"`).
+Cloud sync (Dropbox/Google Drive/OneDrive/WebDAV, under `src/lib/dropbox*.ts`, `src/lib/google-drive.ts`, `src/lib/one-drive*.ts`, `src/lib/webdav.ts`) does not store notes in plaintext in the cloud — a "cloud master key" (the local encryption key, wrapped) is synced alongside the notes so another device can decrypt them. [src/lib/cloud-sync-resolver.ts](src/lib/cloud-sync-resolver.ts) and [src/lib/cloud-sync-state.ts](src/lib/cloud-sync-state.ts) handle the conflict case where a device's local PIN doesn't match the cloud-stored key: the user is prompted for the *other* device's PIN, and the resolution can keep local data, replace with cloud data, or merge (`forceResolution: "local" | "cloud" | "merge"`).
 
-The three providers share one cloud file format ([src/lib/sync-data.ts](src/lib/sync-data.ts)) and one merge ([src/lib/sync-merge.ts](src/lib/sync-merge.ts)); each provider owns only transport and the outer encryption wrapping. A permanent delete records a **tombstone** ([src/lib/tombstones.ts](src/lib/tombstones.ts)) that syncs in the same file, so other devices drop the note rather than merging it back; tombstones are kept 180 days. Custom labels work the same way through `tagChanges` (the latest create or delete per label wins; a rename is a delete plus a create). Older app versions ignore the tombstone fields and re-upload without them, so every device keeps its own copy and restores them on its next sync. Design and rules: [docs/plans/C3-01-tombstones.md](docs/plans/C3-01-tombstones.md).
+The providers share one cloud file format ([src/lib/sync-data.ts](src/lib/sync-data.ts)) and one merge ([src/lib/sync-merge.ts](src/lib/sync-merge.ts)); each provider owns only transport and the outer encryption wrapping. A permanent delete records a **tombstone** ([src/lib/tombstones.ts](src/lib/tombstones.ts)) that syncs in the same file, so other devices drop the note rather than merging it back; tombstones are kept 180 days. Custom labels work the same way through `tagChanges` (the latest create or delete per label wins; a rename is a delete plus a create). Older app versions ignore the tombstone fields and re-upload without them, so every device keeps its own copy and restores them on its next sync. Design and rules: [docs/plans/C3-01-tombstones.md](docs/plans/C3-01-tombstones.md).
+
+### WebDAV and self-hosting
+
+WebDAV sync ([src/lib/webdav.ts](src/lib/webdav.ts)) is plain HTTP with Basic auth: `fetch` on web (the server must allow CORS, or be on the same origin), `CapacitorHttp` on native. Android's HttpURLConnection refuses `MKCOL`, so folder creation there goes through [WebDavFolderPlugin.kt](android/app/src/main/java/com/jackbarkerapps/openkeep/WebDavFolderPlugin.kt), registered in both flavors' `MainActivity`. Writes are conditional (`If-Match`, else `If-Unmodified-Since` when the server only gives weak ETags) and re-merge on 412. `pnpm webdav:dev` runs a local test server (`--proxy <url>` puts a CORS proxy in front of a real server); see [scripts/webdav-dev-server.mjs](scripts/webdav-dev-server.mjs).
+
+`VITE_APP_FLAVOR=selfhost` is the web build for running on your own server ([src/lib/build-flavor.ts](src/lib/build-flavor.ts)): no Supabase session (so no usage counting or feedback prompt), WebDAV the only sync option. The [Dockerfile](Dockerfile) builds it and serves it with nginx; [docker/40-open-keep-config.sh](docker/40-open-keep-config.sh) turns `OPENKEEP_*` env vars into `config.js` (read by [src/lib/runtime-config.ts](src/lib/runtime-config.ts)) and an optional `/webdav/` forward. [.github/workflows/docker-image.yml](.github/workflows/docker-image.yml) checks and publishes the image to GHCR on version tags. User docs: [SELF_HOSTING.md](SELF_HOSTING.md).
 
 ### MCP bridge (AI assistant access)
 
