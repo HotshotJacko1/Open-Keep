@@ -13,30 +13,57 @@ Your notes live on your device, and they stay there. Nothing is uploaded to run 
 
 ```
 AI tool  ──MCP──▶  Open Keep MCP server  ◀──local connection──  Open Keep
-(Claude, etc.)     (runs on your computer)                      (your browser tab)
+(Claude, etc.)     (runs on your computer)              (the desktop app or a browser tab)
 ```
 
 The MCP server is a small relay. It holds no notes of its own — it passes each
-request to your open Open Keep tab, which answers from the notes it already has.
+request to Open Keep (the Windows desktop app, or a browser tab), which answers
+from the notes it already has.
 The connection is local to your machine (`127.0.0.1`), and it only works while:
 
-- an Open Keep tab is open, **and**
+- Open Keep is open (the desktop app, even minimised to the tray, or a tab), **and**
 - you have switched access on in Settings, **and**
 - both sides hold the same pairing token.
 
 The token itself is never sent over that connection. Instead the two sides
 prove to each other that they hold it (an HMAC-SHA256 challenge-response over
 fresh random nonces, tied to the port in use), and the Open Keep server has to
-prove it *first*: until it does, the tab sends it nothing derived from the token
+prove it *first*: until it does, Open Keep sends it nothing derived from the token
 and won't answer a single request. So another program that happens to be
 listening on one of the ports learns nothing, and gets nothing.
 
-Close the tab and the AI simply gets "Open Keep is not connected". Nothing
+Close Open Keep and the AI simply gets "Open Keep is not connected". Nothing
 happens behind your back.
 
 ## Setup
 
-### Claude Desktop (easiest)
+### With the Windows desktop app (easiest)
+
+The desktop app is its own MCP server: an AI tool starts `open-keep.exe --mcp`
+from the Open Keep install, so there is nothing else to install, no Node.js, and
+no token to copy (those copies read it from the app, through Windows Credential
+Manager, and follow it when you generate a new one).
+
+1. In Open Keep, go to **Settings → AI Assistant Access**.
+2. Under **Connect an AI tool**:
+   - **Claude Desktop:** click **Add to Claude Desktop**, then quit and reopen
+     Claude Desktop. (If you installed the Open Keep extension before, remove it
+     in Claude Desktop's **Settings → Extensions**, or the tools appear twice.)
+   - **Claude Code:** click **Copy command** next to it and run that in a
+     terminal. It looks like
+     `claude mcp add --scope user open-keep -- "C:\Users\you\AppData\Local\Open Keep\open-keep.exe" --mcp`.
+   - **Codex or ChatGPT desktop:** the same, with `codex mcp add open-keep -- ... --mcp`.
+   - **Anything else** that can start a local MCP server (Cursor, VS Code, Gemini
+     CLI, LM Studio...): **Copy config** gives the entry for its list of MCP
+     servers: a `command` (the path to `open-keep.exe`) and `args: ["--mcp"]`.
+3. Turn on *Let AI read notes*, and *Let AI create, edit & delete notes* if you
+   want that too. The status dot turns green once the AI tool has started.
+
+Open Keep has to be running (the tray is enough) for the AI to reach your notes.
+Updating Open Keep closes these copies too, so restart your AI tool after an
+update.
+
+### Claude Desktop, with Open Keep in a browser
 
 1. **Get your pairing token.** In Open Keep, go to **Settings → AI Assistant
    Access**. Copy the token shown there.
@@ -58,7 +85,7 @@ extensions.
 The extension is currently unsigned, so Claude Desktop will warn that the
 publisher can't be verified. That's expected for now.
 
-### Other AI tools
+### Other AI tools, with Open Keep in a browser
 
 Nothing here is Claude-specific — this is an ordinary MCP server, and any tool
 that can launch a *local* one can use it. That includes ChatGPT's desktop app,
@@ -107,7 +134,7 @@ env = { OPENKEEP_MCP_TOKEN = "paste-your-token-here" }
 
 You can run several tools against Open Keep at the same time — each starts its
 own copy of the server and takes its own port, and they all talk to the same
-tab. Give them all the same token, from the same browser.
+Open Keep window. Give them all the same token, copied from that window.
 
 ## Commands
 
@@ -186,13 +213,22 @@ extension/MCP server and the app speak different versions of the bridge
 protocol (the handshake changed in protocol v2). Update the extension, reload
 Open Keep, and retry.
 
-**The AI says Open Keep isn't connected.** Your Open Keep tab is probably closed.
-Open it and try again — the tab is what actually answers.
+**The AI says Open Keep isn't connected.** Open Keep is probably closed or
+locked. Open the desktop app or your Open Keep tab, unlock it, and try again —
+that window is what actually answers.
+
+**Status says "Standing by".** Another Open Keep window that uses the same
+pairing token (the desktop app and a browser tab, say) is connected to your AI
+tool, and the AI is working with *that* window's notes. Only one window is
+connected at a time. The one standing by takes over by itself when the other
+closes, or straight away if you press **Use this window**. The desktop app and
+the browser keep separate notes and separate tokens, so this only happens if you
+copied one token into both.
 
 **Using more than one AI tool.** Each one runs its own copy of the server, and
 they take the first free port from `8420` upwards, so they don't fight over one.
 Open Keep connects to all of them — you can use Claude Desktop and another MCP
-client at the same time against the same tab.
+client at the same time against the same window.
 
 **Ports 8420-8424 are all in use.** Something else on your machine has taken the
 whole range. Change the base port in the extension's settings in Claude Desktop;
@@ -204,6 +240,8 @@ Open Keep follows.
 cd mcp-server
 npm install
 npm run pack:mcpb    # writes build/open-keep.mcpb
-npm test             # 61 assertions: the server end to end, plus the app's
+npm test             # 72 assertions: the server end to end, plus the app's
                      # bridge client against fake servers that can't prove the token
+npm run test:relay   # the same tests against the desktop app's built-in server
+                     # (build it first: cargo build in src-tauri)
 ```

@@ -12,10 +12,9 @@ import LockScreen from "./components/LockScreen";
 import { Button } from "@/components/ui/button";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { checkDatabaseStatus, initializeDatabase, clearAllData, setSecureWindow, verifyEncryptionPin } from "./lib/note-storage";
-import { Capacitor } from "@capacitor/core";
+import { hasNativeStorage } from "@/lib/platform";
 import { App as CapacitorApp } from "@capacitor/app";
-import { supabase } from "./integrations/supabase/client";
-import FeedbackDialog from "./components/FeedbackDialog";
+import { reportLaunch } from "@/lib/usage-reporting";
 import { useSession } from "./context/session-provider";
 import { ensureWidgetDeepLinkCapture } from "./hooks/use-widget-deep-link";
 import {
@@ -51,11 +50,10 @@ const App = () => {
   const [relocked, setRelocked] = useState(false);
   const appStateRef = useRef(appState);
   useEffect(() => { appStateRef.current = appState; }, [appState]);
-  const [shouldShowFeedback, setShouldShowFeedback] = useState(false);
   const { session } = useSession();
 
-  // We need to know if we are on web or native to decide flow
-  const isNative = Capacitor.isNativePlatform();
+  // Web or the SQLCipher database (Android, iOS, desktop) decides the boot flow.
+  const isNative = hasNativeStorage();
 
   // Capture widget deep links even while the lock screen is visible.
   useEffect(() => {
@@ -151,47 +149,11 @@ const App = () => {
     syncImageEncryption().catch((e) => console.error("Image encryption sweep failed", e));
   }, [appState]);
 
+  // last_login (at most daily) for cleanup of idle rows; see usage-reporting.ts.
+  const sessionUserId = session?.user?.id;
   useEffect(() => {
-    const checkEntitlements = async () => {
-      if (!session?.user) return;
-      try {
-        const { data: entitlementData } = await supabase
-          .from('open_keep_user_entitlements')
-          .select('times_logged_in')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
-
-        const currentCount = entitlementData?.times_logged_in || 0;
-        const newCount = currentCount + 1;
-
-        const { error: upsertError } = await supabase
-          .from('open_keep_user_entitlements')
-          .upsert({
-            user_id: session.user.id,
-            times_logged_in: newCount,
-            last_login: new Date().toISOString()
-          }, { onConflict: 'user_id' });
-
-        if (upsertError) {
-          console.error("Supabase upsert error:", JSON.stringify(upsertError, null, 2));
-        }
-
-        const { data: statusData } = await supabase
-          .from('open_keep_user_status')
-          .select('ready_to_ask_for_feedback')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
-
-        if (statusData?.ready_to_ask_for_feedback) {
-          setShouldShowFeedback(true);
-        }
-      } catch (err) {
-        console.error("Failed to update login count", err);
-      }
-    };
-
-    checkEntitlements();
-  }, [session?.user?.id]);
+    if (sessionUserId) reportLaunch(sessionUserId);
+  }, [sessionUserId]);
 
   useEffect(() => {
     const init = async () => {
@@ -327,49 +289,6 @@ const App = () => {
     }
   };
 
-  const handleFeedbackSubmit = async (feedback: "happy" | "sad", comments: string) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) return;
-
-    const { data: entitlementData } = await supabase
-      .from('open_keep_user_entitlements')
-      .select('times_logged_in')
-      .eq('user_id', session.user.id)
-      .maybeSingle();
-
-    const currentCount = entitlementData?.times_logged_in || 0;
-
-    await supabase.from('open_keep_user_entitlements').upsert({
-      user_id: session.user.id,
-      feedback: feedback,
-      feedback_comments: comments,
-      feedback_date: new Date().toISOString().split('T')[0],
-      times_logged_in_when_feedback_requested: currentCount
-    }, { onConflict: 'user_id' });
-  };
-
-  const handleFeedbackClose = async (skipped: boolean) => {
-    setShouldShowFeedback(false);
-    if (!skipped) return;
-
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) return;
-
-    const { data: entitlementData } = await supabase
-      .from('open_keep_user_entitlements')
-      .select('times_logged_in')
-      .eq('user_id', session.user.id)
-      .maybeSingle();
-
-    const currentCount = entitlementData?.times_logged_in || 0;
-
-    await supabase.from('open_keep_user_entitlements').upsert({
-      user_id: session.user.id,
-      feedback_date: new Date().toISOString().split('T')[0],
-      times_logged_in_when_feedback_requested: currentCount
-    }, { onConflict: 'user_id' });
-  };
-
   if (appState === 'loading') {
     return <div className="min-h-screen bg-background flex items-center justify-center text-text-primary">Loading...</div>;
   }
@@ -431,11 +350,6 @@ const App = () => {
           </BrowserRouter>
         </TooltipProvider>
       )}
-      <FeedbackDialog
-        isOpen={shouldShowFeedback}
-        onClose={handleFeedbackClose}
-        onSubmit={handleFeedbackSubmit}
-      />
       {/* Vercel analytics is web-only; on native its script 404s on every launch. */}
       {/* openkeep.net page views (Vercel). Not in the apps, nor when self-hosted. */}
       {!isNative && isUsageReportingEnabled && <Analytics beforeSend={stripQueryForAnalytics} />}

@@ -15,11 +15,11 @@ import { ArrowLeft, Lock } from "lucide-react";
 import { enableEncryption } from "@/lib/encryption-pin";
 import { validateNewPin } from "@/lib/pin";
 import { useBackToClose } from "@/hooks/use-back-to-close";
-import { Capacitor } from "@capacitor/core";
+import { hasNativeStorage } from "@/lib/platform";
 
 // On web, notes in this browser's storage are not encrypted at rest (C1-21):
-// encryption covers cloud copies and images only. Native stores notes in SQLCipher.
-const isNative = Capacitor.isNativePlatform();
+// encryption covers cloud copies and images only. Android, iOS and desktop store notes in SQLCipher.
+const isNative = hasNativeStorage();
 
 interface EnableEncryptionDialogProps {
     isOpen: boolean;

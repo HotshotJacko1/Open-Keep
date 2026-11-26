@@ -1,6 +1,7 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import React, { useState } from "react";
 import { Capacitor } from "@capacitor/core";
+import { isDesktopApp } from "@/lib/platform";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,8 +45,9 @@ const WebDavConnectForm: React.FC<WebDavConnectFormProps> = ({ onConnect, onCanc
   };
 
   // In a browser the server has to allow this site (CORS), unless it's on the
-  // same address as the app (self-hosted together). The apps aren't affected.
-  const showBrowserNote = !Capacitor.isNativePlatform() && !isSameOrigin(serverUrl);
+  // same address as the app (self-hosted together). The phone and desktop apps
+  // aren't affected: their requests don't come from a web page.
+  const showBrowserNote = !Capacitor.isNativePlatform() && !isDesktopApp() && !isSameOrigin(serverUrl);
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3 border rounded-md p-4 bg-muted/50">

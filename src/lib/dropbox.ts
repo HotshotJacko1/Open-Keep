@@ -4,7 +4,7 @@ import { normalizeCloudMasterKeyPayload } from "@/lib/cloud-master-key";
 import { parseSyncData, serializeSyncData } from "@/lib/sync-data";
 import { emptySyncData, isSameSyncData, mergeSyncData, takeSide, type SyncData, type SyncMergeResult, type SyncNotesOptions } from "@/lib/sync-merge";
 import { Dropbox, DropboxAuth } from "dropbox";
-import { Capacitor } from "@capacitor/core";
+import { usesAppSignInRedirect } from "@/lib/platform";
 
 const CLIENT_ID = import.meta.env.VITE_DROPBOX_CLIENT_ID;
 const FILE_PATH = "/notes.json";
@@ -13,7 +13,7 @@ const ENCRYPTED_KEY_FILE_NAME = "/encrypted_master_key.json";
 // We need to persist the access token
 let dbx: Dropbox | null = null;
 
-export const REDIRECT_URI = Capacitor.isNativePlatform()
+export const REDIRECT_URI = usesAppSignInRedirect()
     ? "openkeep://auth"
     : window.location.origin;
 

@@ -5,6 +5,7 @@ import { normalizeCloudMasterKeyPayload } from "@/lib/cloud-master-key";
 import { parseSyncData, serializeSyncData } from "@/lib/sync-data";
 import { configuredWebDavUrl, getRuntimeConfig } from "@/lib/runtime-config";
 import { emptySyncData, isSameSyncData, mergeSyncData, takeSide, type SyncData, type SyncMergeResult, type SyncNotesOptions } from "@/lib/sync-merge";
+import { isDesktopApp } from "@/lib/platform";
 
 /**
  * WebDAV sync (Nextcloud, ownCloud, Synology, Koofr, rclone serve, Apache...).
@@ -12,8 +13,9 @@ import { emptySyncData, isSameSyncData, mergeSyncData, takeSide, type SyncData, 
  * The same two files as every other provider, in a folder the user picks on their
  * own server. Plain HTTP with Basic auth: GET, PUT and DELETE, plus MKCOL to
  * create the folder. Native builds go through CapacitorHttp, which isn't subject
- * to CORS; the web build uses fetch, so the server must allow this site (CORS)
- * or be served from the same origin. A server set up for CORS has to allow the
+ * to CORS, and so does the desktop app, through Tauri's HTTP plugin (requests go
+ * out from Rust, not the WebView). The web build uses fetch, so the server must
+ * allow this site (CORS) or be served from the same origin. A server set up for CORS has to allow the
  * request headers Authorization, Content-Type, If-Match, If-None-Match and
  * If-Unmodified-Since, the methods GET, PUT, DELETE and MKCOL, and expose ETag.
  *
@@ -232,9 +234,12 @@ const webDavRequest = async (
         };
     }
 
+    // Desktop: the same fetch API, sent from Rust, so CORS doesn't apply and
+    // MKCOL goes through. Loaded on demand to keep it out of the web bundle.
+    const send = isDesktopApp() ? (await import("@tauri-apps/plugin-http")).fetch : fetch;
     let response: Response;
     try {
-        response = await fetch(url, {
+        response = await send(url, {
             method,
             headers,
             body: options.body,
@@ -246,7 +251,9 @@ const webDavRequest = async (
         });
     } catch (error) {
         throw new Error(
-            "Couldn't reach the WebDAV server. Check the address, and that the server allows requests from this site (CORS).",
+            isDesktopApp()
+                ? "Couldn't reach the WebDAV server. Check the address and your connection."
+                : "Couldn't reach the WebDAV server. Check the address, and that the server allows requests from this site (CORS).",
             { cause: error }
         );
     }

@@ -1,0 +1,57 @@
+[package]
+name = "open-keep"
+version = "6.0.0"
+description = "Open Keep desktop app"
+authors = ["Jack Barker"]
+license = "AGPL-3.0-only"
+edition = "2024"
+rust-version = "1.90"
+
+[lib]
+name = "open_keep_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+cc = "1"
+sqlcipher-src = "420"
+tauri-build = { version = "2.7.6", features = [] }
+
+[dependencies]
+serde_json = { version = "1.0", features = ["preserve_order"] }
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.12", features = ["image-png", "tray-icon"] }
+tauri-plugin-log = "2"
+rusqlite = "0.43"
+aes-gcm = "0.10"
+sha2 = "0.10"
+rand = "0.8"
+base64 = "0.22"
+hex = "0.4"
+zeroize = "1"
+pbkdf2 = { version = "0.12", features = ["hmac"] }
+keyring = { version = "3", features = ["windows-native"] }
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
+tauri-plugin-window-state = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-deep-link = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-oauth = "2"
+# Windows Hello for App Lock's biometric unlock (src/hello.rs); the Store
+# version's startup task (src/autostart.rs).
+windows = { version = "0.62", features = ["ApplicationModel_Activation", "Security_Credentials_UI", "Win32_Foundation", "Win32_System_WinRT", "Win32_Storage_Packaging_Appx"] }
+windows-future = "0.3"
+# `Open Keep.exe --mcp`, the built-in MCP relay (src/mcp/).
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "io-util", "net", "sync", "time"] }
+tokio-tungstenite = "0.28"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+hmac = "0.12"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+
+# Repairs the openkeep:// registration outside the Store package (src/link_repair.rs).
+[target."cfg(windows)".dependencies]
+windows-registry = "0.6"

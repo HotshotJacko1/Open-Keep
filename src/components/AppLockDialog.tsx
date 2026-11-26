@@ -1,7 +1,7 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import React, { useState, useEffect } from "react";
 import { getLockRemainingMs, recordFailedAttempt, clearFailedAttempts, formatLockRemaining } from "@/lib/pin-attempts";
-import { NativeBiometric } from "@capgo/capacitor-native-biometric";
+import { Biometrics } from "@/lib/biometrics";
 import {
     Dialog,
     DialogContent,
@@ -16,6 +16,7 @@ import { Fingerprint, ShieldCheck, ArrowLeft, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useBackToClose } from "@/hooks/use-back-to-close";
 import { Capacitor } from "@capacitor/core";
+import { hasNativeStorage, isDesktopApp } from "@/lib/platform";
 import { RELOCK_AFTER_MS } from "@/lib/app-relock";
 import { verifyEncryptionPin } from "@/lib/encryption-pin";
 import {
@@ -53,7 +54,7 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
     useEffect(() => {
         if (isOpen) {
             // Check biometrics availability
-            NativeBiometric.isAvailable().then((result) => {
+            Biometrics.isAvailable().then((result) => {
                 setIsBiometricsAvailable(result.isAvailable);
             }).catch(() => setIsBiometricsAvailable(false));
 
@@ -144,7 +145,7 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
             }
 
             try {
-                await NativeBiometric.verifyIdentity({
+                await Biometrics.verifyIdentity({
                     reason: "Enable biometric authentication",
                     title: "Confirm your identity",
                     subtitle: "",
@@ -152,8 +153,8 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
                 });
                 localStorage.setItem(BIOMETRICS_ENABLED_KEY, "true");
 
-                if (pinForCredentials && typeof NativeBiometric.setCredentials === 'function') {
-                    await NativeBiometric.setCredentials({
+                if (pinForCredentials) {
+                    await Biometrics.setCredentials({
                         username: "app-pin",
                         password: pinForCredentials,
                         server: "open-keep"
@@ -228,7 +229,7 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
     const isEncryptionEnabled = readEncryptionEnabled();
     // In the browser there is nowhere safe to keep the key, so an encrypted vault
     // always asks for its PIN at launch; the toggle can't turn that off.
-    const isLaunchLockForced = isEncryptionEnabled && !Capacitor.isNativePlatform();
+    const isLaunchLockForced = isEncryptionEnabled && !hasNativeStorage();
 
     const renderContent = () => {
         if (isSettingPin) {
@@ -406,7 +407,7 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
                             <p className="text-xs text-muted-foreground">
                                 {isLaunchLockForced
                                     ? "Always on in the browser while encryption is enabled"
-                                    : Capacitor.isNativePlatform()
+                                    : hasNativeStorage()
                                         ? `Lock the app when it's opened, and when you come back after ${RELOCK_AFTER_MS / 1000} seconds away.${Capacitor.getPlatform() === "android" ? " Also hides notes in recent apps and blocks screenshots." : ""}`
                                         : "Lock the app every time it is opened"}
                             </p>
@@ -427,7 +428,7 @@ const AppLockDialog: React.FC<AppLockDialogProps> = ({ isOpen, onClose }) => {
                                     <Label htmlFor="biometrics">Biometric Unlock</Label>
                                 </div>
                                 <p className="text-xs text-muted-foreground">
-                                    Use FaceID or TouchID to unlock
+                                    {isDesktopApp() ? "Use Windows Hello to unlock" : "Use FaceID or TouchID to unlock"}
                                 </p>
                             </div>
                             <Switch

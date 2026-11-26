@@ -4,6 +4,7 @@ import { Note } from "@/types/note";
 import { loadNotes, saveNote as localSaveNote, deleteNote as localDeleteNote, getLegacyWebNotes, migrateWebNotes, isWebReadFailed } from "@/lib/note-storage";
 import { deleteImage } from "@/lib/image-storage";
 import { Capacitor } from "@capacitor/core";
+import { hasNativeStorage } from "@/lib/platform";
 import NoteCard from "@/components/NoteCard";
 import { useGoogleDrive, isGoogleDriveAuthBusy, isGoogleDriveScopeBlocked } from "@/hooks/use-google-drive";
 import { useOneDrive } from "@/hooks/use-one-drive";
@@ -37,7 +38,7 @@ import { App as CapacitorApp } from "@capacitor/app";
 import { useWidgetDeepLink } from "@/hooks/use-widget-deep-link";
 import { useMcpBridge } from "@/hooks/use-mcp-bridge";
 import { recordTagChange, recordTombstone } from "@/lib/tombstones";
-import UpdateNotice from "@/components/UpdateNotice";
+import LaunchCard from "@/components/LaunchCard";
 
 // How long a note sits in the Bin (isDeleted) before it's hard-removed, either
 // by the auto-cleanup sweep below or by a manual "Delete Forever". Manual
@@ -53,15 +54,16 @@ const InlineNoteCreator = lazy(() =>
   import("@/components/InlineNoteCreator").then((m) => ({ default: m.InlineNoteCreator }))
 );
 
-const downloadNotesZip = async (notesToExport: Note[]) => {
-  const [{ default: JSZip }, { saveAs }, { addNotesToZip }] = await Promise.all([
+/** False if the user cancelled the desktop Save As dialog. */
+const downloadNotesZip = async (notesToExport: Note[]): Promise<boolean> => {
+  const [{ default: JSZip }, { saveFile }, { addNotesToZip }] = await Promise.all([
     import("jszip"),
-    import("file-saver"),
+    import("@/lib/save-file"),
     import("@/utils/note-export"),
   ]);
   const zip = new JSZip();
   await addNotesToZip(zip, notesToExport);
-  saveAs(await zip.generateAsync({ type: "blob" }), "notes_export.zip");
+  return saveFile(await zip.generateAsync({ type: "blob" }), "notes_export.zip", [{ name: "Zip archive", extensions: ["zip"] }]);
 };
 
 const BIN_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -283,7 +285,7 @@ const Index = () => {
       return;
     }
 
-    await downloadNotesZip(exportableNotes);
+    if (!await downloadNotesZip(exportableNotes)) return;
     // Say so rather than dropping them silently -- this path is reachable from the
     // storage-full toast, where the user is trying to rescue their data.
     showSuccess(
@@ -421,9 +423,10 @@ const Index = () => {
   // Warn before closing the tab/window if a cloud provider is connected and an
   // edit hasn't made it out yet — otherwise closing right after an edit can
   // silently drop it before the 30s debounce timer (or an in-flight upload)
-  // gets to run. Native builds don't get "closed" this way, so skip there.
+  // gets to run. Native builds don't get "closed" this way, so skip there; nor
+  // does the desktop app, where a "Leave site?" prompt on closing would be odd.
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) return;
+    if (hasNativeStorage()) return;
     if (!activeService) return;
 
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -560,7 +563,7 @@ const Index = () => {
         setDbUnavailable(false);
       } catch (error) {
         console.error("Failed to load notes:", error);
-        if (Capacitor.isNativePlatform()) {
+        if (hasNativeStorage()) {
           // This read is now what proves the stored encryption key works -- checkStatus
           // no longer opens the database. A failure here means a wrong key or an
           // unreadable DB, so hand back to the lock screen: exactly where a failed
@@ -620,7 +623,7 @@ const Index = () => {
     // `!isLoading` matters: during the initial open `notes` is [] but unread, and a user
     // fast enough to create a note in that window would otherwise trip the first-run branch.
     if (!isLoading && notes.length === 0 && !localStorage.getItem('has_seen_early_access_dialog_v1')) {
-      if (!Capacitor.isNativePlatform()) {
+      if (!hasNativeStorage()) {
         setShowEarlyAccessDialog(true);
         if (navigator.storage && navigator.storage.persist) {
           navigator.storage.persist().catch(console.error);
@@ -1267,7 +1270,7 @@ const Index = () => {
   };
 
   const handleBulkExport = async () => {
-    await downloadNotesZip(notes.filter((n) => selectedNoteIds.has(n.id)));
+    if (!await downloadNotesZip(notes.filter((n) => selectedNoteIds.has(n.id)))) return;
     handleClearSelection();
     showSuccess("Exported notes");
   };
@@ -1464,7 +1467,7 @@ const Index = () => {
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto px-2 pt-4 sm:px-6 sm:pt-6 md:px-8 md:pt-8 pb-[calc(7rem+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))]"
       >
-        <UpdateNotice />
+        <LaunchCard />
         {dbUnavailable && isWebReadFailed() && (
           <div className="bg-destructive/15 border border-destructive/30 rounded-lg p-4 mb-4 text-sm text-destructive">
             <p className="font-semibold mb-1">Local notes storage is unreadable</p>

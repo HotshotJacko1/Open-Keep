@@ -38,15 +38,18 @@ import ChangePinDialog from "./ChangePinDialog";
 import AppLockDialog from "./AppLockDialog";
 import GoogleKeepMigrationGuide from "./GoogleKeepMigrationGuide";
 import ChangelogDialog from "./ChangelogDialog";
+import DesktopStartupSettings from "./DesktopStartupSettings";
+import { KOFI_URL } from "@/lib/launch-prompts";
 import kofiLogo from "@/Assets/kofi-logo.png";
 import EnableEncryptionDialog from "./EnableEncryptionDialog";
 import DisableEncryptionDialog from "./DisableEncryptionDialog";
 import { useSession } from "@/context/session-provider";
 import { Note } from "@/types/note";
 import JSZip from "jszip";
-import { saveAs } from "file-saver";
+import { saveFile } from "@/lib/save-file";
 import { showSuccess, showError } from "@/utils/toast";
 import { Capacitor } from "@capacitor/core";
+import { isDesktopApp } from "@/lib/platform";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { clearExportCache, exportCachePath } from "@/lib/export-cache";
 import { Share } from "@capacitor/share";
@@ -312,7 +315,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
         );
       } else {
         const content = await zip.generateAsync({ type: "blob" });
-        saveAs(content, filename);
+        // False when the desktop Save As dialog was cancelled: nothing was exported.
+        if (!await saveFile(content, filename, [{ name: "Zip archive", extensions: ["zip"] }])) return;
         showSuccess(
           binnedCount > 0
             ? `All notes exported (${binnedCount} in the bin were not included)`
@@ -329,7 +333,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
 
   const handleFeedbackEmail = async () => {
     try {
-      const platformString = Capacitor.getPlatform();
+      const platformString = isDesktopApp() ? "windows-desktop" : Capacitor.getPlatform();
       const isNative = Capacitor.isNativePlatform();
       const info = isNative ? await Device.getInfo() : null;
       const appInfo = isNative ? await App.getInfo() : null;
@@ -339,7 +343,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, notes,
       const emailBody = `Platform: ${platformString}
 Device make: ${info?.manufacturer || 'Unknown'}
 Device model: ${info?.model || 'Unknown'}
-App version: ${appInfo?.version || 'Web'}
+App version: ${appInfo?.version || (isDesktopApp() ? __APP_VERSION__ : 'Web')}
 PIN code: ${pinCode || 'Not set'}`;
 
       const mailtoUrl = `mailto:${emailRecipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
@@ -540,6 +544,8 @@ PIN code: ${pinCode || 'Not set'}`;
               </div>
             </div>
 
+            {isDesktopApp() && <DesktopStartupSettings />}
+
             <div className="flex flex-col gap-2 mt-4">
               <Label>About</Label>
               <Button
@@ -559,7 +565,7 @@ PIN code: ${pinCode || 'Not set'}`;
               </Button>
               <Button
                 variant="outline"
-                onClick={() => window.open("https://ko-fi.com/D1I1275TCA", "_blank")}
+                onClick={() => window.open(KOFI_URL, "_blank")}
                 className="w-full justify-start"
               >
                 <img

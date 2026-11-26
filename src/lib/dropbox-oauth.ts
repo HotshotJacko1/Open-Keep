@@ -3,6 +3,7 @@ import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 import { consumeOAuthState, handleAuthRedirect, initDropbox } from "@/lib/dropbox";
 import { isDropboxOAuthUrl, registerOAuthRedirectHandler } from "@/lib/oauth-redirect";
+import { usesAppSignInRedirect } from "@/lib/platform";
 import { showError, showSuccess } from "@/utils/toast";
 
 let handlerRegistered = false;
@@ -27,7 +28,8 @@ const completeDropboxLogin = async (redirectUrl: string): Promise<void> => {
 
     authInProgress = true;
     try {
-        await Browser.close();
+        // Phones show sign-in in an in-app browser sheet; desktop uses the default browser, left open.
+        if (Capacitor.isNativePlatform()) await Browser.close();
         const token = await handleAuthRedirect(code);
         initDropbox(token);
         window.dispatchEvent(new Event("dropbox-token-updated"));
@@ -43,7 +45,7 @@ const completeDropboxLogin = async (redirectUrl: string): Promise<void> => {
 
 /** Register the Dropbox OAuth deep-link handler once for the entire app. */
 export const setupDropboxOAuthRedirect = (): void => {
-    if (!Capacitor.isNativePlatform() || handlerRegistered) return;
+    if (!usesAppSignInRedirect() || handlerRegistered) return;
     handlerRegistered = true;
 
     registerOAuthRedirectHandler({

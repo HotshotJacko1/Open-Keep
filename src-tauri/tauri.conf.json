@@ -1,0 +1,72 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Open Keep",
+  "version": "6.0.0",
+  "identifier": "com.jackbarkerapps.openkeep",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "pnpm dev --port 1420 --strictPort",
+    "beforeBuildCommand": "pnpm build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Open Keep",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 380,
+        "minHeight": 500,
+        "center": true,
+        "resizable": true,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "openkeep"
+        ]
+      }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg1OEU0NzhBRjI0NjQ2NzIKUldSeVJrYnlpa2VPaGNkTWxRL0lLVFFIdHpzS0FTOVM0RUVTNjlndTRROHd6TWVSdUVjYjg2NlcK",
+      "endpoints": [
+        "https://github.com/HotshotJacko1/Open-Keep/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "publisher": "Jack Barker Apps",
+    "copyright": "Copyright (c) 2026. Licensed under AGPLv3.",
+    "category": "Productivity",
+    "shortDescription": "Private, encrypted notes",
+    "licenseFile": "../LICENSE",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerHooks": "./nsis/hooks.nsh"
+      }
+    }
+  }
+}

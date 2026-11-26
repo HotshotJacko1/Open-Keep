@@ -1,6 +1,6 @@
 // Wire protocol between the Open Keep MCP server (this package) and an
-// Open Keep client — today a browser tab at app.openkeep.net, later
-// potentially a native PC app. Whichever is running connects OUT to this
+// Open Keep client — a browser tab at app.openkeep.net, or the Windows
+// desktop app's WebView. Whichever is running connects OUT to this
 // server's WebSocket listener (a browser tab can never open its own
 // listening socket), completes a mutual challenge-response over a shared
 // pairing token (the token itself never crosses the wire -- see the
@@ -9,6 +9,8 @@
 //
 // Hand-synced mirror of the app's src/lib/mcp-bridge/protocol.ts: keep the
 // handshake block and the request/response shapes identical on both sides.
+// The desktop app's built-in server (src-tauri/src/mcp/bridge.rs) is a third,
+// Rust copy of the server side; `npm run test:relay` tests it.
 //
 // See the PRD ("Open Keep MCP Bridge") for the full design and the
 // per-tool safety rules (soft-delete only, one-step undo, note-limits.ts
@@ -97,6 +99,19 @@ export type BridgeResponse = BridgeResponseOk | BridgeResponseErr;
 //   client -> server  auth      { clientProof = HMAC(token, proofInput("client", ...)) }
 //   server -> client  hello_ack { ok } -- only after clientProof checks out
 //
+// One window at a time. Each server serves one Open Keep window. When a
+// second window pairs (say the desktop app and a browser tab hold the same
+// token), the newest takes over: the server sends the old connection a
+// "superseded" message and then closes it with SUPERSEDED_CLOSE_CODE. (The
+// message is what clients act on; Node's built-in WebSocket sometimes never
+// reports a server-initiated close, and the code alone would be lost with
+// it.) The old window then waits in standby: it keeps
+// re-pairing with auth.standby = true, which the server refuses with
+// "in_use" while another window holds it, so the two never take turns
+// knocking each other off. When the holder goes away, the next standby
+// attempt succeeds. Both additions are optional fields a peer that doesn't
+// know them ignores, so they didn't need a protocol version bump.
+//
 // Both proofs are bound to the port the connection is on (the client uses
 // the port it dialled, the server the port it bound). Only one process can
 // own 127.0.0.1:<port>, so a squatter on one port can't relay the handshake
@@ -135,6 +150,13 @@ export interface AuthMessage {
   type: "auth";
   /** Lowercase hex HMAC-SHA256(token, proofInput("client", ...)). */
   clientProof: string;
+  /**
+   * Pair only if no other Open Keep window is paired with this server;
+   * otherwise the server answers hello_ack {ok: false, reason: "in_use"}
+   * instead of taking the connection over. Sent by a window that was
+   * superseded (see SUPERSEDED_CLOSE_CODE).
+   */
+  standby?: boolean;
 }
 
 /**
@@ -142,9 +164,11 @@ export interface AuthMessage {
  *  - protocol_mismatch: the peer speaks a different BRIDGE_PROTOCOL_VERSION
  *  - bad_proof: the client's proof didn't match this server's token
  *  - bad_message: a malformed or out-of-order handshake message
+ *  - in_use: the client asked for standby and another window holds this
+ *    server (only ever sent after the client's proof checked out)
  * A v1 server answers a v2 hello with "bad_token".
  */
-export type HelloAckReason = "protocol_mismatch" | "bad_proof" | "bad_message";
+export type HelloAckReason = "protocol_mismatch" | "bad_proof" | "bad_message" | "in_use";
 
 export interface HelloAck {
   type: "hello_ack";
@@ -152,6 +176,18 @@ export interface HelloAck {
   reason?: HelloAckReason | string;
   protocolVersion?: number;
 }
+
+/**
+ * Sent to a paired connection, just before it is closed, when another Open
+ * Keep window has paired and taken over. A client that gets it goes to
+ * standby rather than redialling to take the server back.
+ */
+export interface SupersededMessage {
+  type: "superseded";
+}
+
+/** Close code that follows SupersededMessage; a client treats it the same way. */
+export const SUPERSEDED_CLOSE_CODE = 4001;
 
 /** True for a 32-byte value in lowercase hex -- the shape of every nonce and proof. */
 export function isHex32(value: unknown): value is string {
@@ -172,4 +208,4 @@ export function proofInput(
 }
 
 export type InboundMessage = HelloMessage | AuthMessage | BridgeResponse;
-export type OutboundMessage = ChallengeMessage | HelloAck | BridgeRequest;
+export type OutboundMessage = ChallengeMessage | HelloAck | BridgeRequest | SupersededMessage;

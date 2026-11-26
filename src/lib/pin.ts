@@ -20,7 +20,7 @@
 // plugin's Keystore/Keychain credential. Anything that turns biometrics off goes
 // through disableBiometrics(), so that copy goes too (C2-34).
 
-import { NativeBiometric } from "@capgo/capacitor-native-biometric";
+import { Biometrics } from "@/lib/biometrics";
 
 export const ENCRYPTION_ENABLED_KEY = "app-encryption-enabled";
 export const APP_LOCK_ENABLED_KEY = "app-lock-enabled";
@@ -190,7 +190,7 @@ export const disableBiometrics = async (): Promise<void> => {
  */
 export const deleteBiometricCredential = async (): Promise<void> => {
     try {
-        await NativeBiometric.deleteCredentials({ server: "open-keep" });
+        await Biometrics.deleteCredentials({ server: "open-keep" });
     } catch {
         // No credentials stored, or no biometrics on this platform.
     }

@@ -49,9 +49,10 @@ The **single source of truth for app version is `android/app/build.gradle`'s `ve
 
 ### Storage: native SQLCipher vs. web localStorage+WebCrypto
 
-All note persistence goes through [src/lib/note-storage.ts](src/lib/note-storage.ts), which branches on `Capacitor.isNativePlatform()`:
+All note persistence goes through [src/lib/note-storage.ts](src/lib/note-storage.ts), which branches on `hasNativeStorage()` from [src/lib/platform.ts](src/lib/platform.ts) (Capacitor native, or the desktop app):
 
 - **Native (iOS/Android)**: calls through a Capacitor plugin (`registerPlugin<NoteStoragePlugin>("NoteStorage")`) implemented natively in [android/app/src/main/java/com/jackbarkerapps/openkeep/NoteStoragePlugin.kt](android/app/src/main/java/com/jackbarkerapps/openkeep/NoteStoragePlugin.kt) and [ios/App/App/NoteStoragePlugin.swift](ios/App/App/NoteStoragePlugin.swift), backed by an on-disk SQLCipher-encrypted SQLite database (pulled in via Swift Package Manager from `sqlcipher/SQLCipher.swift`, declared in `ios/App/App.xcodeproj/project.pbxproj`). The PIN/passcode is the encryption key.
+- **Windows desktop (Tauri, `src-tauri/`)**: Capacitor reports `web` there, so `isDesktopApp()` picks [src/lib/desktop-note-storage.ts](src/lib/desktop-note-storage.ts), the same plugin interface implemented in Rust ([src-tauri/src/storage/](src-tauri/src/storage/)) over SQLCipher built with LibTomCrypt in `src-tauri/build.rs`. Its key format must stay byte-compatible with Android's `KeyManager.kt` and `web-crypto.ts`; the auto-unlock key is in Windows Credential Manager. Use `hasNativeStorage()` for storage/encryption/lock behaviour and keep `Capacitor.isNativePlatform()` for things that need a Capacitor plugin. Plan and status: [docs/plans/D1-windows-desktop.md](docs/plans/D1-windows-desktop.md). Run with `pnpm desktop:dev`, build the installer with `pnpm desktop:build`, Rust tests with `cargo test` in `src-tauri`.
 - **Web**: notes live in `localStorage` (`open-keep-notes` key) and are encrypted/decrypted via the WebCrypto API in [src/lib/web-crypto.ts](src/lib/web-crypto.ts), mirroring the native plugin's method signatures (`initializeDatabaseWeb`, `encryptDataWeb`, etc.).
 
 Both backends expose the same async API surface (`loadNotes`, `saveNote`, `deleteNote`, `initializeDatabase`, `checkDatabaseStatus`, `changeEncryptionKey`, `exportMasterKey`/`importMasterKey` for cross-device key transfer, `wipeDatabaseButKeepKeys`, `clearAllData`). Callers (UI code) should generally go through this module rather than branching on platform themselves.
@@ -76,12 +77,13 @@ WebDAV sync ([src/lib/webdav.ts](src/lib/webdav.ts)) is plain HTTP with Basic au
 
 ### MCP bridge (AI assistant access)
 
-Two separate packages implement "let an AI tool read/write your notes":
+Three pieces implement "let an AI tool read/write your notes":
 
 - **Browser side**: [src/lib/mcp-bridge/](src/lib/mcp-bridge/) (`bridge-client.ts`, `protocol.ts`) — the open Open Keep tab connects *out* to a local WebSocket server (a tab can't listen for connections itself).
 - **Node side**: [mcp-server/](mcp-server/) — a standalone `@openkeep/mcp-server` npm package that implements the actual MCP server (via `@modelcontextprotocol/sdk`) and the WebSocket relay (`bridge-server.ts`) the browser tab connects to. It can be packaged as a Claude Desktop extension (`npm run pack:mcpb`).
+- **Desktop app**: `open-keep.exe --mcp` ([src-tauri/src/mcp/](src-tauri/src/mcp/)) is a Rust port of the Node server, so desktop users need no Node or `.mcpb`; Settings → AI Assistant Access sets AI tools up to start it (one click for Claude Desktop). It reads the pairing token from Windows Credential Manager, where the app keeps it. Its tool list, `tools.json`, is generated from `mcp-server/src/server.ts` by `npm run export-tools` (mcp-server's `npm test` fails while stale), and `npm run test:relay` runs mcp-server's tests against it after `cargo build`.
 
-The two `protocol.ts` files (browser-side and mcp-server-side) are **hand-synced mirrors, not a shared import** — if you change the wire protocol (request/response shapes, `BridgeOp` union, error codes), update both files identically. Read/write access is gated by two independent user-controlled switches in Settings, and every AI write is undoable and tagged (`ai-created`/`ai-edited`); see [MCP.md](MCP.md) for the full user-facing command list and safety model.
+The two `protocol.ts` files (browser-side and mcp-server-side) are **hand-synced mirrors, not a shared import**, and `src-tauri/src/mcp/bridge.rs` is a third copy of the server side — if you change the wire protocol (request/response shapes, `BridgeOp` union, error codes), update all three identically. Read/write access is gated by two independent user-controlled switches in Settings, and every AI write is undoable and tagged (`ai-created`/`ai-edited`); see [MCP.md](MCP.md) for the full user-facing command list and safety model.
 
 ### Notes data model
 

@@ -1,7 +1,7 @@
 {
   "name": "@openkeep/mcp-server",
   "version": "0.3.0",
-  "description": "MCP server for Open Keep. Bridges an AI tool to your notes via an Open Keep tab running on the same machine.",
+  "description": "MCP server for Open Keep. Bridges an AI tool to your notes via the Open Keep desktop app or a browser tab on the same machine.",
   "license": "AGPL-3.0",
   "type": "module",
   "private": true,
@@ -14,7 +14,9 @@
     "start": "node dist/index.js",
     "dev": "tsc -p tsconfig.json --watch",
     "test": "npm run build && node test/mock-roundtrip.mjs",
-    "pack:mcpb": "node scripts/build-mcpb.mjs"
+    "pack:mcpb": "node scripts/build-mcpb.mjs",
+    "export-tools": "npm run build && node scripts/export-tools.mjs",
+    "test:relay": "npm run build && node test/mock-roundtrip.mjs --relay ../src-tauri/target/debug/open-keep.exe"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",

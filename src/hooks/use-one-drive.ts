@@ -1,7 +1,7 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { Capacitor } from "@capacitor/core";
+import { usesAppSignInRedirect } from "@/lib/platform";
 import { setupOneDriveOAuthRedirect } from "@/lib/one-drive-oauth";
 import type { SyncResult } from "@/lib/note-storage";
 import { runCloudSync, runOAuthSuccessSync, ForceResolution, clearKeepLocalPending } from "@/lib/cloud-sync-runner";
@@ -44,7 +44,7 @@ export const useOneDrive = () => {
         const checkExistingAccount = async () => {
             // Native: nothing to restore unless OneDrive was connected. (Web always
             // loads it: MSAL has to process a sign-in redirect in the page URL.)
-            if (Capacitor.isNativePlatform() && !localStorage.getItem("onedrive-user-email")) return;
+            if (usesAppSignInRedirect() && !localStorage.getItem("onedrive-user-email")) return;
             const { initOneDrive, msalInstance } = await loadOneDrive();
             await initOneDrive();
             const account = msalInstance.getActiveAccount();

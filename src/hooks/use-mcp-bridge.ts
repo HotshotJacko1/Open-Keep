@@ -29,6 +29,8 @@ import { safeRandomUUID } from "@/lib/utils";
 import { readCustomTags } from "@/lib/custom-tags";
 import { syncReminderWithBin } from "@/utils/reminder";
 import { McpBridgeClient, ConnectionState, RejectReason } from "@/lib/mcp-bridge/bridge-client";
+import { isDesktopApp } from "@/lib/platform";
+import { shareTokenWithRelay } from "@/lib/mcp-desktop";
 import { BridgeErrorCode, BridgeOp, BridgeRequest, BridgeResponse, NoteFull, NoteSummary, TagInfo } from "@/lib/mcp-bridge/protocol";
 
 // Base of the port range. Each MCP client runs its own copy of the server
@@ -84,7 +86,10 @@ export interface McpBridgeState {
   connectionState: ConnectionState;
   /** Why the bridge gave up, while connectionState is "rejected". */
   rejectReason: RejectReason | null;
-  /** Re-dials every port, including ones that failed the handshake. */
+  /**
+   * Re-dials every port, including ones that failed the handshake, and takes
+   * over from another Open Keep window if this one is standing by.
+   */
   retryConnection: () => void;
   /** How many MCP server instances are currently paired. */
   connectedCount: number;
@@ -167,6 +172,15 @@ export function useMcpBridge({ notes, handleSaveNote, handleRenameTag, handleDel
     localStorage.setItem(STORAGE_KEYS.token, fresh);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time token mint, see comment above
     setTokenState(fresh);
+  }, [token]);
+
+  // Desktop: AI tools set up from Settings start this app as their MCP server
+  // (`Open Keep.exe --mcp`), and those copies read the token from Credential
+  // Manager, so they follow a new token without being set up again. An empty
+  // token is never shared: a fresh one is minted straight after.
+  useEffect(() => {
+    if (!isDesktopApp() || !token) return;
+    shareTokenWithRelay(token).catch((err) => console.warn("Could not share the AI pairing token:", err));
   }, [token]);
 
   const notesRef = useRef(notes);

@@ -14,6 +14,7 @@
 // block in protocol.ts). The token itself never goes on the wire.
 import {
   BRIDGE_PROTOCOL_VERSION,
+  SUPERSEDED_CLOSE_CODE,
   isHex32,
   proofInput,
   type AuthMessage,
@@ -23,7 +24,12 @@ import {
   type InboundMessage,
 } from "./protocol";
 
-export type ConnectionState = "disconnected" | "connecting" | "connected" | "rejected";
+/**
+ * "standby": an AI tool's server is up, but another Open Keep window (the
+ * desktop app, another tab) holding the same token is paired with it. This
+ * window takes over by itself when that one goes away.
+ */
+export type ConnectionState = "disconnected" | "connecting" | "connected" | "standby" | "rejected";
 
 /**
  * Why a port was given up on (only meaningful while the state is "rejected"):
@@ -114,6 +120,15 @@ export class McpBridgeClient {
    * working.
    */
   private refused = new Map<number, RejectReason>();
+  /**
+   * Ports whose server another Open Keep window took over (see
+   * SUPERSEDED_CLOSE_CODE). They keep being dialled, but with
+   * auth.standby set, so this window only pairs once the server is free
+   * again and never knocks the other window off. connect() clears it: a
+   * fresh connect is the user (opening the window, flipping a switch,
+   * pressing Retry) choosing this window.
+   */
+  private standby = new Set<number>();
   private state: ConnectionState = "disconnected";
   private readonly retryDelayMs: number;
   private readonly sweepDelayMs: number;
@@ -134,6 +149,7 @@ export class McpBridgeClient {
     this.ports = Array.from({ length: PORT_SPAN }, (_, i) => basePort + i);
     this.wanted = true;
     this.refused.clear();
+    this.standby.clear();
     for (const port of this.ports) this.openPort(port);
     this.recompute();
   }
@@ -141,6 +157,7 @@ export class McpBridgeClient {
   disconnect(): void {
     this.teardown();
     this.refused.clear();
+    this.standby.clear();
     this.key = null;
     this.recompute();
   }
@@ -233,10 +250,14 @@ export class McpBridgeClient {
       void this.handleMessage(port, peer, msg);
     };
 
-    socket.onclose = () => {
+    socket.onclose = (event) => {
       // Most ports in the range have nothing behind them; that is the
       // normal case, not a failure worth surfacing.
       if (peer.handshakeTimer) clearTimeout(peer.handshakeTimer);
+      // Only a server we paired with can supersede us; from anything else
+      // the code means nothing. (Normally the "superseded" message got
+      // here first; see standBy.)
+      if (peer.phase === "authed" && event.code === SUPERSEDED_CLOSE_CODE) this.standby.add(port);
       peer.handshakeTimer = null;
       if (this.peers.get(port) === peer) this.peers.delete(port);
       this.recompute();
@@ -250,7 +271,10 @@ export class McpBridgeClient {
 
   private scheduleRetry(port: number): void {
     if (!this.wanted || this.timers.has(port) || this.refused.has(port)) return;
-    const delay = this.known.has(port) ? this.retryDelayMs : this.sweepDelayMs;
+    // Standby polls promptly too, so taking over after the other window
+    // closes is quick. A standby attempt is a refused handshake, not a
+    // takeover, so polling it costs the other window nothing.
+    const delay = this.known.has(port) || this.standby.has(port) ? this.retryDelayMs : this.sweepDelayMs;
     this.timers.set(
       port,
       setTimeout(() => {
@@ -269,6 +293,19 @@ export class McpBridgeClient {
     if (this.peers.get(port) === peer) this.peers.delete(port);
     this.dropSocket(peer);
     this.recompute();
+  }
+
+  /**
+   * Another window took this port's server over: let the connection go and
+   * wait in standby. Acts on the "superseded" message rather than waiting
+   * for the close that follows it, which a client can fail to report.
+   */
+  private standBy(port: number, peer: Peer): void {
+    this.standby.add(port);
+    if (this.peers.get(port) === peer) this.peers.delete(port);
+    this.dropSocket(peer);
+    this.recompute();
+    this.scheduleRetry(port);
   }
 
   /** True while `peer` is still this port's live, open connection. */
@@ -299,6 +336,9 @@ export class McpBridgeClient {
       // "connecting".
       next = "rejected";
       rejectReason = [...this.refused.values()].includes("incompatible") ? "incompatible" : "untrusted";
+    } else if (this.standby.size > 0) {
+      // Checked before "connecting" so each standby poll doesn't flicker it.
+      next = "standby";
     } else if (connecting) {
       next = "connecting";
     } else {
@@ -367,7 +407,9 @@ export class McpBridgeClient {
         }
         if (!this.isCurrent(port, peer) || peer.phase !== "verifying") return;
 
-        const auth: AuthMessage = { type: "auth", clientProof };
+        const auth: AuthMessage = this.standby.has(port)
+          ? { type: "auth", clientProof, standby: true }
+          : { type: "auth", clientProof };
         peer.phase = "ack";
         peer.socket.send(JSON.stringify(auth));
         return;
@@ -384,7 +426,14 @@ export class McpBridgeClient {
           if (peer.handshakeTimer) clearTimeout(peer.handshakeTimer);
           peer.handshakeTimer = null;
           this.known.add(port);
+          this.standby.delete(port);
           this.recompute();
+          return;
+        }
+        if (msg.type === "hello_ack" && msg.reason === "in_use" && this.standby.has(port)) {
+          // The server proved the token and another window still holds it.
+          // Not a failure: stay in standby and ask again shortly.
+          this.standBy(port, peer);
           return;
         }
         // It proved the token, then refused ours or sent something else.
@@ -393,6 +442,10 @@ export class McpBridgeClient {
       }
 
       case "authed": {
+        if (msg.type === "superseded") {
+          this.standBy(port, peer);
+          return;
+        }
         // Requests are served only on a connection that finished the handshake.
         if (msg.type === "request" && this.handler) {
           const response = await this.handler(msg);

@@ -2,6 +2,7 @@
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 import { isOneDriveOAuthUrl, registerOAuthRedirectHandler } from "@/lib/oauth-redirect";
+import { usesAppSignInRedirect } from "@/lib/platform";
 import { showError, showSuccess } from "@/utils/toast";
 
 let handlerRegistered = false;
@@ -19,7 +20,7 @@ const completeOneDriveLogin = async (redirectUrl: string): Promise<void> => {
     try {
         oneDrive = await import("@/lib/one-drive");
         const { handleOneDriveRedirect, msalInstance } = oneDrive;
-        await Browser.close();
+        if (Capacitor.isNativePlatform()) await Browser.close();
         const response = await handleOneDriveRedirect(redirectUrl);
 
         const account = response?.account ?? msalInstance.getActiveAccount() ?? msalInstance.getAllAccounts()[0];
@@ -56,7 +57,7 @@ const completeOneDriveLogin = async (redirectUrl: string): Promise<void> => {
 
 /** Register the OneDrive OAuth deep-link handler once for the entire app. */
 export const setupOneDriveOAuthRedirect = (): void => {
-    if (!Capacitor.isNativePlatform() || handlerRegistered) return;
+    if (!usesAppSignInRedirect() || handlerRegistered) return;
     handlerRegistered = true;
 
     registerOAuthRedirectHandler({

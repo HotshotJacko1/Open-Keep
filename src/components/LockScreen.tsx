@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Fingerprint, Lock, AlertTriangle } from "lucide-react";
-import { NativeBiometric } from "@capgo/capacitor-native-biometric";
+import { Biometrics } from "@/lib/biometrics";
 import { Keyboard } from "@capacitor/keyboard";
 import { showSuccess, showError } from "@/utils/toast";
 import {
@@ -37,7 +37,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isEncryptionEnabled, 
 
     useEffect(() => {
         // Check biometrics
-        NativeBiometric.isAvailable()
+        Biometrics.isAvailable()
             .then((result) => setIsBiometricsAvailable(result.isAvailable))
             .catch(() => setIsBiometricsAvailable(false));
 
@@ -81,7 +81,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isEncryptionEnabled, 
 
     const handleBiometricUnlock = async () => {
         try {
-            await NativeBiometric.verifyIdentity({
+            await Biometrics.verifyIdentity({
                 reason: "Unlock App",
                 title: "Unlock App",
                 subtitle: "",
@@ -103,7 +103,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isEncryptionEnabled, 
             } else {
                 // Try to get credentials if native encryption is on
                 try {
-                    const credentials = await NativeBiometric.getCredentials({
+                    const credentials = await Biometrics.getCredentials({
                         server: "open-keep"
                     });
                     if (credentials && credentials.password) {
@@ -123,6 +123,8 @@ const LockScreen: React.FC<LockScreenProps> = ({ onUnlock, isEncryptionEnabled, 
             }
         } catch (error) {
             console.log("Biometric unlock failed or cancelled", error);
+            // Fall back to typing the PIN.
+            inputRef.current?.focus();
         }
     };
 

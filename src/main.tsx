@@ -15,6 +15,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import * as Sentry from "@sentry/capacitor";
 import * as SentryReact from "@sentry/react";
 import { Capacitor } from "@capacitor/core";
+import { isDesktopApp } from "./lib/platform";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 
 // Session Replay — 10% of sessions, 100% of sessions with errors.
@@ -59,6 +60,14 @@ const startErrorReporting = () => {
       // on localhost inside Electron. Native apps are also served from localhost,
       // so the host check only applies off-native.
       environment: isLocalDevSession() ? "development" : import.meta.env.MODE,
+      // Phones get their release from the native SDK; the desktop app has none,
+      // so set it here, and tag its events so they aren't mistaken for the web app.
+      ...(isDesktopApp()
+        ? {
+            release: `com.jackbarkerapps.openkeep@${__APP_VERSION__}+windows`,
+            initialScope: { tags: { app: "windows-desktop" } },
+          }
+        : {}),
       integrations: [
         // Use Sentry.browserTracingIntegration from @sentry/capacitor (not @sentry/react)
         Sentry.browserTracingIntegration(),
@@ -86,6 +95,13 @@ const startErrorReporting = () => {
   });
 };
 window.addEventListener(NOTES_SHOWN_EVENT, startErrorReporting, { once: true });
+// Desktop `.exe` version: offer updates once the notes are on screen (lib/desktop-updater.ts).
+// Loaded only there, so the web and phone bundles don't carry the updater.
+if (isDesktopApp()) {
+  window.addEventListener(NOTES_SHOWN_EVENT, () => {
+    void import("./lib/desktop-updater").then(({ startDesktopUpdateChecks }) => startDesktopUpdateChecks());
+  }, { once: true });
+}
 setTimeout(startErrorReporting, 3000);
 
 // A failed first read of the native database is caught (App.tsx recovers from it),

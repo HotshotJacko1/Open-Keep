@@ -2,6 +2,13 @@
 
 **[Changelog](public/CHANGELOG.md)**
 
+## Download
+
+- **Windows:** download `OpenKeep-<version>-windows-x64-setup.exe` from the [latest release](https://github.com/HotshotJacko1/Open-Keep/releases/latest) and run it. It installs for your user only, with no admin rights needed, and updates itself. The installer isn't code-signed yet, so Windows SmartScreen may say "Windows protected your PC": choose **More info**, then **Run anyway**. A Microsoft Store version is coming.
+- **Android:** [Google Play](https://play.google.com/store/apps/details?id=com.jackbarkerapps.openkeep), or the APKs on the [releases page](https://github.com/HotshotJacko1/Open-Keep/releases/latest) (`-android-full` has Google Drive sync; `-fdroid` has no Google Play Services).
+- **iPhone and iPad:** [App Store](https://apps.apple.com/gb/app/open-keep/id6775857379).
+- **Web:** [app.openkeep.net](https://app.openkeep.net), or [host it yourself](SELF_HOSTING.md).
+
 ## Features
 Open source notes app with exporting, cloud sync, app lock, & encryption.
 

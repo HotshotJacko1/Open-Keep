@@ -7,9 +7,8 @@ import { runCloudSync, runOAuthSuccessSync, ForceResolution, clearKeepLocalPendi
 import { setupDropboxOAuthRedirect } from "@/lib/dropbox-oauth";
 import { useCloudSyncState, useLastSynced } from "@/lib/cloud-sync-state";
 import { showSuccess, showError } from "@/utils/toast";
-import { Browser } from "@capacitor/browser";
 import { expectExternalActivity } from "@/lib/app-relock";
-import { Capacitor } from "@capacitor/core";
+import { openInSystemBrowser, usesAppSignInRedirect } from "@/lib/platform";
 
 export const useDropbox = () => {
     const isSyncing = useCloudSyncState("dropbox");
@@ -78,9 +77,9 @@ export const useDropbox = () => {
     const login = useCallback(async () => {
         try {
             const url = await getAuthenticationUrl();
-            if (Capacitor.isNativePlatform()) {
+            if (usesAppSignInRedirect()) {
                 expectExternalActivity();
-                await Browser.open({ url: encodeURI(url.toString()) });
+                await openInSystemBrowser(encodeURI(url.toString()));
             } else {
                 window.location.href = encodeURI(url.toString());
             }

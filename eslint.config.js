@@ -14,6 +14,8 @@ export default tseslint.config(
       "ios/App/App/public/**",
       "mcp-server/dist/**",
       "mcp-server/build/**",
+      "src-tauri/target/**",
+      "src-tauri/gen/**",
       // Claude Code git worktrees: full repo copies whose own eslint.config.js
       // makes typescript-eslint abort with "multiple candidate TSConfigRootDirs".
       ".claude/**",

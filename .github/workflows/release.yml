@@ -1,4 +1,4 @@
-name: Release APKs
+name: Release APKs and Windows installer
 
 # Builds and signs both the "play" (full, with Google Drive sync) and "fdroid"
 # (no Google Play Services) flavors and attaches both APKs to a GitHub Release,
@@ -101,3 +101,148 @@ jobs:
           files: |
             OpenKeep-*.apk
           generate_release_notes: true
+
+  # The Windows desktop app (src-tauri/, docs/plans/D1-windows-desktop.md):
+  # an NSIS installer added to the release the job above published. A separate
+  # runner after it, so nothing here can change or hold back the APKs (F-Droid's
+  # reproducible build compares against those). The installer is not
+  # code-signed yet, so Windows SmartScreen warns on first run.
+  windows-desktop:
+    needs: build-and-release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+
+      - name: Enable Corepack (uses the pnpm version pinned in package.json)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # Storage, key format and SQLCipher (built with LibTomCrypt, no OpenSSL).
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test --locked
+
+      # tauri.conf.json runs `pnpm build` first; SENTRY_AUTH_TOKEN is not set
+      # here, so no sourcemaps are uploaded (same as the Android builds).
+      # The Sentry DSN goes to this job only (repo secret SENTRY_DSN): it is not
+      # in .env.production, which every build reads, so the F-Droid and
+      # GitHub-release APKs stay without crash reporting. Without the secret the
+      # installer still builds, just with Sentry off.
+      #
+      # Auto-update (src/lib/desktop-updater.ts): with the repo secret
+      # TAURI_SIGNING_PRIVATE_KEY (the private half of the key whose public half
+      # is in tauri.conf.json), the build also signs the installer for the
+      # updater. Without it the release still builds, but installed apps won't
+      # be offered it as an update.
+      #
+      # Code signing (Windows SmartScreen): with an Azure Artifact Signing
+      # account (formerly Trusted Signing), set the secrets AZURE_TENANT_ID,
+      # AZURE_CLIENT_ID and AZURE_CLIENT_SECRET (an app registration with the
+      # "Artifact Signing Certificate Profile Signer" role) and the variables
+      # AZURE_SIGNING_ENDPOINT (e.g. https://weu.codesigning.azure.net),
+      # AZURE_SIGNING_ACCOUNT and AZURE_SIGNING_PROFILE. Tauri then signs
+      # open-keep.exe and the installer while bundling, before the updater
+      # signature is made, so the two stay consistent. Without them the
+      # installer is unsigned, as before.
+      - name: Build installer
+        shell: bash
+        env:
+          VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+        run: |
+          CONFIG='{}'
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            CONFIG=$(node -e 'const c = JSON.parse(process.argv[1]); c.bundle = { ...c.bundle, createUpdaterArtifacts: true }; console.log(JSON.stringify(c))' "$CONFIG")
+          else
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not set: no update signature, so installed apps won't be offered this release."
+          fi
+          if [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_SIGNING_ACCOUNT" ]; then
+            cargo install trusted-signing-cli --locked
+            SIGN="trusted-signing-cli -e $AZURE_SIGNING_ENDPOINT -a $AZURE_SIGNING_ACCOUNT -c $AZURE_SIGNING_PROFILE -d \"Open Keep\" %1"
+            CONFIG=$(node -e 'const c = JSON.parse(process.argv[1]); c.bundle = { ...c.bundle, windows: { ...(c.bundle?.windows), signCommand: process.argv[2] } }; console.log(JSON.stringify(c))' "$CONFIG" "$SIGN")
+          else
+            echo "::notice::No Azure Artifact Signing settings: the installer is not code-signed, so SmartScreen will warn."
+          fi
+          pnpm desktop:build --config "$CONFIG"
+
+      # latest.json is what installed apps read, from the newest release
+      # (releases/latest/download/latest.json in tauri.conf.json). So the
+      # MCP server's releases (mcp-v*) must not be marked "latest".
+      - name: Rename installer and write latest.json
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          INSTALLER="OpenKeep-${GITHUB_REF_NAME#v}-windows-x64-setup.exe"
+          cp src-tauri/target/release/bundle/nsis/*-setup.exe "$INSTALLER"
+          SIG=$(ls src-tauri/target/release/bundle/nsis/*-setup.exe.sig 2>/dev/null | head -1)
+          if [ -n "$SIG" ]; then
+            URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${INSTALLER}"
+            node -e '
+              const fs = require("fs");
+              const [version, url, sigFile] = process.argv.slice(1);
+              fs.writeFileSync("latest.json", JSON.stringify({
+                version,
+                notes: "See the changelog: https://github.com/" + process.env.GITHUB_REPOSITORY + "/blob/main/public/CHANGELOG.md",
+                pub_date: new Date().toISOString(),
+                platforms: { "windows-x86_64": { signature: fs.readFileSync(sigFile, "utf8").trim(), url } },
+              }, null, 2));
+            ' "$VERSION" "$URL" "$SIG"
+            cat latest.json
+          fi
+
+      - name: Attach to the GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            OpenKeep-*-windows-x64-setup.exe
+            latest.json
+
+      # winget (docs/store/winget.md): once the first version of
+      # JackBarkerApps.OpenKeep is in microsoft/winget-pkgs (submitted by hand),
+      # set the repo variable WINGET_ENABLED=true and the secret WINGET_TOKEN (a
+      # classic token with public_repo, from an account with a fork of
+      # winget-pkgs). Each release then opens the update PR itself.
+      - name: Submit the update to winget
+        if: ${{ vars.WINGET_ENABLED == 'true' }}
+        shell: pwsh
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $tag = "${{ github.ref_name }}"
+          $url = "https://github.com/${{ github.repository }}/releases/download/$tag/OpenKeep-$($tag.TrimStart('v'))-windows-x64-setup.exe"
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          ./wingetcreate.exe update JackBarkerApps.OpenKeep --version $version --urls $url --submit --token $env:WINGET_TOKEN
+
+      # Microsoft Store package (scripts/build-msix.ps1): the same release build in
+      # an MSIX. Kept as a workflow artifact, not a release download: it is
+      # unsigned until the Store signs it, so users couldn't install it. Download
+      # it from this run and upload it in Partner Center (Store ID 9PH1JT22QHDK).
+      - name: Build Microsoft Store package
+        run: pnpm desktop:msix
+
+      - name: Keep the Store package
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenKeep-msix
+          path: src-tauri/target/msix/OpenKeep_*_x64.msix
+          if-no-files-found: error

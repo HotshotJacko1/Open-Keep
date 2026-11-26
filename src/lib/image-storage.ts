@@ -3,8 +3,9 @@ import { Filesystem, Directory } from "@capacitor/filesystem";
 import { Capacitor } from "@capacitor/core";
 import imageCompression from "browser-image-compression";
 import { safeRandomUUID } from "@/lib/utils";
-import { encryptData, decryptData } from "@/lib/note-storage";
+import { encryptData, decryptData, encryptWithDeviceKey } from "@/lib/note-storage";
 import { isEncryptionEnabled } from "@/lib/pin";
+import { isDesktopApp } from "@/lib/platform";
 
 const IMAGE_DIR = "images";
 
@@ -47,10 +48,18 @@ const IMAGE_ENCRYPTION_STATE_KEY = "open-keep-image-encryption-state";
 
 const isEncryptedFile = (fileData: string) => fileData.startsWith(ENCRYPTED_MAGIC_B64);
 
-/** Storage form of a JPEG's base64: encrypted when encryption is on. Throws if no key is loaded. */
+/**
+ * Whether stored images should be encrypted. Desktop: always, with the device
+ * key, like its notes database (images sit in WebView2's IndexedDB, a plain
+ * folder under the user profile). Elsewhere: when encryption is on.
+ */
+const shouldEncryptImages = (): boolean => isDesktopApp() || isEncryptionEnabled();
+
+/** Storage form of a JPEG's base64: encrypted when shouldEncryptImages(). Throws if no key is loaded. */
 const toStoredData = async (jpegBase64: string): Promise<string> => {
-  if (!isEncryptionEnabled()) return jpegBase64;
-  return btoa(ENCRYPTED_MAGIC + await encryptData(jpegBase64));
+  if (!shouldEncryptImages()) return jpegBase64;
+  const ciphertext = isDesktopApp() ? await encryptWithDeviceKey(jpegBase64) : await encryptData(jpegBase64);
+  return btoa(ENCRYPTED_MAGIC + ciphertext);
 };
 
 const fromStoredData = async (fileData: string): Promise<string> => {
@@ -153,7 +162,7 @@ const serialized = <T>(fn: () => Promise<T>): Promise<T> => {
  * complete sweep recorded. Call once the database is unlocked.
  */
 export const syncImageEncryption = (): Promise<void> => serialized(async () => {
-  const target = isEncryptionEnabled() ? "encrypted" : "plain";
+  const target = shouldEncryptImages() ? "encrypted" : "plain";
   if (localStorage.getItem(IMAGE_ENCRYPTION_STATE_KEY) === target) return;
   if (await convertAllImages(target === "encrypted")) {
     localStorage.setItem(IMAGE_ENCRYPTION_STATE_KEY, target);

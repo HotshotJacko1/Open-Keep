@@ -10,7 +10,7 @@
 // reverse, "flag off, key under a real PIN", would lock a web user out for good,
 // so it is never allowed to arise.
 
-import { NativeBiometric } from "@capgo/capacitor-native-biometric";
+import { Biometrics } from "@/lib/biometrics";
 import { changeEncryptionKey, verifyEncryptionPin } from "@/lib/note-storage";
 import { syncImageEncryption } from "@/lib/image-storage";
 import {
@@ -32,9 +32,7 @@ export { verifyEncryptionPin };
 const updateBiometricPin = async (pin: string): Promise<void> => {
     if (localStorage.getItem(BIOMETRICS_ENABLED_KEY) !== "true") return;
     try {
-        if (typeof NativeBiometric.setCredentials === "function") {
-            await NativeBiometric.setCredentials({ username: "app-pin", password: pin, server: "open-keep" });
-        }
+        await Biometrics.setCredentials({ username: "app-pin", password: pin, server: "open-keep" });
     } catch (e) {
         // Not fatal: biometric unlock then reports a PIN mismatch and asks for it.
         console.error("Failed to update biometrics credentials", e);

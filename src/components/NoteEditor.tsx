@@ -43,6 +43,7 @@ import {
 } from "@/utils/markdown";
 import { ChecklistEditor } from "@/components/ChecklistEditor";
 import { Capacitor } from "@capacitor/core";
+import { isDesktopApp } from "@/lib/platform";
 import { App as CapacitorApp } from "@capacitor/app";
 
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
@@ -779,16 +780,17 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 toast.error("Failed to export note");
             }
         } else {
-            // Web fallback
-            const blob = new Blob([exportData], { type: "text/markdown" });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+            // Web: a download. Desktop: a Save As dialog.
+            try {
+                const { saveFile } = await import("@/lib/save-file");
+                const blob = new Blob([exportData], { type: "text/markdown" });
+                if (await saveFile(blob, filename, [{ name: "Markdown", extensions: ["md"] }]) && isDesktopApp()) {
+                    toast.success("Note exported");
+                }
+            } catch (error) {
+                console.error("Error exporting note:", error);
+                toast.error("Failed to export note");
+            }
         }
     };
 

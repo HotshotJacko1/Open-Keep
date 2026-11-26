@@ -21,6 +21,8 @@ import { BODY_MAX, LIST_ITEM_MAX, LIST_ITEMS_MAX, TITLE_MAX } from './note-limit
 import { CHECKBOX_REGEX } from '../utils/markdown';
 import { normalizeNoteColor } from './note-colors';
 import { clearTombstones } from './tombstones';
+import { hasNativeStorage, isDesktopApp } from './platform';
+import { desktopNoteStorage } from './desktop-note-storage';
 
 /** A legacy list-note item, from before checklists moved into markdown content. */
 interface LegacyListItem {
@@ -73,9 +75,11 @@ export interface NoteStoragePlugin {
   setSecureWindow(options: { enabled: boolean }): Promise<void>;
 }
 
-const NoteStorage = registerPlugin<NoteStoragePlugin>("NoteStorage");
+// The desktop app implements the same plugin in Rust (src-tauri/src/storage).
+const NoteStorage = isDesktopApp() ? desktopNoteStorage : registerPlugin<NoteStoragePlugin>("NoteStorage");
 
-const isNative = Capacitor.isNativePlatform();
+// "Native" here means the SQLCipher database: Android, iOS and the desktop app.
+const isNative = hasNativeStorage();
 
 // ── Web (localStorage) storage helpers ──────────────────────────────
 const WEB_NOTES_KEY = "open-keep-notes";
@@ -190,9 +194,45 @@ const parseNote = (n: StoredNote): Note => {
   };
 };
 
+/**
+ * Desktop builds from before the SQLCipher database kept notes in localStorage,
+ * unencrypted, as the web app does. Move them into the database once. Notes the
+ * database already has win, and the plain copy is only removed after every
+ * note reads back from the database; if anything goes wrong it stays put and
+ * the move is tried again next launch.
+ */
+const moveDesktopLocalStorageNotes = async (): Promise<void> => {
+  if (localStorage.getItem(WEB_NOTES_KEY) === null) return;
+  let notes: StoredNote[];
+  try {
+    notes = webLoadNotes();
+  } catch (error) {
+    // Unreadable: webLoadNotes kept a copy under the -corrupt key. Leave both alone.
+    console.error("Old desktop notes are unreadable; not moving them", error);
+    return;
+  }
+  try {
+    if (notes.length > 0) {
+      await NoteStorage.migrateFromWeb({ notes });
+      const { notes: stored } = await NoteStorage.loadNotes();
+      const storedIds = new Set(stored.map((n) => n.id));
+      if (!notes.every((n) => storedIds.has(n.id))) {
+        console.error("Some notes didn't reach the encrypted database; keeping the old copy");
+        return;
+      }
+    }
+    localStorage.removeItem(WEB_NOTES_KEY);
+  } catch (error) {
+    console.error("Moving notes into the encrypted database failed; keeping the old copy", error);
+  }
+};
+
 export const loadNotes = async (): Promise<Note[]> => {
   if (!isNative) {
     return webLoadNotes().map(parseNote);
+  }
+  if (isDesktopApp()) {
+    await moveDesktopLocalStorageNotes();
   }
   // Let native errors propagate — callers must handle them.
   // Swallowing here made DB corruption indistinguishable from empty DB.
@@ -427,6 +467,19 @@ export const encryptData = async (data: string): Promise<string> => {
     console.error("Error encrypting data:", error);
     throw error;
   }
+};
+
+/**
+ * Desktop only: encrypts with this device's master key whether or not a PIN is
+ * set (encryptData passes data through when encryption is off). The key is
+ * always there on desktop, held by Credential Manager, so local files such as
+ * images can always be encrypted at rest, as the notes database is.
+ * decryptData reads the result.
+ */
+export const encryptWithDeviceKey = async (data: string): Promise<string> => {
+  if (!isDesktopApp()) throw new Error("encryptWithDeviceKey is desktop only");
+  const result = await NoteStorage.encrypt({ data });
+  return result.data;
 };
 
 export const decryptData = async (data: string): Promise<string> => {

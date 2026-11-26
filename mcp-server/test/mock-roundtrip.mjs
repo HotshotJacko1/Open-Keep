@@ -20,21 +20,35 @@ import { once } from "node:events";
 import { createHmac, randomBytes } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 import ts from "typescript";
 import { WebSocket, WebSocketServer } from "ws";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { BRIDGE_PROTOCOL_VERSION, proofInput } from "../dist/protocol.js";
+import { listTools, TOOLS_JSON_PATH } from "../scripts/list-tools.mjs";
 
-const TOKEN = "test-token-12345";
+// `--relay <exe>` runs the same tests against the desktop app's built-in
+// relay (`Open Keep.exe --mcp`, src-tauri/src/mcp/) instead of this package's
+// Node server: `npm run test:relay` after `cargo build` in src-tauri.
+const relayArg = process.argv.indexOf("--relay");
+const RELAY = relayArg > -1 ? resolve(process.argv[relayArg + 1]) : null;
+const SERVER = RELAY ? { command: RELAY, args: ["--mcp"] } : { command: "node", args: ["dist/index.js"] };
+
+// Fresh per run, so two runs at once (two terminals, two agent sessions)
+// can't pair with each other's servers: their windows dial every port in
+// the range, and with a shared token they would take each other's servers
+// over and make the takeover tests in section 16 flaky.
+const TOKEN = `test-token-${randomBytes(8).toString("hex")}`;
 // Well away from the real default range (8420-8424), so a copy of the Open
 // Keep extension already running on this machine can't answer the test's
 // connections (it would, with a different token, and the test would hang).
-const PORT = 18421;
-/** Base of a port range used only by the fake "squatter" servers. */
-const FAKE_BASE = 18531;
+// Randomised within 18400-25990 for the same reason as the token.
+const PORT = 18400 + Math.floor(Math.random() * 760) * 10;
+/** Base of a port range used only by the fake "squatter" servers, just past the servers' range. */
+const FAKE_BASE = PORT + 5;
 
 let passed = 0;
 let failed = 0;
@@ -131,15 +145,14 @@ async function squatter(onHello) {
 
 async function main() {
   const transport = new StdioClientTransport({
-    command: "node",
-    args: ["dist/index.js"],
+    ...SERVER,
     env: { ...process.env, OPENKEEP_MCP_TOKEN: TOKEN, OPENKEEP_MCP_PORT: String(PORT) },
     stderr: "pipe",
   });
 
   const client = new Client({ name: "test-client", version: "0.0.0" });
   await client.connect(transport);
-  console.log("MCP client connected to server over stdio.");
+  console.log(`MCP client connected to ${RELAY ? `the desktop relay (${RELAY})` : "the Node server"} over stdio.`);
 
   // --- 1. Calling a tool before any "browser tab" is connected --------
   console.log("\n1) tool call with no Open Keep client connected");
@@ -247,6 +260,15 @@ async function main() {
     assert(names.includes(name), `tool "${name}" is registered`);
   }
   assert(names.length === 15, `exactly 15 tools registered (found ${names.length})`);
+  if (RELAY) {
+    assert(isDeepStrictEqual(tools, await listTools()), "the relay serves exactly the Node server's tool list");
+  } else {
+    const exported = JSON.parse(await readFile(TOOLS_JSON_PATH, "utf8"));
+    assert(
+      isDeepStrictEqual(tools, exported),
+      `${fileURLToPath(TOOLS_JSON_PATH)} matches the server's tools (if not, run npm run export-tools)`
+    );
+  }
 
   // --- 8. Wrong client proof is rejected -------------------------------
   console.log("\n8) a second connection with a proof from the wrong token is rejected");
@@ -276,8 +298,7 @@ async function main() {
   // "not connected" forever while the app sat there showing Connected.
   console.log("\n9) a second server instance binds the next port and serves its own client");
   const transport2 = new StdioClientTransport({
-    command: "node",
-    args: ["dist/index.js"],
+    ...SERVER,
     env: { ...process.env, OPENKEEP_MCP_TOKEN: TOKEN, OPENKEEP_MCP_PORT: String(PORT) },
     stderr: "pipe",
   });
@@ -433,6 +454,64 @@ async function main() {
   const viaRealClient = await client.callTool({ name: "list_all_notes", arguments: {} });
   assert(/From the real browser client/.test(viaRealClient.content?.[0]?.text ?? ""), "tool call is answered by the real browser client end to end");
   realClient.disconnect();
+
+  // --- 16. Two windows with the same token: takeover, standby, no flapping --
+  // E.g. the desktop app and a browser tab both pasted the same token. Before
+  // standby, each redial knocked the other off every few seconds and tool
+  // calls alternated between two different sets of notes.
+  console.log("\n16) two Open Keep windows with the same token: newest takes over, the other stands by");
+  const answering = (title) => async (req) => ({
+    type: "response",
+    id: req.id,
+    ok: true,
+    data: [{ id: title, title, tags: [], isPinned: false, isArchived: false, createdAt: 1, updatedAt: 1 }],
+  });
+  const waitFor = async (cond) => {
+    for (let i = 0; i < 60 && !cond(); i++) await sleep(50);
+    return cond();
+  };
+  const windowA = { state: "disconnected", history: [] };
+  const windowB = { state: "disconnected", history: [] };
+  const clientA = new McpBridgeClient((s) => { windowA.state = s; windowA.history.push(s); }, fastOptions);
+  const clientB = new McpBridgeClient((s) => { windowB.state = s; windowB.history.push(s); }, fastOptions);
+
+  let hangA = false;
+  const handlerA = answering("Window A");
+  clientA.connect(TOKEN, PORT, (req) => (hangA ? new Promise(() => {}) : handlerA(req)));
+  assert(await waitFor(() => windowA.state === "connected"), "window A pairs");
+
+  clientB.connect(TOKEN, PORT, answering("Window B"));
+  assert(await waitFor(() => windowB.state === "connected" && windowA.state === "standby"), `the newer window B takes over and A goes to standby (A=${windowA.state}, B=${windowB.state})`);
+
+  windowB.history = [];
+  await sleep(1000); // ~10 standby polls at the 100ms test cadence
+  assert(windowA.state === "standby" && windowB.history.every((s) => s === "connected"), `no flapping: B stays connected while A polls (B saw ${JSON.stringify([...new Set(windowB.history)])})`);
+  const viaB = await client.callTool({ name: "list_all_notes", arguments: {} });
+  assert(/Window B/.test(viaB.content?.[0]?.text ?? ""), "tool calls go to the window holding the server");
+
+  clientB.disconnect();
+  assert(await waitFor(() => windowA.state === "connected"), "when B closes, A takes over by itself");
+  const viaA = await client.callTool({ name: "list_all_notes", arguments: {} });
+  assert(/Window A/.test(viaA.content?.[0]?.text ?? ""), "tool calls now go to A");
+
+  console.log("\n16b) a call in flight when another window takes over fails at once, not at the timeout");
+  hangA = true;
+  const started = Date.now();
+  const inFlight = client.callTool({ name: "list_all_notes", arguments: {} });
+  await sleep(200);
+  clientB.connect(TOKEN, PORT, answering("Window B"));
+  const orphaned = await inFlight;
+  assert(orphaned.isError === true && /closed before answering/i.test(orphaned.content?.[0]?.text ?? ""), "the orphaned call reports that the window closed");
+  assert(Date.now() - started < 4000, `it failed promptly (${Date.now() - started}ms, timeout is 8000ms)`);
+
+  console.log("\n16c) \"Use this window\" (a fresh connect) takes over from the other window");
+  assert(await waitFor(() => windowA.state === "standby"), "A is standing by again");
+  hangA = false;
+  clientA.connect(TOKEN, PORT, handlerA);
+  assert(await waitFor(() => windowA.state === "connected" && windowB.state === "standby"), `A takes over, B stands by (A=${windowA.state}, B=${windowB.state})`);
+  clientA.disconnect();
+  clientB.disconnect();
+
   await rm(dir, { recursive: true, force: true });
 
   ws.close();

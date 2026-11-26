@@ -1,0 +1,4 @@
+# libsqlite3-sys must link the SQLCipher build from build.rs, never a system
+# SQLite that vcpkg happens to have (it looks there before the linker does).
+[env]
+VCPKGRS_NO_SQLITE3 = "1"

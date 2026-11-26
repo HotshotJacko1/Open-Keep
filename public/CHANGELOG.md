@@ -4,8 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), but this project does not adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) because there is no public API.
 
-## [Unreleased]
-- Windows app.
+## [6.0.0] - 2026-11-26
+
+### Added
+- Windows app, with encrypted notes and cloud sync.
+- Windows app: Biometric Unlock uses Windows Hello.
+- Windows app: connect AI tools with no extension needed.
+- Windows app: launch at startup, optionally minimised to tray.
+- An occasional card invites a Ko-fi donation.
+
+### Changed
+- Feedback request pops up less often, never with another card.
+- Less usage data sent: just a daily check-in.
+
+### Removed
+- Web: Biometric Unlock, which never checked anything.
+
+### Fixed
+- AI tools no longer flip between two open windows.
 
 ## [5.5.0] - 2026-11-28
 

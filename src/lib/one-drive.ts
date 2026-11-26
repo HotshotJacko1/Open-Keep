@@ -2,12 +2,12 @@
 
 import { PublicClientApplication, Configuration, PopupRequest, NavigationClient, NavigationOptions, LogLevel, InteractionRequiredAuthError, INetworkModule, NetworkRequestOptions, NetworkResponse } from "@azure/msal-browser";
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
-import { Browser } from "@capacitor/browser";
 import { expectExternalActivity } from "@/lib/app-relock";
 import { encryptData, decryptData } from "@/lib/note-storage";
 import { parseSyncData, serializeSyncData } from "@/lib/sync-data";
 import { emptySyncData, isSameSyncData, mergeSyncData, takeSide, type SyncData, type SyncMergeResult, type SyncNotesOptions } from "@/lib/sync-merge";
 import { normalizeCloudMasterKeyPayload } from "@/lib/cloud-master-key";
+import { isDesktopApp, openInSystemBrowser, usesAppSignInRedirect } from "@/lib/platform";
 
 export const CLIENT_ID = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
 const FOLDER_NAME = "Open Keep Notes";
@@ -15,7 +15,7 @@ const NOTES_FILE_NAME = "notes.json";
 const ENCRYPTED_KEY_FILE_NAME = "encrypted_master_key.json";
 
 // MSAL Configuration
-export const REDIRECT_URI = Capacitor.isNativePlatform()
+export const REDIRECT_URI = usesAppSignInRedirect()
     ? "openkeep://auth"
     : (import.meta.env.VITE_ONEDRIVE_REDIRECT_URI || window.location.origin);
 
@@ -58,19 +58,64 @@ class NativeNetworkClient implements INetworkModule {
     }
 }
 
+/**
+ * Desktop: MSAL's requests go out through Tauri's HTTP plugin, like
+ * NativeNetworkClient on phones. Microsoft won't redeem a sign-in code for
+ * the openkeep:// (desktop/mobile) registration when the request carries an
+ * Origin header, and WebView2's own fetch always sends one. An empty Origin
+ * makes the plugin leave the header off (its unsafe-headers feature).
+ */
+class DesktopNetworkClient implements INetworkModule {
+    private async send<T>(method: "GET" | "POST", url: string, options?: NetworkRequestOptions): Promise<NetworkResponse<T>> {
+        const { fetch } = await import("@tauri-apps/plugin-http");
+        const headers: Record<string, string> = { ...(options?.headers || {}) };
+        delete headers["origin"];
+        headers["Origin"] = "";
+        const response = await fetch(url, {
+            method,
+            headers,
+            body: method === "POST" ? options?.body : undefined,
+        });
+        const text = await response.text();
+        let body: unknown = text;
+        try {
+            body = text ? JSON.parse(text) : {};
+        } catch {
+            // Not JSON -- keep the raw text.
+        }
+        const responseHeaders: Record<string, string> = {};
+        response.headers.forEach((value, key) => { responseHeaders[key] = value; });
+        return { body: body as T, headers: responseHeaders, status: response.status };
+    }
+
+    sendGetRequestAsync<T>(url: string, options?: NetworkRequestOptions): Promise<NetworkResponse<T>> {
+        return this.send<T>("GET", url, options);
+    }
+
+    sendPostRequestAsync<T>(url: string, options?: NetworkRequestOptions): Promise<NetworkResponse<T>> {
+        return this.send<T>("POST", url, options);
+    }
+}
+
+const networkClient = (): INetworkModule | undefined => {
+    if (isDesktopApp()) return new DesktopNetworkClient();
+    if (Capacitor.isNativePlatform()) return new NativeNetworkClient();
+    return undefined;
+};
+
 const msalConfig: Configuration = {
     auth: {
         clientId: CLIENT_ID,
         authority: "https://login.microsoftonline.com/common",
         redirectUri: REDIRECT_URI, // Ensure this is registered in Azure Portal
-        ...(Capacitor.isNativePlatform() ? { navigateToLoginRequestUrl: false } : {}),
+        ...(usesAppSignInRedirect() ? { navigateToLoginRequestUrl: false } : {}),
     },
     cache: {
         cacheLocation: "localStorage", // This configures where your cache will be stored
         storeAuthStateInCookie: false, // Set this to "true" if you are having issues on IE11 or Edge
     },
     system: {
-        ...(Capacitor.isNativePlatform() ? { networkClient: new NativeNetworkClient() } : {}),
+        ...(networkClient() ? { networkClient: networkClient() } : {}),
         loggerOptions: {
             loggerCallback: (level, message, containsPii) => {
                 if (containsPii) return;
@@ -100,9 +145,9 @@ export const msalInstance = new PublicClientApplication(msalConfig);
 // For MSAL Browser v2/v3, initialize needs to be called.
 class CustomNavigationClient extends NavigationClient {
     async navigateExternal(url: string, options: NavigationOptions) {
-        if (Capacitor.isNativePlatform()) {
+        if (usesAppSignInRedirect()) {
             expectExternalActivity();
-            await Browser.open({ url });
+            await openInSystemBrowser(url);
             return true;
         } else {
             return super.navigateExternal(url, options);
@@ -125,7 +170,7 @@ export const initOneDrive = async () => {
         }
 
         // On web, the OAuth redirect hash is in window.location — handle it once at startup.
-        if (!Capacitor.isNativePlatform()) {
+        if (!usesAppSignInRedirect()) {
             try {
                 const response = await msalInstance.handleRedirectPromise();
                 if (response?.account) {
@@ -170,6 +215,14 @@ const loginRequest: PopupRequest = {
 
 export const loginToOneDrive = async () => {
     await initOneDrive();
+    if (usesAppSignInRedirect()) {
+        // Sign-in happens in the browser and may never come back (tab closed,
+        // cancelled, or opening it failed). MSAL would then refuse every new
+        // sign-in with interaction_in_progress until the app restarts, so a new
+        // sign-in replaces the old one. A late redirect from the old one fails
+        // MSAL's state check and is ignored.
+        for (const store of [sessionStorage, localStorage]) store.removeItem("msal.interaction.status");
+    }
     try {
         await msalInstance.loginRedirect(loginRequest);
     } catch (err) {

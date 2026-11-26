@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket, type RawData } from "ws";
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import {
   BRIDGE_PROTOCOL_VERSION,
+  SUPERSEDED_CLOSE_CODE,
   isHex32,
   proofInput,
   type BridgeOp,
@@ -10,6 +11,7 @@ import {
   type HelloAck,
   type HelloAckReason,
   type InboundMessage,
+  type SupersededMessage,
 } from "./protocol.js";
 
 const REQUEST_TIMEOUT_MS = 8000;
@@ -26,7 +28,7 @@ export const PORT_SPAN = 5;
 export class BridgeNotConnectedError extends Error {
   constructor(detail?: string) {
     super(
-      'Open Keep is not connected. Open app.openkeep.net in a browser and turn on "Let AI read/edit notes" in Settings > AI Assistant Access.' +
+      'Open Keep is not connected. Open the Open Keep desktop app, or app.openkeep.net in a browser, unlock it, and turn on "Let AI read notes" (and "Let AI create, edit & delete notes" for changes) in Settings > AI Assistant Access.' +
         (detail ? ` ${detail}` : "")
     );
     this.name = "BridgeNotConnectedError";
@@ -76,14 +78,17 @@ interface PendingCall {
   resolve: (data: unknown) => void;
   reject: (err: Error) => void;
   timer: ReturnType<typeof setTimeout>;
+  /** The connection the request went out on. */
+  socket: WebSocket;
 }
 
 /**
- * Hosts the local WebSocket listener that an Open Keep client (today: the
- * browser tab; later: a possible native app) connects OUT to, since a
- * browser can never open its own listening socket. Exactly one connection
+ * Hosts the local WebSocket listener that an Open Keep window (a browser
+ * tab, or the Windows desktop app's WebView) connects OUT to, since a
+ * page can never open its own listening socket. Exactly one connection
  * is treated as "the" active bridge at a time — a newer authenticated
- * connection replaces an older one.
+ * connection replaces an older one, which then waits in standby (see the
+ * handshake block in protocol.ts).
  */
 export class BridgeServer {
   private wss: WebSocketServer | null = null;
@@ -218,16 +223,25 @@ export class BridgeServer {
         const given = Buffer.from(msg.clientProof, "hex");
         // isHex32 already fixed both at 32 bytes, so timingSafeEqual can't throw.
         if (!timingSafeEqual(expected, given)) return refuse("bad_proof");
+        // A window in standby only pairs when nothing else holds this server.
+        if (msg.standby === true && this.isConnected() && this.socket !== ws) return refuse("in_use");
 
         phase = "authed";
         clearTimeout(handshakeTimer);
         this.sawProtocolMismatch = false;
         const ack: HelloAck = { type: "hello_ack", ok: true, protocolVersion: BRIDGE_PROTOCOL_VERSION };
         ws.send(JSON.stringify(ack));
-        // Only one client counts as "connected" at a time — a fresh
-        // authenticated connection (e.g. the tab was reloaded) replaces
-        // whatever was there before rather than stacking up.
-        if (this.socket && this.socket !== ws) this.socket.close();
+        // Only one window counts as "connected" at a time. A fresh paired
+        // connection (a reloaded tab, or the desktop app opened alongside a
+        // tab) takes over, and the old one is told why so it waits in
+        // standby instead of redialling to take the server back.
+        if (this.socket && this.socket !== ws) {
+          const old = this.socket;
+          const superseded: SupersededMessage = { type: "superseded" };
+          old.send(JSON.stringify(superseded));
+          old.close(SUPERSEDED_CLOSE_CODE, "superseded");
+          this.failPending(old);
+        }
         this.socket = ws;
         return;
       }
@@ -249,7 +263,22 @@ export class BridgeServer {
       phase = "closed";
       clearTimeout(handshakeTimer);
       if (this.socket === ws) this.socket = null;
+      this.failPending(ws);
     });
+  }
+
+  /**
+   * Fails the calls waiting on a connection whose answers can no longer
+   * arrive (another window took over, or it closed), at once rather than at
+   * the timeout.
+   */
+  private failPending(ws: WebSocket): void {
+    for (const [id, pending] of this.pending) {
+      if (pending.socket !== ws) continue;
+      clearTimeout(pending.timer);
+      this.pending.delete(id);
+      pending.reject(new Error("The Open Keep window this request went to closed before answering. Try again."));
+    }
   }
 
   isConnected(): boolean {
@@ -277,8 +306,9 @@ export class BridgeServer {
         reject(new Error("Timed out waiting for Open Keep to respond."));
       }, REQUEST_TIMEOUT_MS);
 
-      this.pending.set(id, { resolve, reject, timer });
-      this.socket!.send(JSON.stringify(request));
+      const socket = this.socket!;
+      this.pending.set(id, { resolve, reject, timer, socket });
+      socket.send(JSON.stringify(request));
     });
   }
 

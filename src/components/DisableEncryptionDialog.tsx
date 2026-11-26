@@ -16,11 +16,11 @@ import { disableEncryption, verifyEncryptionPin } from "@/lib/encryption-pin";
 import { getLockRemainingMs, recordFailedAttempt, clearFailedAttempts, formatLockRemaining } from "@/lib/pin-attempts";
 import { BIOMETRICS_ENABLED_KEY, isAppLockEnabled } from "@/lib/pin";
 import { useBackToClose } from "@/hooks/use-back-to-close";
-import { Capacitor } from "@capacitor/core";
+import { hasNativeStorage } from "@/lib/platform";
 
 // On web, notes in this browser's storage were never encrypted (C1-21), so only
-// images and the cloud copy change. Native keeps notes in SQLCipher either way.
-const isNative = Capacitor.isNativePlatform();
+// images and the cloud copy change. Android, iOS and desktop keep notes in SQLCipher either way.
+const isNative = hasNativeStorage();
 
 interface DisableEncryptionDialogProps {
     isOpen: boolean;

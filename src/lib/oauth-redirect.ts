@@ -1,6 +1,7 @@
 // Copyright (c) 2026. Licensed under AGPLv3.
 import { App as CapacitorApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
+import { isDesktopApp } from "@/lib/platform";
 
 export type OAuthRedirectHandler = {
     id: string;
@@ -75,7 +76,35 @@ const dispatchOAuthRedirect = async (url: string): Promise<void> => {
     }
 };
 
+let desktopListening = false;
+
+/**
+ * Desktop: Windows starts Open Keep with the openkeep:// link, and the
+ * single-instance plugin hands it to the running app, where the deep-link
+ * plugin reports it. getCurrent() covers a link that launched the app itself.
+ */
+const ensureDesktopDeepLinkListener = async (): Promise<void> => {
+    if (desktopListening) return;
+    desktopListening = true;
+    const { getCurrent, onOpenUrl } = await import("@tauri-apps/plugin-deep-link");
+    const dispatchAll = (urls: string[] | null) => {
+        for (const url of urls ?? []) {
+            dispatchOAuthRedirect(url).catch((error) => console.error("OAuth redirect failed:", error));
+        }
+    };
+    try {
+        dispatchAll(await getCurrent());
+    } catch (error) {
+        console.warn("Failed to read OAuth launch URL:", error);
+    }
+    await onOpenUrl(dispatchAll);
+};
+
 const ensureOAuthListener = async (): Promise<void> => {
+    if (isDesktopApp()) {
+        await ensureDesktopDeepLinkListener();
+        return;
+    }
     if (!Capacitor.isNativePlatform()) return;
 
     if (!launchUrlChecked) {

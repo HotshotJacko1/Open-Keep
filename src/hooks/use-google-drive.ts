@@ -17,6 +17,7 @@ import { useCloudSyncState, useLastSynced } from "@/lib/cloud-sync-state";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { isGoogleDriveSyncAvailable } from "@/lib/build-flavor";
+import { isDesktopApp } from "@/lib/platform";
 
 export { isGoogleDriveAuthBusy, isGoogleDriveScopeBlocked } from "@/lib/google-drive-auth-state";
 
@@ -360,42 +361,66 @@ export const useGoogleDrive = () => {
         return () => window.removeEventListener("google-user-updated", handleUserUpdated);
     }, []);
 
+    /**
+     * Web and desktop: swap Google's one-time code for tokens (through the
+     * Supabase function, which holds the client secret), then connect and sync.
+     * `redirectUri` is the one the code was issued for.
+     */
+    const finishCodeLogin = async (code: string, redirectUri: string) => {
+        try {
+            const tokenRes = await requestGoogleTokens({ code, redirectUri });
+            if (isTokenEndpointFailure(tokenRes)) {
+                throw new Error(`Google token exchange failed (${tokenRes.error})`);
+            }
+            const accessToken = persistTokenResponse(tokenRes);
+
+            // Initialize GAPI
+            await initGoogleDrive();
+
+            // Get user info to display email
+            const userInfo = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { Authorization: `Bearer ${accessToken}` },
+            }).then(res => res.json());
+
+            setUserEmail(userInfo.email);
+            localStorage.setItem("google-user-email", userInfo.email);
+
+            showSuccess(`Connected to Google Drive as ${userInfo.email}`);
+            const result = await doInternalSync();
+            if (result && result.status === "conflict" && 'cloudPayload' in result) {
+                window.dispatchEvent(new CustomEvent("open-sync-conflict", { detail: { service: "google", payload: result.cloudPayload, reason: result.reason } }));
+            }
+        } catch (error) {
+            console.error("Login setup failed:", error);
+            showError("Failed to connect to Google Drive.");
+        }
+    };
+
+    /** Desktop: Google's consent page in the default browser (lib/google-desktop-auth.ts). */
+    const desktopLogin = async () => {
+        try {
+            const { signInWithGoogleOnDesktop } = await import("@/lib/google-desktop-auth");
+            showSuccess("Continue signing in to Google in your browser.");
+            const { code, redirectUri } = await signInWithGoogleOnDesktop(
+                GOOGLE_WEB_CLIENT_ID,
+                ["openid", ...GOOGLE_DRIVE_SCOPES],
+                userEmail || undefined,
+            );
+            await finishCodeLogin(code, redirectUri);
+        } catch (error) {
+            console.error("Desktop Google sign-in failed:", error);
+            showError((error as Error)?.message || "Google Sign-In Failed");
+        }
+    };
+
     const webLogin = useGoogleLogin({
         onSuccess: async (tokenResponse: Pick<CodeResponse, "code">) => {
-            try {
-                if (!tokenResponse.code) {
-                    throw new Error("No authorization code received from Google");
-                }
-                
-                const tokenRes = await requestGoogleTokens({
-                    code: tokenResponse.code,
-                    redirectUri: window.location.origin
-                });
-                if (isTokenEndpointFailure(tokenRes)) {
-                    throw new Error(`Google token exchange failed (${tokenRes.error})`);
-                }
-                const accessToken = persistTokenResponse(tokenRes);
-
-                // Initialize GAPI
-                await initGoogleDrive();
-
-                // Get user info to display email
-                const userInfo = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                    headers: { Authorization: `Bearer ${accessToken}` },
-                }).then(res => res.json());
-
-                setUserEmail(userInfo.email);
-                localStorage.setItem("google-user-email", userInfo.email);
-
-                showSuccess(`Connected to Google Drive as ${userInfo.email}`);
-                const result = await doInternalSync();
-                if (result && result.status === "conflict" && 'cloudPayload' in result) {
-                    window.dispatchEvent(new CustomEvent("open-sync-conflict", { detail: { service: "google", payload: result.cloudPayload, reason: result.reason } }));
-                }
-            } catch (error) {
-                console.error("Login setup failed:", error);
+            if (!tokenResponse.code) {
+                console.error("Login setup failed: no authorization code received from Google");
                 showError("Failed to connect to Google Drive.");
+                return;
             }
+            await finishCodeLogin(tokenResponse.code, window.location.origin);
         },
         onError: (error) => {
             console.error("Login Failed:", error);
@@ -448,9 +473,10 @@ export const useGoogleDrive = () => {
                     return await doInternalSync();
                 }
             } catch (e) {
-                console.log("Silent refresh failed during login, falling back to popup", e);
+                console.log("Silent refresh failed during login, falling back to interactive sign-in", e);
             }
-            webLogin();
+            if (isDesktopApp()) await desktopLogin();
+            else webLogin();
         }
     };
 
@@ -486,7 +512,8 @@ export const useGoogleDrive = () => {
             },
             onAuthError: (isSilent) => {
                 if (!isSilent && !Capacitor.isNativePlatform()) {
-                    webLogin();
+                    if (isDesktopApp()) void desktopLogin();
+                    else webLogin();
                     return { status: "error", message: "Re-authenticating..." };
                 }
                 if (!isSilent) showError("Google Drive session expired. Please reconnect.");

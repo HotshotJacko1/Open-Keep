@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026. Licensed under AGPLv3.
+
+  Microsoft Store package for the desktop app, packed by scripts/build-msix.ps1
+  around the Tauri release build. The Identity and PublisherDisplayName must
+  match Partner Center (Open Keep, Store ID 9PH1JT22QHDK; see
+  docs/plans/D1-windows-desktop.md). {{VERSION}} is filled in from
+  tauri.conf.json (itself synced from android/app/build.gradle).
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  IgnorableNamespaces="uap rescap desktop">
+
+  <Identity
+    Name="JackBarkerApps.OpenKeep"
+    Publisher="CN=382B8A97-CD32-4510-958F-EC66B19A7BCA"
+    Version="{{VERSION}}"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Open Keep</DisplayName>
+    <PublisherDisplayName>Jack Barker Apps</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>Private, encrypted notes with optional cloud sync.</Description>
+  </Properties>
+
+  <!-- 1809: the oldest Windows 10 that WebView2 supports. -->
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-gb" />
+  </Resources>
+
+  <Applications>
+    <!-- Id = the Tauri identifier: tauri-plugin-notification sends toasts as
+         <package family>!com.jackbarkerapps.openkeep, so the app must have that
+         Id for Windows to show them with the app's name and icon. -->
+    <Application Id="com.jackbarkerapps.openkeep" Executable="open-keep.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Open Keep"
+        Description="Private, encrypted notes with optional cloud sync."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile ShortName="Open Keep" />
+      </uap:VisualElements>
+      <Extensions>
+        <!-- Dropbox and OneDrive sign-in return on openkeep://auth. Inside a
+             package this declaration replaces the registry entry the NSIS
+             installer writes; Windows starts open-keep.exe with the link as its
+             argument, and the single-instance plugin hands it to the running app. -->
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="openkeep">
+            <uap:DisplayName>Open Keep</uap:DisplayName>
+          </uap:Protocol>
+        </uap:Extension>
+        <!-- Settings → "Launch at startup" (src-tauri/src/autostart.rs). A
+             package can't use the HKCU Run key, so the app switches this task
+             on and off with the StartupTask API. Off until the user asks. -->
+        <desktop:Extension Category="windows.startupTask" Executable="open-keep.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="OpenKeepStartup" Enabled="false" DisplayName="Open Keep" />
+        </desktop:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <!-- Required for every packaged desktop (Win32) app. -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

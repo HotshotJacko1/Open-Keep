@@ -20,6 +20,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Bot, Undo2, Circle, Copy, Check, Eye, EyeOff, RefreshCw, ArrowLeft, ExternalLink } from "lucide-react";
 import { McpBridgeState } from "@/hooks/use-mcp-bridge";
 import { useBackToClose } from "@/hooks/use-back-to-close";
+import { isDesktopApp } from "@/lib/platform";
+import AiToolConnectSection from "@/components/AiToolConnectSection";
 
 interface AiAssistantDialogProps {
   isOpen: boolean;
@@ -31,6 +33,7 @@ const STATUS_COPY: Record<McpBridgeState["connectionState"], { label: string; cl
   connected: { label: "Connected", className: "text-success" },
   connecting: { label: "Connecting…", className: "text-muted-foreground" },
   disconnected: { label: "Not connected", className: "text-muted-foreground" },
+  standby: { label: "Standing by", className: "text-muted-foreground" },
   rejected: { label: "Pairing failed", className: "text-destructive" },
 };
 
@@ -57,6 +60,7 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
   const { connectionState, rejectReason, retryConnection, connectedCount, readEnabled, writeEnabled, setReadEnabled, setWriteEnabled, token, regenerateToken, activity, undoActivity, disconnectAccess } = aiBridge;
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
+  const desktop = isDesktopApp();
 
   useBackToClose("ai-assistant", isOpen, onClose);
 
@@ -98,7 +102,7 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
             </DialogTitle>
             <DialogDescription>
               Let a paired AI tool (via the Open Keep MCP server, running on this computer) search, read, and
-              manage your notes while this tab is open. Off by default.
+              manage your notes while {desktop ? "Open Keep" : "this tab"} is open. Off by default.
             </DialogDescription>
           </div>
         </DialogHeader>
@@ -112,15 +116,30 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
                 Retry
               </Button>
             )}
+            {connectionState === "standby" && (
+              <Button variant="outline" size="sm" className="ml-auto h-7 text-text-primary dark:text-text-primary" onClick={retryConnection}>
+                Use this window
+              </Button>
+            )}
           </div>
           {connectionState === "rejected" && rejectReason && (
             <p className="-mt-3 text-xs text-muted-foreground">{REJECT_COPY[rejectReason]}</p>
           )}
+          {connectionState === "standby" && (
+            <p className="-mt-3 text-xs text-muted-foreground">
+              Another Open Keep window with this pairing token is connected to your AI tool, so the AI is working
+              with that window's notes. This one takes over if that one closes.
+            </p>
+          )}
+
+          {desktop && <AiToolConnectSection />}
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="ai-pairing-token" className="text-text-primary dark:text-text-primary">Your pairing token</Label>
             <p className="text-xs text-muted-foreground">
-              Copy this and paste it into the Open Keep extension when you install it in your AI tool. Treat it like a password.
+              {desktop
+                ? "Only needed for the separate Open Keep extension, for example to use app.openkeep.net in a browser. Tools connected above don't need it. Treat it like a password."
+                : "Copy this and paste it into the Open Keep extension when you install it in your AI tool. Treat it like a password."}
             </p>
             <div className="flex gap-2">
               <Input
@@ -218,7 +237,9 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
                 Disconnect AI access
               </Button>
               <p className="text-xs text-muted-foreground">
-                Turns both switches off and retires this token, so anything paired with it stops working. A new token is issued for next time.
+                {desktop
+                  ? "Turns both switches off and retires this token, so the Open Keep extension stops working until you paste in the new one. Tools connected above pick up the new token by themselves when you switch access back on."
+                  : "Turns both switches off and retires this token, so anything paired with it stops working. A new token is issued for next time."}
               </p>
             </div>
           )}

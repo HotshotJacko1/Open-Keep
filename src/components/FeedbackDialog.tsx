@@ -67,7 +67,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
       >
         <DialogHeader className="flex flex-row items-center justify-between">
           <DialogTitle className="">
-            {isSubmitted ? "Thank you!" : "Would you recommend the app?"}
+            {isSubmitted ? "Thank you!" : "Would you recommend Open Keep?"}
           </DialogTitle>
           <Button variant="ghost" size="icon" onClick={handleClose} className="touch-target h-8 w-8">
             <X className="h-5 w-5" />
