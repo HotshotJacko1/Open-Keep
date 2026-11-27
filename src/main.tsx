@@ -17,6 +17,7 @@ import * as SentryReact from "@sentry/react";
 import { Capacitor } from "@capacitor/core";
 import { isDesktopApp } from "./lib/platform";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import { startPwa } from "./lib/pwa";
 
 // Session Replay — 10% of sessions, 100% of sessions with errors.
 // CapacitorOptions omits these, but Sentry.init forwards every option to the
@@ -131,6 +132,9 @@ window.addEventListener("vite:preloadError", (event) => {
   event.preventDefault();
   window.location.reload();
 });
+
+// Installable web app: service worker, updates and the install prompt (browser only).
+startPwa();
 
 // iOS WebKit only applies :active on touch when a touchstart listener exists
 // somewhere on the page. The .press-feedback tint (globals.css) relies on it.

@@ -3,6 +3,7 @@ import { defineConfig, loadEnv } from "vite";
 import dyadComponentTagger from "@dyad-sh/react-vite-component-tagger";
 import react from "@vitejs/plugin-react-swc";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
+import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 import fs from "fs";
 
@@ -50,6 +51,52 @@ export default defineConfig(({ mode }) => {
     plugins: [
       dyadComponentTagger(),
       react(),
+      // Installable web app (PWA): the manifest, and a service worker that keeps
+      // the app's files on the device so it opens offline. The worker is only
+      // registered in a browser (src/lib/pwa.ts), never in the phone or desktop
+      // apps, which ship dist/ too. To take it back out of browsers that already
+      // have it, set `selfDestroying: true` and deploy.
+      VitePWA({
+        injectRegister: false,
+        registerType: "prompt",
+        includeAssets: ["favicon.svg", "favicon.ico", "icons/apple-touch-icon.png"],
+        manifest: {
+          id: "/",
+          name: "Open Keep",
+          short_name: "Open Keep",
+          description: "Private, encrypted notes with optional sync.",
+          start_url: "/",
+          scope: "/",
+          display: "standalone",
+          background_color: "#ffffff",
+          theme_color: "#ffffff",
+          icons: [
+            { src: "/icons/pwa-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+            { src: "/icons/pwa-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+            { src: "/icons/pwa-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+          ],
+        },
+        workbox: {
+          globPatterns: ["**/*.{js,css,html,svg,ico,png,woff2}"],
+          // config.js is rewritten at every start of the self-hosted container,
+          // so it is fetched fresh (below), never served from the precache.
+          globIgnores: ["config.js", "**/*.map"],
+          maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+          navigateFallback: "index.html",
+          // The self-hosted image forwards /webdav/ to the WebDAV server.
+          navigateFallbackDenylist: [/^\/webdav\//],
+          cleanupOutdatedCaches: true,
+          // No .map files in dist/: it is copied into the phone and desktop apps.
+          sourcemap: false,
+          runtimeCaching: [
+            {
+              urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname === "/config.js",
+              handler: "NetworkFirst",
+              options: { cacheName: "open-keep-config", networkTimeoutSeconds: 3 },
+            },
+          ],
+        },
+      }),
       // Must come last so it sees the final emitted bundle.
       ...(uploadSourcemaps
         ? [

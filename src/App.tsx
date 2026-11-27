@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
 import LockScreen from "./components/LockScreen";
+import InstallAppDialog from "./components/InstallAppDialog";
 import { Button } from "@/components/ui/button";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { checkDatabaseStatus, initializeDatabase, clearAllData, setSecureWindow, verifyEncryptionPin } from "./lib/note-storage";
@@ -342,6 +343,8 @@ const App = () => {
       {appState === 'ready' && (
         <TooltipProvider>
           <Sonner />
+          {/* Opened from the install link, app.openkeep.net/install (lib/pwa.ts). */}
+          <InstallAppDialog />
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />

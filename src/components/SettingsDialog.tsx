@@ -39,6 +39,8 @@ import AppLockDialog from "./AppLockDialog";
 import GoogleKeepMigrationGuide from "./GoogleKeepMigrationGuide";
 import ChangelogDialog from "./ChangelogDialog";
 import DesktopStartupSettings from "./DesktopStartupSettings";
+import CheckForUpdatesButton from "./CheckForUpdatesButton";
+import InstallAppSettings from "./InstallAppSettings";
 import { KOFI_URL } from "@/lib/launch-prompts";
 import kofiLogo from "@/Assets/kofi-logo.png";
 import EnableEncryptionDialog from "./EnableEncryptionDialog";
@@ -427,7 +429,7 @@ PIN code: ${pinCode || 'Not set'}`;
                     </Button>
                   </>
                 ) : (
-                  <Button variant="outline" onClick={() => setIsEnableEncryptionDialogOpen(true)} className="w-full justify-start text-success hover:text-success/80">
+                  <Button variant="outline" onClick={() => setIsEnableEncryptionDialogOpen(true)} className="w-full justify-start">
                     <Shield className="h-4 w-4 mr-2" />
                     Enable Encryption
                   </Button>
@@ -544,6 +546,8 @@ PIN code: ${pinCode || 'Not set'}`;
               </div>
             </div>
 
+            <InstallAppSettings />
+
             {isDesktopApp() && <DesktopStartupSettings />}
 
             <div className="flex flex-col gap-2 mt-4">
@@ -614,6 +618,7 @@ PIN code: ${pinCode || 'Not set'}`;
                 {appVersion}
               </span>
             </div>
+            <CheckForUpdatesButton />
 
             {/* Supabase User ID */}
             {user?.id && (

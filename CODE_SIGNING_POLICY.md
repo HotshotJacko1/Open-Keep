@@ -18,7 +18,7 @@ All team members use multi-factor authentication for GitHub and SignPath.
 ## What gets signed
 
 Only binaries built from this repository's source by the release workflow:
-`open-keep.exe` and its NSIS installer `OpenKeep-<version>-windows-x64-setup.exe`.
+`open-keep.exe` and its NSIS installer `OpenKeep-windows-x64-setup.exe`.
 Nothing built on a personal computer is signed. The Microsoft Store version is
 signed by Microsoft.
 

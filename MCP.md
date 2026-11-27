@@ -67,8 +67,8 @@ update.
 
 1. **Get your pairing token.** In Open Keep, go to **Settings → AI Assistant
    Access**. Copy the token shown there.
-2. **Download the extension.** Grab `open-keep.mcpb` from the
-   [latest release](https://github.com/HotshotJacko1/Open-Keep/releases/latest).
+2. **Download the extension.** Grab `open-keep.mcpb` from the newest
+   [MCP server release](https://github.com/HotshotJacko1/Open-Keep/releases?q=mcp-v&expanded=true).
 3. **Install it.** In Claude Desktop, go to **Settings → Extensions → Advanced
    settings → Install Extension…** and pick the file you downloaded. (Dragging
    the file onto the Claude Desktop window works too. Double-clicking only works

@@ -17,7 +17,8 @@ import { useWebDav, type WebDavConnectInput } from "@/hooks/use-webdav";
 import WebDavConnectForm from "@/components/WebDavConnectForm";
 import { FULL_BUILD_PLAY_URL, FULL_BUILD_GITHUB_URL, areOAuthSyncProvidersAvailable, isSelfHosted } from "@/lib/build-flavor";
 
-import { Loader2, FolderSync, ArrowLeft, AlertCircle, Check } from "lucide-react";
+import { Loader2, Server, ArrowLeft, AlertCircle, Check } from "lucide-react";
+import { GoogleDriveIcon, OneDriveIcon, DropboxIcon } from "@/components/icons/SyncProviderIcons";
 import { showSuccess, showError } from "@/utils/toast";
 import { loadNotes, verifyEncryptionPin, type SyncConflictReason, type SyncResult } from "@/lib/note-storage";
 import { disableEncryption } from "@/lib/encryption-pin";
@@ -244,12 +245,12 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                     variant="outline"
                     type="button"
                   >
-                    <FolderSync className="mr-2 h-4 w-4" /> Sync with Google Drive
+                    <GoogleDriveIcon className="mr-2 h-4 w-4" /> Sync with Google Drive
                   </Button>
                 ) : (
                   <div className="flex flex-col gap-1">
                     <Button className="w-full justify-start" variant="outline" type="button" disabled>
-                      <FolderSync className="mr-2 h-4 w-4" /> Sync with Google Drive
+                      <GoogleDriveIcon className="mr-2 h-4 w-4" /> Sync with Google Drive
                     </Button>
                     <p className="text-xs text-muted-foreground px-1">
                       Google Drive sync is available in the full build at{" "}
@@ -266,15 +267,15 @@ const SyncDialog: React.FC<SyncDialogProps> = ({ isOpen, onClose }) => {
                 {areOAuthSyncProvidersAvailable && (
                   <>
                     <Button onClick={() => oneDrive.login()} className="w-full justify-start" variant="outline" type="button">
-                      <FolderSync className="mr-2 h-4 w-4" /> Sync with OneDrive
+                      <OneDriveIcon className="mr-2 h-4 w-4" /> Sync with OneDrive
                     </Button>
                     <Button onClick={() => dropbox.login()} className="w-full justify-start" variant="outline" type="button">
-                      <FolderSync className="mr-2 h-4 w-4" /> Sync with Dropbox
+                      <DropboxIcon className="mr-2 h-4 w-4" /> Sync with Dropbox
                     </Button>
                   </>
                 )}
                 <Button onClick={() => setShowWebDavForm(true)} className="w-full justify-start" variant="outline" type="button">
-                  <FolderSync className="mr-2 h-4 w-4" /> Sync with WebDAV (Nextcloud, etc.)
+                  <Server className="mr-2 h-4 w-4" /> Sync with WebDAV (Nextcloud, etc.)
                 </Button>
               </div>
             ) : conflictData?.reason === "pin_required" ? (

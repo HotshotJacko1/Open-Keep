@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), but this project does not adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) because there is no public API.
 
+## [6.1.0] - 2026-11-26
+
+### Added
+- Install the web app on desktop, from Settings.
+- Web app opens offline, and shows when updates are ready.
+- Install link shows steps for your browser or device.
+- Windows app: "Check for updates" button in Settings.
+
+### Changed
+- Sync options show each service's logo.
+
 ## [6.0.0] - 2026-11-26
 
 ### Added
@@ -23,7 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 - AI tools no longer flip between two open windows.
 
-## [5.5.0] - 2026-11-28
+## [5.5.0] - 2026-11-26
 
 ### Added
 - WebDAV sync, for Nextcloud and other self-hosted storage.

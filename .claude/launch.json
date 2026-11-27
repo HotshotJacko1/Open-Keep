@@ -24,6 +24,19 @@
         "--strictPort"
       ],
       "port": 8124
+    },
+    {
+      "name": "preview",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "exec",
+        "vite",
+        "preview",
+        "--port",
+        "8125",
+        "--strictPort"
+      ],
+      "port": 8125
     }
   ]
 }

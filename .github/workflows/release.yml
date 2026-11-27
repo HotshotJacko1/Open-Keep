@@ -191,7 +191,10 @@ jobs:
         shell: bash
         run: |
           VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
-          INSTALLER="OpenKeep-${GITHUB_REF_NAME#v}-windows-x64-setup.exe"
+          # A fixed name (no version), so the website can always link to
+          # .../releases/latest/download/OpenKeep-windows-x64-setup.exe. Each
+          # release's own URL still has its tag in it (latest.json, winget).
+          INSTALLER="OpenKeep-windows-x64-setup.exe"
           cp src-tauri/target/release/bundle/nsis/*-setup.exe "$INSTALLER"
           SIG=$(ls src-tauri/target/release/bundle/nsis/*-setup.exe.sig 2>/dev/null | head -1)
           if [ -n "$SIG" ]; then
@@ -213,7 +216,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            OpenKeep-*-windows-x64-setup.exe
+            OpenKeep-windows-x64-setup.exe
             latest.json
 
       # winget (docs/store/winget.md): once the first version of
@@ -229,7 +232,7 @@ jobs:
         run: |
           $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
           $tag = "${{ github.ref_name }}"
-          $url = "https://github.com/${{ github.repository }}/releases/download/$tag/OpenKeep-$($tag.TrimStart('v'))-windows-x64-setup.exe"
+          $url = "https://github.com/${{ github.repository }}/releases/download/$tag/OpenKeep-windows-x64-setup.exe"
           Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
           ./wingetcreate.exe update JackBarkerApps.OpenKeep --version $version --urls $url --submit --token $env:WINGET_TOKEN
 
